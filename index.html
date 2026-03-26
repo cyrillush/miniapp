@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>fufuro - 실시간 온라인 오목</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root { --main-pink: #ff9abf; --bg-pink: #fff0f5; --accent: #ff6b9d; }
+        body {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; background-color: var(--bg-pink); 
+            font-family: 'Apple SD Gothic Neo', sans-serif; touch-action: manipulation; overflow: hidden;
+        }
+        .logo { font-size: 3.5rem; font-weight: 900; color: var(--main-pink); text-shadow: 3px 3px 0 #fff; font-style: italic; margin-bottom: 5px; cursor: pointer; }
+        #status {
+            margin-bottom: 15px; font-size: 1.1rem; font-weight: bold; padding: 10px 25px;
+            background: #fff; border-radius: 30px; color: var(--accent);
+            box-shadow: 0 4px 15px rgba(255,154,191,0.2); min-width: 200px; text-align: center;
+        }
+        canvas {
+            background-color: #fffbf2; box-shadow: 0 10px 30px rgba(255,182,193,0.4);
+            border-radius: 20px; max-width: 92vw; max-height: 92vw; border: 6px solid #ffd1dc; touch-action: none;
+        }
+        .ui { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; width: 80%; max-width: 300px; }
+        button {
+            padding: 12px; font-size: 1rem; font-weight: bold; border: none;
+            background-color: var(--main-pink); color: white; border-radius: 50px;
+            box-shadow: 0 4px 0 #e689ac; transition: 0.1s; cursor: pointer;
+        }
+        button:active { transform: translateY(3px); box-shadow: 0 1px 0 #e689ac; }
+        .copy-info { font-size: 0.75rem; color: #aaa; text-align: center; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="logo" onclick="location.href=window.location.pathname">fufuro</div>
+    <div id="status">로딩 중... ✨</div>
+    <canvas id="omokCanvas"></canvas>
+    
+    <div class="ui">
+        <button id="inviteBtn" style="display:none;" onclick="copyLink()">친구 초대하기 🔗</button>
+        <button onclick="location.href=window.location.pathname">새 방 만들기 / 나가기</button>
+        <div id="copyNotice" class="copy-info"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('omokCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusDisplay = document.getElementById('status');
+        const inviteBtn = document.getElementById('inviteBtn');
+        
+        const size = 15;
+        let cellSize, board = [], gameOver = false;
+        let myColor = null, turn = 1, peer, conn;
+
+        function initBoard() {
+            const winSize = Math.min(window.innerWidth * 0.92, 450);
+            canvas.width = winSize; canvas.height = winSize;
+            cellSize = canvas.width / (size + 1);
+            board = Array.from({ length: size }, () => Array(size).fill(0));
+            drawBoard();
+        }
+
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "#ffe1e8"; ctx.lineWidth = 1.5;
+            for (let i = 1; i <= size; i++) {
+                ctx.beginPath(); ctx.moveTo(cellSize, i * cellSize); ctx.lineTo(size * cellSize, i * cellSize); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(i * cellSize, cellSize); ctx.lineTo(i * cellSize, size * cellSize); ctx.stroke();
+            }
+            ctx.fillStyle = "#ffcad6";
+            [4, 8, 12].forEach(tx => [4, 8, 12].forEach(ty => {
+                ctx.beginPath(); ctx.arc(tx * cellSize, ty * cellSize, 4, 0, Math.PI * 2); ctx.fill();
+            }));
+            for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (board[y][x] !== 0) drawStone(x, y, board[y][x]);
+        }
+
+        function drawStone(x, y, player) {
+            const cx = (x + 1) * cellSize, cy = (y + 1) * cellSize, radius = cellSize * 0.43;
+            ctx.beginPath(); ctx.arc(cx, cy + 3, radius, 0, Math.PI * 2); ctx.fillStyle = "rgba(0,0,0,0.1)"; ctx.fill();
+            ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            let grad = ctx.createRadialGradient(cx-radius/3, cy-radius/3, radius/10, cx, cy, radius);
+            if (player === 1) { grad.addColorStop(0, '#8d6e63'); grad.addColorStop(1, '#4e342e'); }
+            else { grad.addColorStop(0, '#ffffff'); grad.addColorStop(1, '#fce4ec'); }
+            ctx.fillStyle = grad; ctx.fill();
+            ctx.beginPath(); ctx.arc(cx-radius/3, cy-radius/3, radius/4, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.fill();
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const joinId = urlParams.get('fufuro');
+
+        peer = new Peer();
+
+        peer.on('open', (id) => {
+            if (joinId) {
+                conn = peer.connect(joinId);
+                myColor = 2;
+                statusDisplay.innerText = "연결 시도 중... 🥛";
+                setupConnection();
+            } else {
+                myColor = 1;
+                inviteBtn.style.display = "block";
+                statusDisplay.innerText = "상대를 초대해주세요! 🍫";
+            }
+        });
+
+        peer.on('connection', (c) => {
+            if (conn) return; // 이미 연결된 경우 차단
+            conn = c;
+            setupConnection();
+            statusDisplay.innerText = "친구 입장! 경기 시작 🍫";
+        });
+
+        function setupConnection() {
+            conn.on('data', (data) => {
+                if (data.type === 'move') placeStone(data.x, data.y, data.color);
+            });
+            conn.on('open', () => {
+                if(myColor === 2) statusDisplay.innerText = "연결 완료! 당신은 우유🥛";
+            });
+            conn.on('close', () => {
+                alert("상대방과 연결이 끊어졌습니다.");
+                location.href = window.location.pathname;
+            });
+        }
+
+        function handleMove(e) {
+            if (gameOver || !conn || turn !== myColor) return;
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || e.touches[0].clientX;
+            const clientY = e.clientY || e.touches[0].clientY;
+            const x = Math.round((clientX - rect.left) / cellSize) - 1;
+            const y = Math.round((clientY - rect.top) / cellSize) - 1;
+
+            if (x >= 0 && x < size && y >= 0 && y < size && board[y][x] === 0) {
+                placeStone(x, y, myColor);
+                conn.send({ type: 'move', x: x, y: y, color: myColor });
+            }
+        }
+
+        function placeStone(x, y, color) {
+            board[y][x] = color;
+            drawBoard();
+            if (checkWin(x, y, color)) {
+                gameOver = true;
+                const winner = color === 1 ? "초코🍫" : "우유🥛";
+                statusDisplay.innerText = winner + " 승리! 🎉";
+                setTimeout(() => alert(winner + "가 이겼어요!"), 100);
+            } else {
+                turn = (color === 1 ? 2 : 1);
+                statusDisplay.innerText = (turn === myColor ? "내 차례! ✨" : "상대방 차례 💭");
+            }
+        }
+
+        function checkWin(x, y, color) {
+            const dirs = [[[0,1],[0,-1]], [[1,0],[-1,0]], [[1,1],[-1,-1]], [[1,-1],[-1,1]]];
+            for (let d of dirs) {
+                let count = 1;
+                for (let [dx, dy] of d) {
+                    let nx = x + dx, ny = y + dy;
+                    while (nx>=0 && nx<size && ny>=0 && ny<size && board[ny][nx] === color) {
+                        count++; nx+=dx; ny+=dy;
+                    }
+                }
+                if (count >= 5) return true;
+            }
+            return false;
+        }
+
+        function copyLink() {
+            const link = window.location.href.split('?')[0] + "?fufuro=" + peer.id;
+            navigator.clipboard.writeText(link).then(() => {
+                document.getElementById('copyNotice').innerText = "링크가 복사되었습니다! 카톡으로 보내세요.";
+                setTimeout(() => document.getElementById('copyNotice').innerText = "", 3000);
+            });
+        }
+
+        canvas.addEventListener('mousedown', handleMove);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleMove(e); });
+        window.onload = initBoard;
+        window.onresize = initBoard;
+    </script>
+</body>
+</html>
