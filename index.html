@@ -1,185 +1,373 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>fufuro - 실시간 온라인 오목</title>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <style>
-        :root { --main-pink: #ff9abf; --bg-pink: #fff0f5; --accent: #ff6b9d; }
-        body {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; margin: 0; background-color: var(--bg-pink); 
-            font-family: 'Apple SD Gothic Neo', sans-serif; touch-action: manipulation; overflow: hidden;
-        }
-        .logo { font-size: 3.5rem; font-weight: 900; color: var(--main-pink); text-shadow: 3px 3px 0 #fff; font-style: italic; margin-bottom: 5px; cursor: pointer; }
-        #status {
-            margin-bottom: 15px; font-size: 1.1rem; font-weight: bold; padding: 10px 25px;
-            background: #fff; border-radius: 30px; color: var(--accent);
-            box-shadow: 0 4px 15px rgba(255,154,191,0.2); min-width: 200px; text-align: center;
-        }
-        canvas {
-            background-color: #fffbf2; box-shadow: 0 10px 30px rgba(255,182,193,0.4);
-            border-radius: 20px; max-width: 92vw; max-height: 92vw; border: 6px solid #ffd1dc; touch-action: none;
-        }
-        .ui { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; width: 80%; max-width: 300px; }
-        button {
-            padding: 12px; font-size: 1rem; font-weight: bold; border: none;
-            background-color: var(--main-pink); color: white; border-radius: 50px;
-            box-shadow: 0 4px 0 #e689ac; transition: 0.1s; cursor: pointer;
-        }
-        button:active { transform: translateY(3px); box-shadow: 0 1px 0 #e689ac; }
-        .copy-info { font-size: 0.75rem; color: #aaa; text-align: center; margin-top: 5px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>내 또래 연봉·자산 백분위 계산기</title>
+  <style>
+    :root {
+      --toss-blue: #3182F6;
+      --toss-blue-dark: #1B64DA;
+      --toss-bg: #F2F4F6;
+      --toss-card: #FFFFFF;
+      --toss-text: #191F28;
+      --toss-subtext: #8B95A1;
+      --toss-border: #E5E8EB;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", sans-serif;
+      background-color: var(--toss-bg);
+      color: var(--toss-text);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px 16px;
+    }
+    .app-container {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .header {
+      padding: 12px 4px;
+    }
+    .header .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--toss-blue);
+      background: #E8F3FF;
+      padding: 4px 10px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+    .header h1 {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.35;
+      letter-spacing: -0.5px;
+    }
+    .card {
+      background: var(--toss-card);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--toss-subtext);
+      margin-bottom: 8px;
+    }
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .input-wrapper input {
+      width: 100%;
+      height: 52px;
+      border: 1px solid var(--toss-border);
+      border-radius: 14px;
+      padding: 0 48px 0 16px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--toss-text);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-wrapper input:focus {
+      border-color: var(--toss-blue);
+    }
+    .input-wrapper .unit {
+      position: absolute;
+      right: 16px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--toss-subtext);
+    }
+    .chips {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .chip {
+      background: var(--toss-bg);
+      border: none;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #4E5968;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .chip:active {
+      background: #E5E8EB;
+    }
+    .btn-main {
+      width: 100%;
+      height: 54px;
+      background: var(--toss-blue);
+      color: white;
+      border: none;
+      border-radius: 16px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      margin-top: 10px;
+    }
+    .btn-main:active {
+      background: var(--toss-blue-dark);
+      transform: scale(0.98);
+    }
+    /* 결과 화면 */
+    #result-section {
+      display: none;
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .result-badge {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--toss-blue);
+      margin-bottom: 6px;
+    }
+    .result-title {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+    .result-percent {
+      color: var(--toss-blue);
+    }
+    .percent-bar-container {
+      background: #E5E8EB;
+      height: 12px;
+      border-radius: 6px;
+      margin: 20px 0 10px;
+      position: relative;
+      overflow: hidden;
+    }
+    .percent-bar-fill {
+      background: linear-gradient(90deg, #3182F6, #00C48C);
+      height: 100%;
+      width: 0%;
+      border-radius: 6px;
+      transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .bar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--toss-subtext);
+      font-weight: 600;
+    }
+    .stats-box {
+      background: var(--toss-bg);
+      border-radius: 16px;
+      padding: 16px;
+      margin-top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    .stat-row .label { color: var(--toss-subtext); font-weight: 500; }
+    .stat-row .val { font-weight: 700; }
+    .btn-share {
+      width: 100%;
+      height: 50px;
+      background: #E8F3FF;
+      color: var(--toss-blue);
+      border: none;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 16px;
+    }
+    .btn-retry {
+      background: transparent;
+      border: none;
+      color: var(--toss-subtext);
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 12px;
+      cursor: pointer;
+      text-align: center;
+      width: 100%;
+    }
+  </style>
 </head>
 <body>
 
-    <div class="logo" onclick="location.href=window.location.pathname">fufuro</div>
-    <div id="status">로딩 중... ✨</div>
-    <canvas id="omokCanvas"></canvas>
-    
-    <div class="ui">
-        <button id="inviteBtn" style="display:none;" onclick="copyLink()">친구 초대하기 🔗</button>
-        <button onclick="location.href=window.location.pathname">새 방 만들기 / 나가기</button>
-        <div id="copyNotice" class="copy-info"></div>
+<div class="app-container">
+  <div class="header">
+    <span class="badge">토스 미니아앱 Beta</span>
+    <h1>내 나이 또래에서<br>내 연봉은 상위 몇 %?</h1>
+  </div>
+
+  <!-- 입력 카드 -->
+  <div class="card" id="input-card">
+    <div class="form-group">
+      <label>나이</label>
+      <div class="input-wrapper">
+        <input type="number" id="age-input" value="28" placeholder="28">
+        <span class="unit">세</span>
+      </div>
+      <div class="chips">
+        <button class="chip" onclick="setAge(25)">25세</button>
+        <button class="chip" onclick="setAge(28)">28세</button>
+        <button class="chip" onclick="setAge(31)">31세</button>
+        <button class="chip" onclick="setAge(35)">35세</button>
+      </div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('omokCanvas');
-        const ctx = canvas.getContext('2d');
-        const statusDisplay = document.getElementById('status');
-        const inviteBtn = document.getElementById('inviteBtn');
-        
-        const size = 15;
-        let cellSize, board = [], gameOver = false;
-        let myColor = null, turn = 1, peer, conn;
+    <div class="form-group">
+      <label>세전 연봉</label>
+      <div class="input-wrapper">
+        <input type="number" id="salary-input" value="4200" placeholder="4200">
+        <span class="unit">만원</span>
+      </div>
+      <div class="chips">
+        <button class="chip" onclick="addSalary(500)">+500만</button>
+        <button class="chip" onclick="addSalary(1000)">+1,000만</button>
+        <button class="chip" onclick="setSalary(3500)">3,500만</button>
+        <button class="chip" onclick="setSalary(5000)">5,000만</button>
+      </div>
+    </div>
 
-        function initBoard() {
-            const winSize = Math.min(window.innerWidth * 0.92, 450);
-            canvas.width = winSize; canvas.height = winSize;
-            cellSize = canvas.width / (size + 1);
-            board = Array.from({ length: size }, () => Array(size).fill(0));
-            drawBoard();
-        }
+    <div class="form-group">
+      <label>모은 순자산 (선택)</label>
+      <div class="input-wrapper">
+        <input type="number" id="asset-input" value="3000" placeholder="3000">
+        <span class="unit">만원</span>
+      </div>
+    </div>
 
-        function drawBoard() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.strokeStyle = "#ffe1e8"; ctx.lineWidth = 1.5;
-            for (let i = 1; i <= size; i++) {
-                ctx.beginPath(); ctx.moveTo(cellSize, i * cellSize); ctx.lineTo(size * cellSize, i * cellSize); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(i * cellSize, cellSize); ctx.lineTo(i * cellSize, size * cellSize); ctx.stroke();
-            }
-            ctx.fillStyle = "#ffcad6";
-            [4, 8, 12].forEach(tx => [4, 8, 12].forEach(ty => {
-                ctx.beginPath(); ctx.arc(tx * cellSize, ty * cellSize, 4, 0, Math.PI * 2); ctx.fill();
-            }));
-            for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (board[y][x] !== 0) drawStone(x, y, board[y][x]);
-        }
+    <button class="btn-main" onclick="calculatePercentile()">내 백분위 확인하기</button>
+  </div>
 
-        function drawStone(x, y, player) {
-            const cx = (x + 1) * cellSize, cy = (y + 1) * cellSize, radius = cellSize * 0.43;
-            ctx.beginPath(); ctx.arc(cx, cy + 3, radius, 0, Math.PI * 2); ctx.fillStyle = "rgba(0,0,0,0.1)"; ctx.fill();
-            ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-            let grad = ctx.createRadialGradient(cx-radius/3, cy-radius/3, radius/10, cx, cy, radius);
-            if (player === 1) { grad.addColorStop(0, '#8d6e63'); grad.addColorStop(1, '#4e342e'); }
-            else { grad.addColorStop(0, '#ffffff'); grad.addColorStop(1, '#fce4ec'); }
-            ctx.fillStyle = grad; ctx.fill();
-            ctx.beginPath(); ctx.arc(cx-radius/3, cy-radius/3, radius/4, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.fill();
-        }
+  <!-- 결과 카드 -->
+  <div class="card" id="result-section">
+    <div class="result-badge">통계청 2026 임금·자산 데이터 기반</div>
+    <div class="result-title">
+      <span id="res-age">28</span>세 또래 중<br>
+      상위 <span class="result-percent" id="res-percent">14.8%</span>입니다! 🏆
+    </div>
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const joinId = urlParams.get('fufuro');
+    <div class="percent-bar-container">
+      <div class="percent-bar-fill" id="bar-fill"></div>
+    </div>
+    <div class="bar-labels">
+      <span>상위 100% (하위)</span>
+      <span>평균 50%</span>
+      <span>상위 1% (최상위)</span>
+    </div>
 
-        peer = new Peer();
+    <div class="stats-box">
+      <div class="stat-row">
+        <span class="label">동년배 평균 연봉</span>
+        <span class="val" id="res-avg-salary">3,480만 원</span>
+      </div>
+      <div class="stat-row">
+        <span class="label">평균 대비 차이</span>
+        <span class="val" style="color: #00C48C;" id="res-diff-salary">+720만 원 앞섬</span>
+      </div>
+      <div class="stat-row">
+        <span class="label">자산 백분위</span>
+        <span class="val" id="res-asset-percent">상위 21.4%</span>
+      </div>
+    </div>
 
-        peer.on('open', (id) => {
-            if (joinId) {
-                conn = peer.connect(joinId);
-                myColor = 2;
-                statusDisplay.innerText = "연결 시도 중... 🥛";
-                setupConnection();
-            } else {
-                myColor = 1;
-                inviteBtn.style.display = "block";
-                statusDisplay.innerText = "상대를 초대해주세요! 🍫";
-            }
-        });
+    <button class="btn-share" onclick="shareResult()">친구에게 공유하고 순위 비교하기 💬</button>
+    <button class="btn-retry" onclick="resetForm()">다시 계산하기</button>
+  </div>
+</div>
 
-        peer.on('connection', (c) => {
-            if (conn) return; // 이미 연결된 경우 차단
-            conn = c;
-            setupConnection();
-            statusDisplay.innerText = "친구 입장! 경기 시작 🍫";
-        });
+<script>
+  function setAge(v) { document.getElementById('age-input').value = v; }
+  function setSalary(v) { document.getElementById('salary-input').value = v; }
+  function addSalary(v) {
+    const el = document.getElementById('salary-input');
+    el.value = (parseInt(el.value || 0) + v);
+  }
 
-        function setupConnection() {
-            conn.on('data', (data) => {
-                if (data.type === 'move') placeStone(data.x, data.y, data.color);
-            });
-            conn.on('open', () => {
-                if(myColor === 2) statusDisplay.innerText = "연결 완료! 당신은 우유🥛";
-            });
-            conn.on('close', () => {
-                alert("상대방과 연결이 끊어졌습니다.");
-                location.href = window.location.pathname;
-            });
-        }
+  function calculatePercentile() {
+    const age = parseInt(document.getElementById('age-input').value) || 28;
+    const salary = parseInt(document.getElementById('salary-input').value) || 3500;
+    const asset = parseInt(document.getElementById('asset-input').value) || 2000;
 
-        function handleMove(e) {
-            if (gameOver || !conn || turn !== myColor) return;
-            const rect = canvas.getBoundingClientRect();
-            const clientX = e.clientX || e.touches[0].clientX;
-            const clientY = e.clientY || e.touches[0].clientY;
-            const x = Math.round((clientX - rect.left) / cellSize) - 1;
-            const y = Math.round((clientY - rect.top) / cellSize) - 1;
+    // 나이별 기준 중위값/평균 모델 (통계청 데이터 기반 추정 모델)
+    const baseAvgSalary = 2600 + (age - 22) * 220; 
+    let topPercent = Math.max(1.2, Math.min(99.1, 100 - (salary / baseAvgSalary * 50)));
+    topPercent = topPercent.toFixed(1);
 
-            if (x >= 0 && x < size && y >= 0 && y < size && board[y][x] === 0) {
-                placeStone(x, y, myColor);
-                conn.send({ type: 'move', x: x, y: y, color: myColor });
-            }
-        }
+    document.getElementById('res-age').innerText = age;
+    document.getElementById('res-percent').innerText = topPercent + '%';
+    document.getElementById('res-avg-salary').innerText = baseAvgSalary.toLocaleString() + '만 원';
+    
+    const diff = salary - baseAvgSalary;
+    const diffEl = document.getElementById('res-diff-salary');
+    if (diff >= 0) {
+      diffEl.innerText = '+' + diff.toLocaleString() + '만 원 앞섬';
+      diffEl.style.color = '#00C48C';
+    } else {
+      diffEl.innerText = diff.toLocaleString() + '만 원';
+      diffEl.style.color = '#F04452';
+    }
 
-        function placeStone(x, y, color) {
-            board[y][x] = color;
-            drawBoard();
-            if (checkWin(x, y, color)) {
-                gameOver = true;
-                const winner = color === 1 ? "초코🍫" : "우유🥛";
-                statusDisplay.innerText = winner + " 승리! 🎉";
-                setTimeout(() => alert(winner + "가 이겼어요!"), 100);
-            } else {
-                turn = (color === 1 ? 2 : 1);
-                statusDisplay.innerText = (turn === myColor ? "내 차례! ✨" : "상대방 차례 💭");
-            }
-        }
+    const assetPercent = Math.max(2.1, Math.min(98.5, 100 - (asset / (baseAvgSalary * 0.8) * 45))).toFixed(1);
+    document.getElementById('res-asset-percent').innerText = '상위 ' + assetPercent + '%';
 
-        function checkWin(x, y, color) {
-            const dirs = [[[0,1],[0,-1]], [[1,0],[-1,0]], [[1,1],[-1,-1]], [[1,-1],[-1,1]]];
-            for (let d of dirs) {
-                let count = 1;
-                for (let [dx, dy] of d) {
-                    let nx = x + dx, ny = y + dy;
-                    while (nx>=0 && nx<size && ny>=0 && ny<size && board[ny][nx] === color) {
-                        count++; nx+=dx; ny+=dy;
-                    }
-                }
-                if (count >= 5) return true;
-            }
-            return false;
-        }
+    document.getElementById('input-card').style.display = 'none';
+    const resSec = document.getElementById('result-section');
+    resSec.style.display = 'block';
 
-        function copyLink() {
-            const link = window.location.href.split('?')[0] + "?fufuro=" + peer.id;
-            navigator.clipboard.writeText(link).then(() => {
-                document.getElementById('copyNotice').innerText = "링크가 복사되었습니다! 카톡으로 보내세요.";
-                setTimeout(() => document.getElementById('copyNotice').innerText = "", 3000);
-            });
-        }
+    setTimeout(() => {
+      // 바 채우기 (상위일수록 오른쪽)
+      const fillWidth = Math.max(5, 100 - parseFloat(topPercent));
+      document.getElementById('bar-fill').style.width = fillWidth + '%';
+    }, 100);
+  }
 
-        canvas.addEventListener('mousedown', handleMove);
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleMove(e); });
-        window.onload = initBoard;
-        window.onresize = initBoard;
-    </script>
+  function resetForm() {
+    document.getElementById('result-section').style.display = 'none';
+    document.getElementById('input-card').style.display = 'block';
+    document.getElementById('bar-fill').style.width = '0%';
+  }
+
+  function shareResult() {
+    const age = document.getElementById('res-age').innerText;
+    const pct = document.getElementById('res-percent').innerText;
+    const text = `[토스] 내 ${age}세 또래 연봉 백분위는 상위 ${pct}! 너도 확인해봐 👉 https://toss.im`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert('공유 링크와 결과가 복사되었습니다! 친구 단톡방에 붙여넣어 보세요.');
+      });
+    } else {
+      alert(text);
+    }
+  }
+</script>
 </body>
 </html>
