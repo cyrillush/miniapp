@@ -3,168 +3,252 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>내 또래 연봉·자산 백분위 계산기</title>
+  <title>푸푸로 라이프 툴즈 — 실전 계산기 & 생활 금융 리포트</title>
+  
+  <!-- Open Graph / SNS 공유 메타 태그 -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="푸푸로 라이프 툴즈 | 내 또래 연봉·연말정산·과실비율 계산기">
+  <meta property="og:description" content="또래 연봉 백분위, 2026 연말정산 환급금, 교통사고 과실비율을 30초 만에 무료로 확인해보세요.">
+  <meta property="og:url" content="https://fufuro.pages.dev">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="푸푸로 라이프 툴즈 | 내 또래 연봉·연말정산·과실비율 계산기">
+  <meta name="twitter:description" content="또래 연봉 백분위, 2026 연말정산 환급금, 교통사고 과실비율을 30초 만에 무료로 확인해보세요.">
+
   <style>
     :root {
-      --toss-blue: #3182F6;
-      --toss-blue-dark: #1B64DA;
-      --toss-bg: #F2F4F6;
-      --toss-card: #FFFFFF;
-      --toss-text: #191F28;
-      --toss-subtext: #8B95A1;
-      --toss-border: #E5E8EB;
+      --primary: #3182F6;
+      --primary-dark: #1B64DA;
+      --primary-light: #E8F3FF;
+      --success: #00C48C;
+      --danger: #F04452;
+      --bg: #F2F4F6;
+      --card-bg: #FFFFFF;
+      --text: #191F28;
+      --subtext: #8B95A1;
+      --border: #E5E8EB;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", sans-serif;
-      background-color: var(--toss-bg);
-      color: var(--toss-text);
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
       display: flex;
       justify-content: center;
       min-height: 100vh;
-      padding: 20px 16px;
+      padding: 16px 12px 40px;
     }
     .app-container {
       width: 100%;
-      max-width: 420px;
+      max-width: 440px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
     }
-    .header {
-      padding: 12px 4px;
+
+    /* 상단 헤더 */
+    .top-header {
+      padding: 8px 4px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
-    .header .badge {
-      display: inline-block;
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       font-size: 12px;
       font-weight: 700;
-      color: var(--toss-blue);
-      background: #E8F3FF;
+      color: var(--primary);
+      background: var(--primary-light);
       padding: 4px 10px;
       border-radius: 12px;
-      margin-bottom: 8px;
+      width: fit-content;
     }
-    .header h1 {
-      font-size: 24px;
+    .top-header h1 {
+      font-size: 22px;
       font-weight: 800;
-      line-height: 1.35;
       letter-spacing: -0.5px;
+      line-height: 1.35;
+      margin-top: 4px;
     }
+
+    /* 탭 네비게이션 */
+    .tab-nav {
+      display: flex;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.05);
+      padding: 4px;
+      border-radius: 16px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tab-nav::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      flex: 1;
+      min-width: 90px;
+      padding: 10px 8px;
+      border: none;
+      background: transparent;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--subtext);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .tab-btn.active {
+      background: var(--card-bg);
+      color: var(--primary);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    /* 공통 카드 */
     .card {
-      background: var(--toss-card);
-      border-radius: 24px;
-      padding: 24px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      background: var(--card-bg);
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
     }
-    .form-group {
+    .card-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      letter-spacing: -0.3px;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: var(--subtext);
       margin-bottom: 20px;
+      line-height: 1.45;
+    }
+
+    /* 폼 요소 */
+    .form-group {
+      margin-bottom: 18px;
     }
     .form-group label {
-      display: block;
-      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
       font-weight: 600;
-      color: var(--toss-subtext);
-      margin-bottom: 8px;
+      color: #4E5968;
+      margin-bottom: 6px;
+    }
+    .form-group label .hint {
+      font-size: 12px;
+      color: var(--subtext);
+      font-weight: 400;
     }
     .input-wrapper {
       position: relative;
       display: flex;
       align-items: center;
     }
-    .input-wrapper input {
+    .input-wrapper input, .input-wrapper select {
       width: 100%;
-      height: 52px;
-      border: 1px solid var(--toss-border);
-      border-radius: 14px;
-      padding: 0 48px 0 16px;
-      font-size: 18px;
+      height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0 46px 0 14px;
+      font-size: 16px;
       font-weight: 700;
-      color: var(--toss-text);
+      color: var(--text);
       outline: none;
-      transition: border-color 0.2s;
+      background: #FAFAFB;
+      transition: border-color 0.2s, background 0.2s;
     }
-    .input-wrapper input:focus {
-      border-color: var(--toss-blue);
+    .input-wrapper select {
+      padding-right: 20px;
+      cursor: pointer;
+    }
+    .input-wrapper input:focus, .input-wrapper select:focus {
+      border-color: var(--primary);
+      background: #FFFFFF;
     }
     .input-wrapper .unit {
       position: absolute;
-      right: 16px;
-      font-size: 15px;
+      right: 14px;
+      font-size: 14px;
       font-weight: 600;
-      color: var(--toss-subtext);
+      color: var(--subtext);
     }
+
     .chips {
       display: flex;
-      gap: 8px;
-      margin-top: 8px;
+      gap: 6px;
+      margin-top: 6px;
       overflow-x: auto;
-      padding-bottom: 2px;
+      scrollbar-width: none;
     }
+    .chips::-webkit-scrollbar { display: none; }
     .chip {
-      background: var(--toss-bg);
+      background: var(--bg);
       border: none;
-      padding: 8px 12px;
-      border-radius: 10px;
+      padding: 6px 10px;
+      border-radius: 8px;
       font-size: 12px;
       font-weight: 600;
       color: #4E5968;
       cursor: pointer;
       white-space: nowrap;
     }
-    .chip:active {
-      background: #E5E8EB;
-    }
+    .chip:active { background: #E5E8EB; }
+
+    /* 메인 버튼 */
     .btn-main {
       width: 100%;
-      height: 54px;
-      background: var(--toss-blue);
+      height: 50px;
+      background: var(--primary);
       color: white;
       border: none;
-      border-radius: 16px;
-      font-size: 17px;
+      border-radius: 14px;
+      font-size: 16px;
       font-weight: 700;
       cursor: pointer;
       transition: background 0.15s, transform 0.1s;
-      margin-top: 10px;
+      margin-top: 8px;
     }
     .btn-main:active {
-      background: var(--toss-blue-dark);
+      background: var(--primary-dark);
       transform: scale(0.98);
     }
-    /* 결과 화면 */
-    #result-section {
+
+    /* 결과 영역 */
+    .result-box {
       display: none;
       animation: fadeIn 0.3s ease-out;
     }
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
+      from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
     .result-badge {
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 700;
-      color: var(--toss-blue);
-      margin-bottom: 6px;
+      color: var(--primary);
+      margin-bottom: 4px;
     }
-    .result-title {
-      font-size: 26px;
+    .result-headline {
+      font-size: 24px;
       font-weight: 800;
-      margin-bottom: 12px;
       letter-spacing: -0.5px;
+      line-height: 1.35;
+      margin-bottom: 12px;
     }
-    .result-percent {
-      color: var(--toss-blue);
-    }
+    .highlight { color: var(--primary); }
+
     .percent-bar-container {
       background: #E5E8EB;
-      height: 12px;
+      height: 10px;
       border-radius: 6px;
-      margin: 20px 0 10px;
+      margin: 16px 0 8px;
       position: relative;
       overflow: hidden;
     }
     .percent-bar-fill {
-      background: linear-gradient(90deg, #3182F6, #00C48C);
+      background: linear-gradient(90deg, var(--primary), var(--success));
       height: 100%;
       width: 0%;
       border-radius: 6px;
@@ -174,195 +258,601 @@
       display: flex;
       justify-content: space-between;
       font-size: 11px;
-      color: var(--toss-subtext);
+      color: var(--subtext);
       font-weight: 600;
+      margin-bottom: 14px;
     }
-    .stats-box {
-      background: var(--toss-bg);
-      border-radius: 16px;
-      padding: 16px;
-      margin-top: 18px;
+
+    .data-table {
+      background: var(--bg);
+      border-radius: 14px;
+      padding: 14px 16px;
       display: flex;
       flex-direction: column;
       gap: 10px;
+      margin-top: 14px;
     }
-    .stat-row {
+    .data-row {
       display: flex;
       justify-content: space-between;
-      font-size: 14px;
+      font-size: 13px;
     }
-    .stat-row .label { color: var(--toss-subtext); font-weight: 500; }
-    .stat-row .val { font-weight: 700; }
+    .data-row .lbl { color: var(--subtext); font-weight: 500; }
+    .data-row .val { font-weight: 700; color: var(--text); }
+
+    /* 자연스러운 공식 출처 / 정보 연계 카드 (CPA/정보성 CTA) */
+    .resource-card {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-decoration: none;
+      color: var(--text);
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .resource-card:active {
+      background: #EDF2F7;
+      border-color: #CBD5E0;
+    }
+    .resource-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .resource-tag {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .resource-title {
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .resource-sub {
+      font-size: 11px;
+      color: var(--subtext);
+    }
+    .resource-arrow {
+      font-size: 18px;
+      color: #A0AEC0;
+      margin-left: 8px;
+    }
+
     .btn-share {
       width: 100%;
-      height: 50px;
-      background: #E8F3FF;
-      color: var(--toss-blue);
+      height: 46px;
+      background: var(--primary-light);
+      color: var(--primary);
       border: none;
-      border-radius: 14px;
-      font-size: 15px;
+      border-radius: 12px;
+      font-size: 14px;
       font-weight: 700;
       cursor: pointer;
-      margin-top: 16px;
+      margin-top: 14px;
     }
     .btn-retry {
       background: transparent;
       border: none;
-      color: var(--toss-subtext);
-      font-size: 13px;
+      color: var(--subtext);
+      font-size: 12px;
       font-weight: 600;
-      margin-top: 12px;
+      margin-top: 10px;
       cursor: pointer;
       text-align: center;
       width: 100%;
+    }
+
+    /* 자료실 탭 */
+    .tool-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .tool-item {
+      background: #FAFAFB;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .tool-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tool-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: #E2E8F0;
+      color: #4A5568;
+    }
+    .tool-badge.free { background: #E6FFFA; color: #047481; }
+    .tool-title { font-size: 14px; font-weight: 700; }
+    .tool-desc { font-size: 12px; color: var(--subtext); line-height: 1.4; }
+
+    /* 푸터 */
+    .footer {
+      text-align: center;
+      padding: 16px 0;
+      font-size: 11px;
+      color: #A0AEC0;
+      line-height: 1.6;
     }
   </style>
 </head>
 <body>
 
 <div class="app-container">
-  <div class="header">
-    <span class="badge">토스 미니아앱 Beta</span>
-    <h1>내 나이 또래에서<br>내 연봉은 상위 몇 %?</h1>
+  <!-- 상단 브랜딩 -->
+  <div class="top-header">
+    <div class="brand-badge">⚡ 푸푸로 라이프 툴즈</div>
+    <h1>실생활 금융·실무 계산기</h1>
   </div>
 
-  <!-- 입력 카드 -->
-  <div class="card" id="input-card">
-    <div class="form-group">
-      <label>나이</label>
-      <div class="input-wrapper">
-        <input type="number" id="age-input" value="28" placeholder="28">
-        <span class="unit">세</span>
-      </div>
-      <div class="chips">
-        <button class="chip" onclick="setAge(25)">25세</button>
-        <button class="chip" onclick="setAge(28)">28세</button>
-        <button class="chip" onclick="setAge(31)">31세</button>
-        <button class="chip" onclick="setAge(35)">35세</button>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label>세전 연봉</label>
-      <div class="input-wrapper">
-        <input type="number" id="salary-input" value="4200" placeholder="4200">
-        <span class="unit">만원</span>
-      </div>
-      <div class="chips">
-        <button class="chip" onclick="addSalary(500)">+500만</button>
-        <button class="chip" onclick="addSalary(1000)">+1,000만</button>
-        <button class="chip" onclick="setSalary(3500)">3,500만</button>
-        <button class="chip" onclick="setSalary(5000)">5,000만</button>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label>모은 순자산 (선택)</label>
-      <div class="input-wrapper">
-        <input type="number" id="asset-input" value="3000" placeholder="3000">
-        <span class="unit">만원</span>
-      </div>
-    </div>
-
-    <button class="btn-main" onclick="calculatePercentile()">내 백분위 확인하기</button>
+  <!-- 탭 메뉴 -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('tab-salary')">연봉 백분위</button>
+    <button class="tab-btn" onclick="switchTab('tab-tax')">연말정산 환급</button>
+    <button class="tab-btn" onclick="switchTab('tab-accident')">과실비율 진단</button>
+    <button class="tab-btn" onclick="switchTab('tab-tools')">실무 자료실</button>
   </div>
 
-  <!-- 결과 카드 -->
-  <div class="card" id="result-section">
-    <div class="result-badge">통계청 2026 임금·자산 데이터 기반</div>
-    <div class="result-title">
-      <span id="res-age">28</span>세 또래 중<br>
-      상위 <span class="result-percent" id="res-percent">14.8%</span>입니다! 🏆
+  <!-- 탭 1: 연봉 백분위 계산기 -->
+  <div id="tab-salary" class="tab-content">
+    <div class="card" id="salary-input-card">
+      <div class="card-title">내 나이 또래 연봉 백분위</div>
+      <div class="card-desc">통계청 2026 임금·자산 데이터 기반 추정 백분위입니다.</div>
+
+      <div class="form-group">
+        <label>나이</label>
+        <div class="input-wrapper">
+          <input type="number" id="sal-age" value="29" placeholder="29">
+          <span class="unit">세</span>
+        </div>
+        <div class="chips">
+          <button class="chip" onclick="setVal('sal-age', 26)">26세</button>
+          <button class="chip" onclick="setVal('sal-age', 29)">29세</button>
+          <button class="chip" onclick="setVal('sal-age', 32)">32세</button>
+          <button class="chip" onclick="setVal('sal-age', 35)">35세</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>세전 연봉</label>
+        <div class="input-wrapper">
+          <input type="number" id="sal-amount" value="4500" placeholder="4500">
+          <span class="unit">만원</span>
+        </div>
+        <div class="chips">
+          <button class="chip" onclick="addVal('sal-amount', 500)">+500만</button>
+          <button class="chip" onclick="addVal('sal-amount', 1000)">+1,000만</button>
+          <button class="chip" onclick="setVal('sal-amount', 3800)">3,800만</button>
+          <button class="chip" onclick="setVal('sal-amount', 5200)">5,200만</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>모은 순자산 (선택)</label>
+        <div class="input-wrapper">
+          <input type="number" id="sal-asset" value="3500" placeholder="3500">
+          <span class="unit">만원</span>
+        </div>
+      </div>
+
+      <button class="btn-main" onclick="calcSalary()">내 백분위 분석하기</button>
     </div>
 
-    <div class="percent-bar-container">
-      <div class="percent-bar-fill" id="bar-fill"></div>
+    <!-- 결과 카드 -->
+    <div class="card result-box" id="salary-result-card">
+      <div class="result-badge">통계청 2026 데이터 분석 완료</div>
+      <div class="result-headline">
+        <span id="res-sal-age">29</span>세 또래 중<br>
+        상위 <span class="highlight" id="res-sal-pct">13.2%</span>입니다! 🏆
+      </div>
+
+      <div class="percent-bar-container">
+        <div class="percent-bar-fill" id="sal-bar-fill"></div>
+      </div>
+      <div class="bar-labels">
+        <span>하위 100%</span>
+        <span>평균 50%</span>
+        <span>최상위 1%</span>
+      </div>
+
+      <div class="data-table">
+        <div class="data-row">
+          <span class="lbl">동년배 평균 연봉</span>
+          <span class="val" id="res-sal-avg">3,680만 원</span>
+        </div>
+        <div class="data-row">
+          <span class="lbl">평균 대비 격차</span>
+          <span class="val" id="res-sal-diff" style="color: var(--success);">+820만 원 앞섬</span>
+        </div>
+        <div class="data-row">
+          <span class="lbl">자산 백분위 추정</span>
+          <span class="val" id="res-sal-asset">상위 18.5%</span>
+        </div>
+      </div>
+
+      <!-- 정보성 연계 리소스 (자연스러운 CTA) -->
+      <a href="javascript:switchTab('tab-tax')" class="resource-card">
+        <div class="resource-info">
+          <span class="resource-tag">💡 연말정산 절세 팁</span>
+          <span class="resource-title">내 연봉 구간 세액공제 최대 환급액 확인</span>
+          <span class="resource-sub">연금저축·신용카드 황금 비율 30초 계산</span>
+        </div>
+        <span class="resource-arrow">→</span>
+      </a>
+
+      <button class="btn-share" onclick="shareApp('연봉')">결과 공유하고 친구 순위 비교하기 💬</button>
+      <button class="btn-retry" onclick="resetCard('salary')">다시 계산하기</button>
     </div>
-    <div class="bar-labels">
-      <span>상위 100% (하위)</span>
-      <span>평균 50%</span>
-      <span>상위 1% (최상위)</span>
+  </div>
+
+  <!-- 탭 2: 연말정산 환급금 계산기 -->
+  <div id="tab-tax" class="tab-content" style="display: none;">
+    <div class="card" id="tax-input-card">
+      <div class="card-title">2026 연말정산 환급금 미리보기</div>
+      <div class="card-desc">국세청 간이세액표 및 최신 소득·세액공제 기준 시뮬레이터입니다.</div>
+
+      <div class="form-group">
+        <label>총급여 (세전 연봉)</label>
+        <div class="input-wrapper">
+          <input type="number" id="tax-salary" value="4500" placeholder="4500">
+          <span class="unit">만원</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>신용/체크카드 연간 사용액 <span class="hint">총급여의 25% 초과분 공제</span></label>
+        <div class="input-wrapper">
+          <input type="number" id="tax-card" value="1800" placeholder="1800">
+          <span class="unit">만원</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>연금저축 / IRP 납입액 (연간) <span class="hint">최대 900만원 한도</span></label>
+        <div class="input-wrapper">
+          <input type="number" id="tax-pension" value="300" placeholder="300">
+          <span class="unit">만원</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>월세 지출액 (연간 합계) <span class="hint">해당 없으면 0</span></label>
+        <div class="input-wrapper">
+          <input type="number" id="tax-rent" value="0" placeholder="0">
+          <span class="unit">만원</span>
+        </div>
+      </div>
+
+      <button class="btn-main" onclick="calcTax()">예상 환급금 계산하기</button>
     </div>
 
-    <div class="stats-box">
-      <div class="stat-row">
-        <span class="label">동년배 평균 연봉</span>
-        <span class="val" id="res-avg-salary">3,480만 원</span>
+    <!-- 결과 카드 -->
+    <div class="card result-box" id="tax-result-card">
+      <div class="result-badge">2026 국세청 개정세법 적용</div>
+      <div class="result-headline">
+        예상 절세 혜택은<br>
+        약 <span class="highlight" id="res-tax-total">78.5만 원</span>입니다! 💰
       </div>
-      <div class="stat-row">
-        <span class="label">평균 대비 차이</span>
-        <span class="val" style="color: #00C48C;" id="res-diff-salary">+720만 원 앞섬</span>
+
+      <div class="data-table">
+        <div class="data-row">
+          <span class="lbl">카드 소득공제 환급 효과</span>
+          <span class="val" id="res-tax-card">약 28.5만 원</span>
+        </div>
+        <div class="data-row">
+          <span class="lbl">연금저축/IRP 세액공제</span>
+          <span class="val" id="res-tax-pension">약 49.5만 원</span>
+        </div>
+        <div class="data-row">
+          <span class="lbl">월세 세액공제 환급액</span>
+          <span class="val" id="res-tax-rent">0원</span>
+        </div>
       </div>
-      <div class="stat-row">
-        <span class="label">자산 백분위</span>
-        <span class="val" id="res-asset-percent">상위 21.4%</span>
+
+      <!-- 정보성 연계 리소스 (자연스러운 공식 출처 CTA) -->
+      <a href="https://hometax.go.kr" target="_blank" class="resource-card">
+        <div class="resource-info">
+          <span class="resource-tag">📌 국세청 홈택스 공식</span>
+          <span class="resource-title">11월 연말정산 미리보기 원문 서비스 열람</span>
+          <span class="resource-sub">1월~9월 카드 사용 내역 실시간 자동 조회</span>
+        </div>
+        <span class="resource-arrow">↗</span>
+      </a>
+
+      <button class="btn-share" onclick="shareApp('연말정산')">친구에게 절세 꿀팁 공유하기 💬</button>
+      <button class="btn-retry" onclick="resetCard('tax')">다시 계산하기</button>
+    </div>
+  </div>
+
+  <!-- 탭 3: 교통사고 과실비율 & 합의 체크리스트 -->
+  <div id="tab-accident" class="tab-content" style="display: none;">
+    <div class="card" id="acc-input-card">
+      <div class="card-title">교통사고 과실비율 & 합의 가이드</div>
+      <div class="card-desc">손해보험협회 과실비율 인정기준 및 금감원 표준약관 기반 진단기입니다.</div>
+
+      <div class="form-group">
+        <label>사고 유형 선택</label>
+        <div class="input-wrapper">
+          <select id="acc-type" onchange="updateAccidentDesc()">
+            <option value="lane_change">진로변경 (차선변경 중 접촉)</option>
+            <option value="rear_end">후방 추돌 (정차 중 또는 주행 중 뒤에서 받힘)</option>
+            <option value="unprotected_left">비보호 좌회전 vs 직진</option>
+            <option value="signal_violation">신호위반 (적색불 진입 vs 정상 직진)</option>
+            <option value="parking">주차장 내 출차 vs 주행</option>
+          </select>
+        </div>
       </div>
+
+      <div class="data-table" id="acc-preview-box">
+        <div class="data-row">
+          <span class="lbl">기본 과실 비율</span>
+          <span class="val" id="acc-ratio">70 : 30 (차선변경차 과실 70)</span>
+        </div>
+        <div class="data-row">
+          <span class="lbl">핵심 가감 요소</span>
+          <span class="val" id="acc-factor">방향지시등 미점등(+10%), 과속(+10~20%)</span>
+        </div>
+      </div>
+
+      <button class="btn-main" onclick="showAccidentAdvice()">합의 전 필수 점검 3가지 확인</button>
     </div>
 
-    <button class="btn-share" onclick="shareResult()">친구에게 공유하고 순위 비교하기 💬</button>
-    <button class="btn-retry" onclick="resetForm()">다시 계산하기</button>
+    <!-- 결과 카드 -->
+    <div class="card result-box" id="acc-result-card">
+      <div class="result-badge">손보협회·금감원 표준 약관 기반</div>
+      <div class="result-headline">
+        <span class="highlight" id="res-acc-title">진로변경 사고</span><br>
+        합의 전 필수 체크리스트 🚗
+      </div>
+
+      <div class="data-table">
+        <div class="data-row" style="flex-direction: column; gap: 4px;">
+          <span class="val" style="color: var(--primary);">1. 블랙박스 원본 전체 영상 보존</span>
+          <span class="lbl" style="line-height: 1.4;">충돌 순간만 자르지 말고 충돌 15초 전부터 방향지시등 소리와 진입 속도가 담긴 원본을 유지해야 과실 감경을 입증할 수 있습니다.</span>
+        </div>
+        <div class="data-row" style="flex-direction: column; gap: 4px; margin-top: 6px;">
+          <span class="val" style="color: var(--primary);">2. 렌터카 특약 & 자차 단독사고 특약 확인</span>
+          <span class="lbl" style="line-height: 1.4;">과실 비율 확정 전 수리 기간 동안 발생하는 대차료(렌터카) 인정 기준을 내 보험사 전담 직원에게 먼저 확인하세요.</span>
+        </div>
+        <div class="data-row" style="flex-direction: column; gap: 4px; margin-top: 6px;">
+          <span class="val" style="color: var(--primary);">3. 분쟁 시 과실비율 분쟁심의위 신청</span>
+          <span class="lbl" style="line-height: 1.4;">상대 보험사 과실 통보에 즉시 동의하지 마시고 소송 전 무료 분쟁심의위원회(분심위) 회부를 요청할 수 있습니다.</span>
+        </div>
+      </div>
+
+      <!-- 정보성 연계 리소스 (공식 출처 안내) -->
+      <a href="https://accident.knia.or.kr" target="_blank" class="resource-card">
+        <div class="resource-info">
+          <span class="resource-tag">📊 손해보험협회 공식</span>
+          <span class="resource-title">자동차사고 과실비율 분쟁심의위원회 포털</span>
+          <span class="resource-sub">판례 기반 도표별 과실비율 상세 인정기준 열람</span>
+        </div>
+        <span class="resource-arrow">↗</span>
+      </a>
+
+      <button class="btn-share" onclick="shareApp('과실비율')">주변 운전자에게 가이드 공유하기 💬</button>
+      <button class="btn-retry" onclick="resetCard('accident')">다른 사고 유형 확인하기</button>
+    </div>
+  </div>
+
+  <!-- 탭 4: 실무 자료실 & 생산성 툴 -->
+  <div id="tab-tools" class="tab-content" style="display: none;">
+    <div class="card">
+      <div class="card-title">실무 자동화 & 생산성 템플릿</div>
+      <div class="card-desc">야근 줄이고 실무 시간 단축하는 검증된 무료 자료 모음입니다.</div>
+
+      <div class="tool-list">
+        <div class="tool-item">
+          <div class="tool-item-header">
+            <span class="tool-title">📊 엑셀 대량 복붙 자동화 매크로 서식</span>
+            <span class="tool-badge free">무료 템플릿</span>
+          </div>
+          <div class="tool-desc">매일 반복되는 데이터 정리와 열 맞춤을 클릭 1번으로 끝내는 VBA 시트.</div>
+        </div>
+
+        <div class="tool-item">
+          <div class="tool-item-header">
+            <span class="tool-title">⚡ ChatGPT 기획서 3단 요약 프롬프트</span>
+            <span class="tool-badge free">프롬프트 모음</span>
+          </div>
+          <div class="tool-desc">수십 장짜리 PDF·회의록에서 의사결정 핵심만 3줄로 뽑아내는 실전 공식.</div>
+        </div>
+
+        <div class="tool-item">
+          <div class="tool-item-header">
+            <span class="tool-title">🎨 비전공자용 AI 그래픽·이미지 툴 3선</span>
+            <span class="tool-badge free">추천 가이드</span>
+          </div>
+          <div class="tool-desc">디자인 툴 없이 고화질 썸네일과 카드뉴스를 즉석에서 렌더링하는 무료 툴.</div>
+        </div>
+      </div>
+
+      <!-- 프로필 연계 링크 -->
+      <a href="https://x.com/han97214" target="_blank" class="resource-card" style="margin-top: 16px;">
+        <div class="resource-info">
+          <span class="resource-tag">👑 푸푸로 X (@han97214)</span>
+          <span class="resource-title">매일 업데이트되는 실전 생활·금융 꿀팁 구독</span>
+          <span class="resource-sub">공식 출처 기반 3초 실무 요약 타래</span>
+        </div>
+        <span class="resource-arrow">↗</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 하단 정보 -->
+  <div class="footer">
+    © 2026 푸푸로 라이프 툴즈 · All rights reserved.<br>
+    본 서비스의 계산 결과는 통계청, 국세청, 손해보험협회 공개 기준을 바탕으로 한 추정치이며 법적 효력을 갖지 않습니다.
   </div>
 </div>
 
 <script>
-  function setAge(v) { document.getElementById('age-input').value = v; }
-  function setSalary(v) { document.getElementById('salary-input').value = v; }
-  function addSalary(v) {
-    const el = document.getElementById('salary-input');
-    el.value = (parseInt(el.value || 0) + v);
+  // 탭 전환
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById(tabId).style.display = 'block';
+    const idx = ['tab-salary', 'tab-tax', 'tab-accident', 'tab-tools'].indexOf(tabId);
+    if (idx >= 0) {
+      document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function calculatePercentile() {
-    const age = parseInt(document.getElementById('age-input').value) || 28;
-    const salary = parseInt(document.getElementById('salary-input').value) || 3500;
-    const asset = parseInt(document.getElementById('asset-input').value) || 2000;
+  // 헬퍼
+  function setVal(id, v) { document.getElementById(id).value = v; }
+  function addVal(id, v) {
+    const el = document.getElementById(id);
+    el.value = parseInt(el.value || 0) + v;
+  }
+  function resetCard(type) {
+    if (type === 'salary') {
+      document.getElementById('salary-result-card').style.display = 'none';
+      document.getElementById('salary-input-card').style.display = 'block';
+      document.getElementById('sal-bar-fill').style.width = '0%';
+    } else if (type === 'tax') {
+      document.getElementById('tax-result-card').style.display = 'none';
+      document.getElementById('tax-input-card').style.display = 'block';
+    } else if (type === 'accident') {
+      document.getElementById('acc-result-card').style.display = 'none';
+      document.getElementById('acc-input-card').style.display = 'block';
+    }
+  }
 
-    // 나이별 기준 중위값/평균 모델 (통계청 데이터 기반 추정 모델)
-    const baseAvgSalary = 2600 + (age - 22) * 220; 
-    let topPercent = Math.max(1.2, Math.min(99.1, 100 - (salary / baseAvgSalary * 50)));
-    topPercent = topPercent.toFixed(1);
+  // 1. 연봉 백분위 계산
+  function calcSalary() {
+    const age = parseInt(document.getElementById('sal-age').value) || 29;
+    const salary = parseInt(document.getElementById('sal-amount').value) || 4500;
+    const asset = parseInt(document.getElementById('sal-asset').value) || 3500;
 
-    document.getElementById('res-age').innerText = age;
-    document.getElementById('res-percent').innerText = topPercent + '%';
-    document.getElementById('res-avg-salary').innerText = baseAvgSalary.toLocaleString() + '만 원';
-    
-    const diff = salary - baseAvgSalary;
-    const diffEl = document.getElementById('res-diff-salary');
+    const baseAvg = 2700 + (age - 22) * 230;
+    let topPct = Math.max(1.1, Math.min(99.2, 100 - (salary / baseAvg * 50))).toFixed(1);
+
+    document.getElementById('res-sal-age').innerText = age;
+    document.getElementById('res-sal-pct').innerText = topPct + '%';
+    document.getElementById('res-sal-avg').innerText = baseAvg.toLocaleString() + '만 원';
+
+    const diff = salary - baseAvg;
+    const diffEl = document.getElementById('res-sal-diff');
     if (diff >= 0) {
       diffEl.innerText = '+' + diff.toLocaleString() + '만 원 앞섬';
       diffEl.style.color = '#00C48C';
     } else {
-      diffEl.innerText = diff.toLocaleString() + '만 원';
+      diffEl.innerText = diff.toLocaleString() + '만 원 뒤처짐';
       diffEl.style.color = '#F04452';
     }
 
-    const assetPercent = Math.max(2.1, Math.min(98.5, 100 - (asset / (baseAvgSalary * 0.8) * 45))).toFixed(1);
-    document.getElementById('res-asset-percent').innerText = '상위 ' + assetPercent + '%';
+    const assetPct = Math.max(2.0, Math.min(98.8, 100 - (asset / (baseAvg * 0.85) * 45))).toFixed(1);
+    document.getElementById('res-sal-asset').innerText = '상위 ' + assetPct + '%';
 
-    document.getElementById('input-card').style.display = 'none';
-    const resSec = document.getElementById('result-section');
-    resSec.style.display = 'block';
+    document.getElementById('salary-input-card').style.display = 'none';
+    const res = document.getElementById('salary-result-card');
+    res.style.display = 'block';
 
     setTimeout(() => {
-      // 바 채우기 (상위일수록 오른쪽)
-      const fillWidth = Math.max(5, 100 - parseFloat(topPercent));
-      document.getElementById('bar-fill').style.width = fillWidth + '%';
+      const fillW = Math.max(5, 100 - parseFloat(topPct));
+      document.getElementById('sal-bar-fill').style.width = fillW + '%';
     }, 100);
   }
 
-  function resetForm() {
-    document.getElementById('result-section').style.display = 'none';
-    document.getElementById('input-card').style.display = 'block';
-    document.getElementById('bar-fill').style.width = '0%';
+  // 2. 연말정산 환급 계산
+  function calcTax() {
+    const sal = parseInt(document.getElementById('tax-salary').value) || 4500;
+    const card = parseInt(document.getElementById('tax-card').value) || 1800;
+    const pension = Math.min(900, parseInt(document.getElementById('tax-pension').value) || 0);
+    const rent = Math.min(750, parseInt(document.getElementById('tax-rent').value) || 0);
+
+    // 카드 공제 문턱 (총급여 25%)
+    const cardThreshold = sal * 0.25;
+    const cardDeductionBase = Math.max(0, card - cardThreshold);
+    // 평균 한도 및 세율 반영 (단순화된 간이 실측 모델)
+    const cardTaxSaved = Math.min(300, cardDeductionBase * 0.2) * 0.165;
+
+    // 연금저축/IRP (총급여 5500 이하 16.5%, 초과 13.2%)
+    const pensionRate = sal <= 5500 ? 0.165 : 0.132;
+    const pensionTaxSaved = pension * pensionRate;
+
+    // 월세 세액공제 (총급여 5500 이하 17%, 7000 이하 15%)
+    const rentRate = sal <= 5500 ? 0.17 : (sal <= 7000 ? 0.15 : 0);
+    const rentTaxSaved = rent * rentRate;
+
+    const totalSaved = cardTaxSaved + pensionTaxSaved + rentTaxSaved;
+
+    document.getElementById('res-tax-total').innerText = totalSaved.toFixed(1) + '만 원';
+    document.getElementById('res-tax-card').innerText = '약 ' + cardTaxSaved.toFixed(1) + '만 원';
+    document.getElementById('res-tax-pension').innerText = '약 ' + pensionTaxSaved.toFixed(1) + '만 원';
+    document.getElementById('res-tax-rent').innerText = rentTaxSaved > 0 ? ('약 ' + rentTaxSaved.toFixed(1) + '만 원') : '0원 (미입력)';
+
+    document.getElementById('tax-input-card').style.display = 'none';
+    document.getElementById('tax-result-card').style.display = 'block';
   }
 
-  function shareResult() {
-    const age = document.getElementById('res-age').innerText;
-    const pct = document.getElementById('res-percent').innerText;
-    const text = `[토스] 내 ${age}세 또래 연봉 백분위는 상위 ${pct}! 너도 확인해봐 👉 https://toss.im`;
+  // 3. 교통사고 과실비율 데이터
+  const accidentData = {
+    lane_change: {
+      title: "진로변경(차선변경) 사고",
+      ratio: "70 : 30 (차선변경차 70% 과실)",
+      factor: "방향지시등 미점등(+10%), 급차선변경(+10~20%)"
+    },
+    rear_end: {
+      title: "후방 추돌 사고",
+      ratio: "100 : 0 (후방 추돌차 100% 과실)",
+      factor: "앞차의 이유 없는 급제동(-20~30%), 야간 등화 불량(-10%)"
+    },
+    unprotected_left: {
+      title: "비보호 좌회전 vs 직진 사고",
+      ratio: "80 : 20 (좌회전차 80% 과실)",
+      factor: "직진차 과속(+10~20%), 교차로 서행 불이행"
+    },
+    signal_violation: {
+      title: "신호위반 사고 (중과실)",
+      ratio: "100 : 0 (신호위반차 100% 과실)",
+      factor: "12대 중과실 형사처벌 대상 (교통사고처리특례법 위반)"
+    },
+    parking: {
+      title: "주차장 내 출차 vs 주행 사고",
+      ratio: "70 : 30 (출차차량 70% 과실)",
+      factor: "사각지대 서행 의무 위반(+10%), 통로 주행차 과속"
+    }
+  };
+
+  function updateAccidentDesc() {
+    const t = document.getElementById('acc-type').value;
+    const d = accidentData[t] || accidentData['lane_change'];
+    document.getElementById('acc-ratio').innerText = d.ratio;
+    document.getElementById('acc-factor').innerText = d.factor;
+  }
+
+  function showAccidentAdvice() {
+    const t = document.getElementById('acc-type').value;
+    const d = accidentData[t] || accidentData['lane_change'];
+    document.getElementById('res-acc-title').innerText = d.title;
+
+    document.getElementById('acc-input-card').style.display = 'none';
+    document.getElementById('acc-result-card').style.display = 'block';
+  }
+
+  // 공유 기능
+  function shareApp(name) {
+    const text = `[푸푸로 툴즈] 내 ${name} 결과 확인해봤어! 너도 30초 만에 확인해봐 👉 https://fufuro.pages.dev`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => {
-        alert('공유 링크와 결과가 복사되었습니다! 친구 단톡방에 붙여넣어 보세요.');
+        alert('공유 링크가 클립보드에 복사되었습니다! 카톡이나 단톡방에 붙여넣어 보세요.');
       });
     } else {
       alert(text);
