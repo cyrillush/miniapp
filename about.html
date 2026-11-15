@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>운영자·편집 원칙 — 푸푸로 라이프 툴즈</title>
+  <meta name="description" content="푸푸로 라이프 툴즈를 누가, 어떤 기준으로 쓰는지 공개합니다. 공식 1차 출처 우선, 추정치 표기, 제휴 링크 분리 원칙.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://cyrillush.github.io/miniapp/about.html">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="운영자·편집 원칙 — 푸푸로 라이프 툴즈">
+  <meta property="og:description" content="누가, 어떤 기준으로 이 사이트의 계산기와 글을 쓰는지 공개합니다.">
+  <meta property="og:url" content="https://cyrillush.github.io/miniapp/about.html">
+  <meta property="og:site_name" content="푸푸로 라이프 툴즈">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary">
+
+  <style>
+    :root {
+      --primary: #3182F6;
+      --primary-light: #E8F3FF;
+      --bg: #F2F4F6;
+      --card-bg: #FFFFFF;
+      --text: #191F28;
+      --subtext: #8B95A1;
+      --border: #E5E8EB;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px 12px 40px;
+    }
+    .app-container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 14px; }
+
+    .site-nav { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding: 0 2px; }
+    .site-nav a {
+      font-size: 12px; font-weight: 700; color: #4E5968; text-decoration: none;
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 999px;
+      padding: 6px 11px; white-space: nowrap;
+    }
+    .site-nav a.active { color: var(--primary); border-color: #B9D8FF; background: var(--primary-light); }
+
+    .top-header { padding: 8px 4px 4px; display: flex; flex-direction: column; gap: 4px; }
+    .brand-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 700; color: var(--primary);
+      background: var(--primary-light); padding: 4px 10px; border-radius: 12px; width: fit-content;
+    }
+    .top-header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.35; margin-top: 4px; }
+    .top-header p { font-size: 13px; color: var(--subtext); line-height: 1.5; }
+
+    .card { background: var(--card-bg); border-radius: 20px; padding: 22px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+    .card-title { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 10px; }
+    .card p { font-size: 13px; line-height: 1.7; color: #4E5968; margin-bottom: 10px; }
+    .card p:last-child { margin-bottom: 0; }
+    .card a { color: var(--primary); text-decoration: underline; }
+
+    .rule-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+    .rule-list li { font-size: 13px; line-height: 1.65; color: #4E5968; padding-left: 22px; position: relative; }
+    .rule-list li::before {
+      content: "✓"; position: absolute; left: 0; top: 0;
+      color: var(--primary); font-weight: 800; font-size: 12px;
+    }
+    .rule-list strong { color: var(--text); }
+
+    .profile-box {
+      display: flex; flex-direction: column; gap: 8px;
+      background: #FAFAFB; border: 1px solid var(--border); border-radius: 14px; padding: 15px;
+      margin-top: 14px;
+    }
+    .profile-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+    .profile-row .lbl { color: var(--subtext); font-weight: 600; }
+    .profile-row .val { font-weight: 700; text-align: right; }
+
+    .source-box {
+      background: #F8FAFC; border: 1px dashed #D7DEE8; border-radius: 14px;
+      padding: 13px 15px; margin-top: 14px; font-size: 12px; line-height: 1.62; color: #4E5968;
+    }
+    .source-box .source-head { display: block; font-size: 12px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+    .source-box ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .source-box li { padding-left: 9px; position: relative; word-break: keep-all; }
+    .source-box li::before { content: "·"; position: absolute; left: 0; color: #A0AEC0; }
+    .source-box a { color: var(--primary); text-decoration: underline; }
+
+    .footer { text-align: center; padding: 16px 4px 8px; font-size: 11px; color: #A0AEC0; line-height: 1.7; }
+    .footer a { color: #6B7684; text-decoration: none; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: center; margin-bottom: 10px; }
+    .footer-links a { font-weight: 700; font-size: 11px; }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <nav class="site-nav">
+    <a href="index.html">계산기</a>
+    <a href="tools.html">추천 도구</a>
+    <a href="about.html" class="active">운영자·편집 원칙</a>
+    <a href="privacy.html">개인정보처리방침</a>
+  </nav>
+
+  <div class="top-header">
+    <div class="brand-badge">👤 운영자 소개</div>
+    <h1>누가, 무엇을 기준으로<br>쓰는 사이트인가</h1>
+    <p>계산기 숫자가 어디서 나왔는지, 링크에 어떤 이해관계가 있는지 먼저 밝힙니다.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">운영자</div>
+    <p>개인 운영자 <b>푸푸로</b>가 혼자 만들고 고치는 무료 정보 사이트입니다. 회사·법인이 아니며, 사이트 운영을 위해 별도 투자자나 광고주로부터 대가를 받고 특정 기업을 소개하지 않습니다.</p>
+    <p>문의·정정 요청·링크 제안은 X 계정 <a href="https://x.com/story41096" target="_blank" rel="noopener">@story41096</a>의 다이렉트 메시지로 받습니다.</p>
+
+    <div class="profile-box">
+      <div class="profile-row"><span class="lbl">운영 형태</span><span class="val">개인 운영 · 1인</span></div>
+      <div class="profile-row"><span class="lbl">공개 채널</span><span class="val">X @story41096</span></div>
+      <div class="profile-row"><span class="lbl">사이트 성격</span><span class="val">무료 계산기 + 실무 자료</span></div>
+      <div class="profile-row"><span class="lbl">비용</span><span class="val">전부 무료 (회원가입 없음)</span></div>
+      <div class="profile-row"><span class="lbl">자료 최종 확인</span><span class="val">2026-11-15</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">편집 원칙 6</div>
+    <ul class="rule-list">
+      <li><strong>공식 1차 출처를 먼저 봅니다.</strong> 정부·공공기관·협회가 직접 공개한 문서(국가데이터처, 국세청 홈택스, 손해보험협회, 금융감독원)를 기준으로 쓰고, 블로그·커뮤니티 글은 근거로 쓰지 않습니다.</li>
+      <li><strong>인용할 때 기관명·자료명·게시일을 같이 적습니다.</strong> 숫자만 던지고 출처를 숨기지 않습니다. 확인일도 페이지에 표시합니다.</li>
+      <li><strong>추정치와 공식 발표값을 구분합니다.</strong> 이 사이트의 백분위·환급액은 자체 계산식으로 만든 시뮬레이션이고, 공식 통계가 아닙니다. 계산식이 단순하다는 점도 각 계산기 아래에 적어 두었습니다.</li>
+      <li><strong>제휴 링크는 '추천 도구' 페이지 한 곳에만 둡니다.</strong> 링크가 있는 페이지 맨 위에 수수료를 받는다는 문구를 먼저 씁니다. 계산 결과 화면에서 상품을 권하지 않습니다.</li>
+      <li><strong>보험·교통사고·금융상품 영역에는 제휴 링크와 광고를 넣지 않습니다.</strong> 과실비율 페이지는 손해보험협회·금융감독원 공식 링크만 둡니다. 상담·대출·보험 비교 CPA도 취급하지 않습니다.</li>
+      <li><strong>틀린 것을 발견하면 고칩니다.</strong> 근거와 함께 알려주시면 확인 후 해당 계산기·문구를 수정하고, 수정한 날짜를 남깁니다.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="card-title">계산기가 하지 않는 일</div>
+    <p>이 사이트는 <b>세무·회계·법률·보험 손해사정 자문을 하지 않습니다.</b> 계산 결과는 참고용 숫자이고, 계약·신고·합의·소송 같은 결정의 근거로 쓰도록 만들지 않았습니다.</p>
+    <p>정확한 금액은 국세청 홈택스의 '연말정산 미리보기', 과실비율은 손해보험협회 공식 기준과 분쟁심의 절차, 투자·금융 판단은 본인의 책임 아래 확인해 주세요.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">사이트 구성</div>
+    <p><b>계산기</b> — 또래 연봉 백분위, 연말정산 환급금, 교통사고 과실비율, 실무 자료실. 모두 브라우저 안에서만 계산합니다.</p>
+    <p><b>추천 도구</b> — 계산기와 함께 쓰는 데스크·IT·AI 도구. 제휴 고지와 가격 확인 시점을 함께 표시합니다.</p>
+    <p><b>개인정보처리방침</b> — 입력값이 어디로 가는지, 쿠키를 쓰는지 정리했습니다.</p>
+  </div>
+
+  <div class="footer">
+    <div class="footer-links">
+      <a href="index.html">계산기</a>
+      <a href="tools.html">추천 도구</a>
+      <a href="about.html">운영자·편집 원칙</a>
+      <a href="privacy.html">개인정보처리방침</a>
+      <a href="https://x.com/story41096" target="_blank" rel="noopener">X @story41096</a>
+    </div>
+    © 2026 푸푸로 라이프 툴즈 · 개인이 운영하는 무료 정보 서비스입니다.<br>
+    세무·법률·보험 손해사정 자문이 아닙니다. 자료 최종 확인일 <b>2026-11-15</b>
+  </div>
+</div>
+
+</body>
+</html>

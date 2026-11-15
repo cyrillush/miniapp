@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>실무자 추천 도구 — 데스크·IT·AI | 푸푸로 라이프 툴즈</title>
+  <meta name="description" content="계산기 쓰는 실무자를 위한 데스크·IT 장비와 AI 제작 도구 정리. 실제로 확인한 제품과 공식 링크만 올립니다.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://cyrillush.github.io/miniapp/tools.html">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="실무자 추천 도구 — 데스크·IT·AI | 푸푸로 라이프 툴즈">
+  <meta property="og:description" content="계산기 쓰는 실무자를 위한 데스크·IT 장비와 AI 제작 도구 정리.">
+  <meta property="og:url" content="https://cyrillush.github.io/miniapp/tools.html">
+  <meta property="og:site_name" content="푸푸로 라이프 툴즈">
+  <meta property="og:locale" content="ko_KR">
+  <meta name="twitter:card" content="summary">
+
+  <style>
+    :root {
+      --primary: #3182F6;
+      --primary-dark: #1B64DA;
+      --primary-light: #E8F3FF;
+      --success: #00C48C;
+      --danger: #F04452;
+      --bg: #F2F4F6;
+      --card-bg: #FFFFFF;
+      --text: #191F28;
+      --subtext: #8B95A1;
+      --border: #E5E8EB;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px 12px 40px;
+    }
+    .app-container {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .site-nav { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding: 0 2px; }
+    .site-nav a {
+      font-size: 12px; font-weight: 700; color: #4E5968; text-decoration: none;
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 999px;
+      padding: 6px 11px; white-space: nowrap;
+    }
+    .site-nav a.active { color: var(--primary); border-color: #B9D8FF; background: var(--primary-light); }
+
+    .top-header { padding: 8px 4px 4px; display: flex; flex-direction: column; gap: 4px; }
+    .brand-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 700; color: var(--primary);
+      background: var(--primary-light); padding: 4px 10px; border-radius: 12px; width: fit-content;
+    }
+    .top-header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.35; margin-top: 4px; }
+    .top-header p { font-size: 13px; color: var(--subtext); line-height: 1.5; }
+
+    .card { background: var(--card-bg); border-radius: 20px; padding: 22px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+    .card-title { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 4px; }
+    .card-desc { font-size: 12px; color: var(--subtext); line-height: 1.5; margin-bottom: 16px; }
+
+    /* 대가성 고지 */
+    .disclosure {
+      background: #FFF7E6;
+      border: 1px solid #FFE0A3;
+      border-radius: 12px;
+      padding: 10px 13px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #8A5A00;
+      line-height: 1.5;
+      text-align: right;
+    }
+
+    .item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      background: #FAFAFB;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 10px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .item:last-child { margin-bottom: 0; }
+    .item:active { background: #F2F4F6; }
+    .item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .item-name { font-size: 14px; font-weight: 700; line-height: 1.35; }
+    .item-price { font-size: 13px; font-weight: 800; color: var(--primary); white-space: nowrap; }
+    .item-why { font-size: 12px; color: #4E5968; line-height: 1.45; }
+    .item-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 3px; }
+    .item-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: #E2E8F0; color: #4A5568; }
+    .item-go { font-size: 11px; font-weight: 800; color: var(--primary); }
+
+    .source-box {
+      background: #F8FAFC; border: 1px dashed #D7DEE8; border-radius: 14px;
+      padding: 13px 15px; margin-top: 14px; font-size: 12px; line-height: 1.62; color: #4E5968;
+    }
+    .source-box .source-head { display: block; font-size: 12px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+    .source-box ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .source-box li { padding-left: 9px; position: relative; word-break: keep-all; }
+    .source-box li::before { content: "·"; position: absolute; left: 0; color: #A0AEC0; }
+    .source-box a { color: var(--primary); text-decoration: underline; }
+    .source-note { display: block; margin-top: 9px; padding-top: 8px; border-top: 1px solid #E2E8F0; color: var(--subtext); }
+
+    .footer { text-align: center; padding: 16px 4px 8px; font-size: 11px; color: #A0AEC0; line-height: 1.7; }
+    .footer a { color: #6B7684; text-decoration: none; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: center; margin-bottom: 10px; }
+    .footer-links a { font-weight: 700; font-size: 11px; }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <nav class="site-nav">
+    <a href="index.html">계산기</a>
+    <a href="tools.html" class="active">추천 도구</a>
+    <a href="about.html">운영자·편집 원칙</a>
+    <a href="privacy.html">개인정보처리방침</a>
+  </nav>
+
+  <div class="top-header">
+    <div class="brand-badge">🧰 푸푸로 추천 도구</div>
+    <h1>계산기 옆에 두는<br>데스크·IT·AI 도구</h1>
+    <p>실제로 직접 열어 보고 확인한 제품만 정리했습니다. 보험·사고 관련 상품은 이 페이지에 없습니다.</p>
+  </div>
+
+  <!-- 필수 대가성 고지: 링크 상단 우측 -->
+  <div class="disclosure">
+    이 페이지의 일부 링크는 제휴 활동으로 수수료를 받습니다.
+  </div>
+
+  <!-- AI 제작 도구 -->
+  <div class="card">
+    <div class="card-title">AI 제작 도구</div>
+    <div class="card-desc">영상·이미지 제작 시간을 줄이는 도구. 제휴 프로그램이 확인된 것만 표기합니다.</div>
+
+    <a class="item" href="https://higgsfield.ai?fpr=ran-9f318e" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">Higgsfield AI — 영상·이미지 생성</span>
+        <span class="item-price">공식 사이트</span>
+      </div>
+      <div class="item-why">카메라 무빙이 들어간 짧은 영상 클립을 프롬프트로 만듭니다. 쇼츠·릴스 소재 뽑을 때 쓰는 도구입니다.</div>
+      <div class="item-meta">
+        <span class="item-tag">제휴 링크</span>
+        <span class="item-go">공식 페이지 열기 ↗</span>
+      </div>
+    </a>
+
+    <div class="source-box" style="margin-top: 12px;">
+      <span class="source-head">아직 링크를 걸지 않은 도구</span>
+      <ul>
+        <li>CapCut·Runway·ElevenLabs 등은 제휴 조건 확인이 끝나면 추가합니다. 확인 전에는 추천 링크를 만들지 않습니다.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 데스크·IT -->
+  <div class="card">
+    <div class="card-title">데스크·IT 장비 10</div>
+    <div class="card-desc">재택·사무실 책상에서 실제로 반복되는 불편만 골랐습니다. 가격은 2026-11-15 확인 시점 값입니다.</div>
+
+    <a class="item" href="https://naver.me/xB70EED8" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">모락 프로토 8포트 Type-C 멀티허브 C8HUB</span>
+        <span class="item-price">21,900원</span>
+      </div>
+      <div class="item-why">HDMI·USB·랜선·충전을 한 번에 꽂아 노트북 주변 케이블을 한 줄로 정리할 때.</div>
+      <div class="item-meta"><span class="item-tag">허브·연결</span><span class="item-go">상품 보기 ↗</span></div>
+    </a>
+
+    <a class="item" href="https://naver.me/GNJMtth1" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">삼성 포터블 외장 SSD T7 1TB + 파우치</span>
+        <span class="item-price">394,000원</span>
+      </div>
+      <div class="item-why">영상 편집 소스·사진 원본 백업용. 노트북 저장공간을 늘리는 대신 드라이브를 분리해 쓰는 방식.</div>
+      <div class="item-meta"><span class="item-tag">저장장치</span><span class="item-go">상품 보기 ↗</span></div>
+    </a>
+
+    <a class="item" href="https://naver.me/FDc3ddLc" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">오아 무선 접이식 블루투스 키보드</span>
+        <span class="item-price">34,800원</span>
+      </div>
+      <div class="item-why">노트북·태블릿·폰을 오가며 타이핑할 때. 접어서 가방에 넣는 형태입니다.</div>
+      <div class="item-meta"><span class="item-tag">입력기기</span><span class="item-go">상품 보기 ↗</span></div>
+    </a>
+
+    <a class="item" href="https://naver.me/G7Nkvv3O" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">인비오 모니터 조명 스크린바 LIGHT 3-IN-1</span>
+        <span class="item-price">49,800원</span>
+      </div>
+      <div class="item-why">모니터 위에 걸어 책상만 비추는 조명. 야간 작업 시 화면 반사를 줄이는 용도입니다.</div>
+      <div class="item-meta"><span class="item-tag">조명</span><span class="item-go">상품 보기 ↗</span></div>
+    </a>
+
+    <a class="item" href="https://naver.me/x3cnNNGZ" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">스톤힐 모니터받침대 MS01 400</span>
+        <span class="item-price">13,400원</span>
+      </div>
+      <div class="item-why">모니터 높이를 올리면서 아래 공간에 키보드·문서를 넣는 수납형 받침대.</div>
+      <div class="item-meta"><span class="item-tag">데스크 정리</span><span class="item-go">상품 보기 ↗</span></div>
+    </a>
+
+    <a class="item" href="https://naver.me/GB36NNui" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">쿠슝 구름 팜레스트 + 마우스 메모리폼 세트</span>
+        <span class="item-price">17,800원</span>
+      </div>
+      <div class="item-why">키보드·마우스 앞 손목 높이를 맞추는 용도. 책상 앞 자세를 바꿀 때 가장 먼저 손대는 부품입니다.</div>
+      <div class="item-meta"><span class="item-tag">데스크 주변</span><span class="item-go">상품 보기 ↗</span></div>
+    </a>
+
+    <a class="item" href="https://naver.me/F4WsvvVi" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">디알고 WC720 HD 웹캠</span>
+        <span class="item-price">19,800원</span>
+      </div>
+      <div class="item-why">노트북 내장 카메라 대신 쓰는 외장 웹캠. 화상회의·녹화용.</div>
+      <div class="item-meta"><span class="item-tag">화상장비</span><span class="item-go">상품 보기 ↗</span></div>
+    </a>
+
+    <a class="item" href="https://naver.me/Fx2HIIME" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">홈마블 무선청소기 화이트 (핸디형)</span>
+        <span class="item-price">49,800원</span>
+      </div>
+      <div class="item-why">키보드 사이·책상 틈 먼지용 소형 핸디 청소기. 본체+필터 1개 구성.</div>
+      <div class="item-meta"><span class="item-tag">청소</span><span class="item-go">상품 보기 ↗</span></div>
+    </a>
+
+    <a class="item" href="https://naver.me/xoGPffRu" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">파워큐브v2 고용량 멀티탭 4000W 타워 5구</span>
+        <span class="item-price">21,200원</span>
+      </div>
+      <div class="item-why">드라이기·전기포트처럼 소비전력이 큰 기기를 같은 자리에서 쓸 때 여유 있는 용량.</div>
+      <div class="item-meta"><span class="item-tag">전원</span><span class="item-go">상품 보기 ↗</span></div>
+    </a>
+
+    <a class="item" href="https://naver.me/GgUEGG2d" target="_blank" rel="noopener sponsored">
+      <div class="item-top">
+        <span class="item-name">티피링크 Tapo P110M 16A 스마트플러그</span>
+        <span class="item-price">15,400원</span>
+      </div>
+      <div class="item-why">앱으로 전원을 끄고 사용 전력량을 확인하는 콘센트형 플러그. 대기전력 관리용.</div>
+      <div class="item-meta"><span class="item-tag">전원 관리</span><span class="item-go">상품 보기 ↗</span></div>
+    </a>
+
+    <div class="source-box">
+      <span class="source-head">링크·가격 기준</span>
+      <ul>
+        <li>가격·구성은 2026-11-15에 상품 페이지에서 확인한 값이고, 판매자 사정으로 수시로 바뀝니다.</li>
+        <li>제품 링크는 네이버 쇼핑 커넥트 활동의 일환으로, 구매 발생 시 수수료를 받습니다.</li>
+        <li>보험·교통사고·금융상품은 다루지 않습니다. 의료·건강 효능을 주장하는 문구도 쓰지 않습니다.</li>
+      </ul>
+      <span class="source-note">구매 전 판매처의 배송·교환·보증 조건을 직접 확인하세요. 순위나 평점은 이 페이지에서 매기지 않습니다.</span>
+    </div>
+  </div>
+
+  <!-- 계산기로 돌아가기 -->
+  <div class="card">
+    <div class="card-title">계산기 먼저 쓰고 오셨다면</div>
+    <div class="card-desc">연봉 백분위·연말정산 환급·과실비율 계산기는 홈에서 바로 쓸 수 있습니다.</div>
+    <a class="item" href="index.html" style="margin-bottom: 0;">
+      <div class="item-top">
+        <span class="item-name">푸푸로 라이프 툴즈 계산기 4종</span>
+        <span class="item-price">무료</span>
+      </div>
+      <div class="item-why">회원가입·로그인 없이 브라우저에서만 계산합니다.</div>
+      <div class="item-meta"><span class="item-tag">홈</span><span class="item-go">계산기 열기 →</span></div>
+    </a>
+  </div>
+
+  <div class="footer">
+    <div class="footer-links">
+      <a href="index.html">계산기</a>
+      <a href="tools.html">추천 도구</a>
+      <a href="about.html">운영자·편집 원칙</a>
+      <a href="privacy.html">개인정보처리방침</a>
+      <a href="https://x.com/story41096" target="_blank" rel="noopener">X @story41096</a>
+    </div>
+    © 2026 푸푸로 라이프 툴즈 · 개인이 운영하는 무료 정보 서비스입니다.<br>
+    이 페이지의 링크를 통한 구매는 판매처와의 계약이며, 이 사이트는 판매·배송·환불의 당사자가 아닙니다.<br>
+    자료 최종 확인일 <b>2026-11-15</b>
+  </div>
+</div>
+
+</body>
+</html>
