@@ -690,7 +690,7 @@
       <span class="source-head">📚 산출 기준 &amp; 공식 출처 (2026-11-15 확인)</span>
       <ul>
         <li>연금저축·IRP 세액공제: 합산 납입한도 900만 원(연금저축 600 + IRP 300), 총급여 5,500만 원 이하 16.5% / 초과 13.2%</li>
-        <li>월세 세액공제: 총급여 5,500만 원 이하 17% / 7,000만 원 이하 15%, 연간 한도 750만 원</li>
+        <li>월세 세액공제: 총급여 5,500만 원 이하 17% / 8,000만 원 이하 15%, 공제 대상 월세 연간 한도 1,000만 원, 무주택 세대주 요건</li>
         <li>신용·직불카드 소득공제: 총급여의 25% 초과 사용분 기준(공제율은 결제수단별로 다릅니다)</li>
         <li>공식 원문: <a href="https://hometax.go.kr" target="_blank" rel="noopener">국세청 홈택스 — 연말정산 미리보기</a> · <a href="https://www.nts.go.kr" target="_blank" rel="noopener">국세청 nts.go.kr</a></li>
       </ul>
@@ -939,7 +939,7 @@
     const sal = parseInt(document.getElementById('tax-salary').value) || 4500;
     const card = parseInt(document.getElementById('tax-card').value) || 1800;
     const pension = Math.min(900, parseInt(document.getElementById('tax-pension').value) || 0);
-    const rent = Math.min(750, parseInt(document.getElementById('tax-rent').value) || 0);
+    const rent = Math.min(1000, parseInt(document.getElementById('tax-rent').value) || 0);
 
     // 카드 공제 문턱 (총급여 25%)
     const cardThreshold = sal * 0.25;
@@ -951,8 +951,8 @@
     const pensionRate = sal <= 5500 ? 0.165 : 0.132;
     const pensionTaxSaved = pension * pensionRate;
 
-    // 월세 세액공제 (총급여 5500 이하 17%, 7000 이하 15%)
-    const rentRate = sal <= 5500 ? 0.17 : (sal <= 7000 ? 0.15 : 0);
+    // 월세 세액공제 (총급여 5500만 이하 17%, 8000만 이하 15%, 무주택 세대주)
+    const rentRate = sal <= 5500 ? 0.17 : (sal <= 8000 ? 0.15 : 0);
     const rentTaxSaved = rent * rentRate;
 
     const totalSaved = cardTaxSaved + pensionTaxSaved + rentTaxSaved;
