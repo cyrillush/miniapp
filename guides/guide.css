@@ -131,9 +131,9 @@ table.rate { width: 100%; border-collapse: collapse; font-size: 12px; min-width:
 table.rate th, table.rate td { padding: 8px 9px; text-align: left; vertical-align: top; }
 table.rate thead th {
   background: #F2F4F6; color: #333D4B; font-weight: 800; font-size: 11.5px;
-  border-bottom: 1px solid var(--border); white-space: nowrap;
+  border-bottom: 1px solid var(--border); word-break: keep-all;
 }
-table.rate td { border-bottom: 1px solid #F2F4F6; color: #4E5968; line-height: 1.55; }
+table.rate td { border-bottom: 1px solid #F2F4F6; color: #4E5968; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }
 table.rate tbody tr:last-child td { border-bottom: none; }
 table.rate td.num, table.rate th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 table.rate td b { color: var(--text); }
