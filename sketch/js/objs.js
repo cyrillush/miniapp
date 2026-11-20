@@ -336,9 +336,8 @@ window.AS = window.AS || {};
         drag.mode = 'mappinch';
         drag.d0 = Math.hypot(t[0].x - t[1].x, t[0].y - t[1].y) || 1;
         drag.a0 = Math.atan2(t[1].y - t[0].y, t[1].x - t[0].x) * 180 / Math.PI;
-        drag.z0 = AS.mapx.map.getZoom();
-        drag.b0 = S.view.bearing || 0;
         drag.mid = { x: (t[0].x + t[1].x) / 2, y: (t[0].y + t[1].y) / 2 };
+        AS.mapx.startPinch(drag.mid.x, drag.mid.y);
         return;
       }
       if (drag.o && drag.o.type !== 'pen') {
@@ -407,11 +406,7 @@ window.AS = window.AS || {};
       var md = Math.hypot(mt[0].x - mt[1].x, mt[0].y - mt[1].y) || 1;
       var ma = Math.atan2(mt[1].y - mt[0].y, mt[1].x - mt[0].x) * 180 / Math.PI;
       var mid = { x: (mt[0].x + mt[1].x) / 2, y: (mt[0].y + mt[1].y) / 2 };
-      AS.mapx.panScreen(mid.x - drag.mid.x, mid.y - drag.mid.y);
-      drag.mid = mid;
-      AS.mapx.setBearing(drag.b0 + (ma - drag.a0), true);
-      var dz = Math.log2(md / drag.d0);
-      AS.mapx.map.setZoom(C.clamp(drag.z0 + dz, 3, 21), { animate: false });
+      AS.mapx.movePinch(mid.x, mid.y, md / drag.d0, ma - drag.a0);
       drag.moved = true;
       return;
     }
@@ -469,11 +464,16 @@ window.AS = window.AS || {};
     if (!drag) return;
     if ((drag.mode === 'mappinch' || drag.mode === 'pinch') && pcount() === 1) {
       var k = Object.keys(ptrs)[0];
-      if (drag.mode === 'mappinch') { drag = { mode: 'map', last: ptrs[k], moved: true }; return; }
+      if (drag.mode === 'mappinch') {
+        AS.mapx.endPinch();
+        drag = { mode: 'map', last: ptrs[k], moved: true };
+        return;
+      }
       drag.mode = 'move'; drag.p0 = ptrs[k]; drag.moved = true; return;
     }
     if (pcount() > 0) return;
     if (drag.mode === 'map' || drag.mode === 'mappinch') {
+      if (drag.mode === 'mappinch') AS.mapx.endPinch();
       drag = null;
       return;
     }
@@ -556,9 +556,9 @@ window.AS = window.AS || {};
     });
   }
 
-  /* ─────────────────────────── 펜 + 꾹 누르기 도형 보정 ─────────────────────────── */
+  /* ─────────────────────────── 펜 + 1초 꾹 누르기 도형·화살표 보정 ─────────────────────────── */
   var holdTick = null, holdAnchor = null, holdAt = 0;
-  var HOLD_RING_SHOW = 360, HOLD_SNAP_MS = 2100;
+  var HOLD_RING_SHOW = 240, HOLD_SNAP_MS = 1000;
 
   function hideHoldRing() {
     var r = $('#holdRing');
@@ -631,6 +631,51 @@ window.AS = window.AS || {};
     return cur;
   }
 
+  function detectArrowHead(raw, diag) {
+    if (!raw || raw.length < 6) return null;
+    var p0 = raw[0], pEnd = raw[raw.length - 1];
+    if (Math.hypot(pEnd[0] - p0[0], pEnd[1] - p0[1]) < Math.max(24, diag * 0.25)) return null;
+    // 총 누적 길이
+    var cum = [0];
+    for (var i = 1; i < raw.length; i++) {
+      cum.push(cum[i - 1] + Math.hypot(raw[i][0] - raw[i - 1][0], raw[i][1] - raw[i - 1][1]));
+    }
+    var totalLen = cum[cum.length - 1];
+    if (totalLen < 42) return null;
+
+    // 1) 끝부분(후반 55%)에서 급격한 역전(>= 105도 꺾임) 꼭짓점 찾기 = 화살촉 시작점
+    var bestIdx = -1, bestScore = -1;
+    var startScan = Math.max(2, Math.floor(raw.length * 0.35));
+    for (var ti = startScan; ti < raw.length - 1; ti++) {
+      var shaftLen = cum[ti];
+      var tailLen = totalLen - cum[ti];
+      if (shaftLen < 28 || tailLen < 10 || tailLen > Math.max(76, shaftLen * 0.65)) continue;
+      // ti 직전 방향(최소 10px 떨어진 점) vs ti 직후 방향(최소 6px 또는 끝점)
+      var bi = ti - 1;
+      while (bi > 0 && Math.hypot(raw[ti][0] - raw[bi][0], raw[ti][1] - raw[bi][1]) < 12) bi--;
+      var fi = ti + 1;
+      while (fi < raw.length - 1 && Math.hypot(raw[fi][0] - raw[ti][0], raw[fi][1] - raw[ti][1]) < 8) fi++;
+      var vx1 = raw[ti][0] - raw[bi][0], vy1 = raw[ti][1] - raw[bi][1];
+      var vx2 = raw[fi][0] - raw[ti][0], vy2 = raw[fi][1] - raw[ti][1];
+      var l1 = Math.hypot(vx1, vy1) || 1, l2 = Math.hypot(vx2, vy2) || 1;
+      var dot = (vx1 * vx2 + vy1 * vy2) / (l1 * l2); // -1 = 완전 역전, 0 = 90도
+      if (dot <= -0.26) { // >= ~105도 이상 뒤로 꺾임 (화살촉 날개)
+        // 끝이 꼭짓점 근처(촉 크기 안쪽)에 머무는지 확인
+        var maxTailSpread = 0;
+        for (var k = ti + 1; k < raw.length; k++) {
+          var dk = Math.hypot(raw[k][0] - raw[ti][0], raw[k][1] - raw[ti][1]);
+          if (dk > maxTailSpread) maxTailSpread = dk;
+        }
+        if (maxTailSpread <= Math.max(46, shaftLen * 0.45)) {
+          var score = -dot * (shaftLen / (tailLen + 10));
+          if (score > bestScore) { bestScore = score; bestIdx = ti; }
+        }
+      }
+    }
+    if (bestIdx > 1) return raw.slice(0, bestIdx + 1);
+    return null;
+  }
+
   function recognizeShape(raw) {
     if (!raw || raw.length < 3) return { pts: raw, label: '직선' };
     var minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9, len = 0;
@@ -643,6 +688,24 @@ window.AS = window.AS || {};
     var bw = maxX - minX, bh = maxY - minY, diag = Math.hypot(bw, bh) || 1;
     var p0 = raw[0], p1 = raw[raw.length - 1];
     var closeD = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+
+    // 0. 한 붓 화살표 (선 + 끝 화살촉)
+    var arrowShaft = detectArrowHead(raw, diag);
+    if (arrowShaft && arrowShaft.length >= 2) {
+      var ap0 = arrowShaft[0], ap1 = arrowShaft[arrowShaft.length - 1];
+      var aDirect = Math.hypot(ap1[0] - ap0[0], ap1[1] - ap0[1]) || 1;
+      var aDev = 0;
+      for (var ai = 1; ai < arrowShaft.length - 1; ai++) {
+        var adv = segDist(arrowShaft[ai][0], arrowShaft[ai][1], ap0[0], ap0[1], ap1[0], ap1[1]);
+        if (adv > aDev) aDev = adv;
+      }
+      if (aDev <= Math.max(12, aDirect * 0.085)) {
+        return { pts: [ap0, ap1], arrowEnd: true, label: '직선 화살표' };
+      }
+      var aLen = 0;
+      for (var aj = 1; aj < arrowShaft.length; aj++) aLen += Math.hypot(arrowShaft[aj][0] - arrowShaft[aj - 1][0], arrowShaft[aj][1] - arrowShaft[aj - 1][1]);
+      return { pts: chaikin(rdp(arrowShaft, Math.max(5, aLen * 0.02)), 3, false), arrowEnd: true, label: '곡선 화살표' };
+    }
 
     // 1. 닫힌 도형 판별 (원 · 삼각형 · 사각형)
     if (len > 50 && closeD < Math.max(28, diag * 0.28)) {
@@ -726,10 +789,11 @@ window.AS = window.AS || {};
     penDraft.lat = penDraft.pts[0][0];
     penDraft.lng = penDraft.pts[0][1];
     penDraft.snapped = res.label;
+    if (res.arrowEnd) penDraft.arrowEnd = true;
     hideHoldRing();
     var g = nodeOf[penDraft.id];
     if (g) g.innerHTML = penStroke(penDraft, penPath(penDraft));
-    AS.toast('✨ ' + res.label + ' 모양으로 다듬었어요');
+    AS.toast('✨ ' + res.label + '으로 다듬었어요');
   }
 
   function startPen(p) {
@@ -763,7 +827,7 @@ window.AS = window.AS || {};
     if (!penDraft) return;
     if (penDraft.pts.length < 2) {
       S.objs = S.objs.filter(function (o) { return o !== penDraft; });
-      AS.toast('점을 찍었어요 — 그은 뒤 2초 누르면 모양이 다듬어져요');
+      AS.toast('점을 찍었어요 — 그은 뒤 1초 누르면 화살표·도형이 고정돼요');
     } else {
       C.pushUndo();
     }

@@ -14,9 +14,9 @@ window.AS = window.AS || {};
   var BASE_ATTR = '© OpenStreetMap contributors · 타일 FOSSGIS';
   var TILES = {
     sat: {
-      url: 'https://mt{s}.google.com/vt/lyrs=s&hl=ko&x={x}&y={y}&z={z}',
-      opt: { subdomains: '0123', maxNativeZoom: 20, maxZoom: 21, attribution: '© Google' },
-      filter: ''
+      url: 'https://mt{s}.google.com/vt/lyrs=s&scale=2&hl=ko&x={x}&y={y}&z={z}',
+      opt: { subdomains: '0123', tileSize: 256, maxNativeZoom: 21, maxZoom: 22, attribution: '© Google' },
+      filter: 'contrast(1.06) saturate(1.06)'
     },
     map: { url: BASE, opt: { maxNativeZoom: 19, maxZoom: 20, attribution: BASE_ATTR }, filter: 'saturate(.65) brightness(1.03) contrast(.96)' },
     dark: { url: BASE, opt: { maxNativeZoom: 19, maxZoom: 20, attribution: BASE_ATTR }, filter: 'grayscale(.6) invert(1) brightness(.9) contrast(1.1)' }
@@ -30,11 +30,13 @@ window.AS = window.AS || {};
     map = L.map('map', {
       center: [v.lat, v.lng], zoom: v.z, zoomControl: false, attributionControl: false,
       dragging: false, touchZoom: false,
-      zoomSnap: .25, zoomDelta: .5, maxZoom: 21, minZoom: 3,
-      worldCopyJump: true, preferCanvas: false, zoomAnimation: false
+      zoomSnap: .1, zoomDelta: .5, maxZoom: 22, minZoom: 3,
+      worldCopyJump: true, preferCanvas: false, zoomAnimation: false, fadeAnimation: false
     });
     Object.keys(TILES).forEach(function (k) {
-      layers[k] = L.tileLayer(TILES[k].url, Object.assign({ crossOrigin: true, keepBuffer: 2 }, TILES[k].opt));
+      layers[k] = L.tileLayer(TILES[k].url, Object.assign({
+        crossOrigin: true, keepBuffer: 6, updateWhenZooming: false, updateWhenIdle: false
+      }, TILES[k].opt));
       var errs = 0;
       layers[k].on('tileerror', function () {
         errs += 1;
@@ -139,11 +141,9 @@ window.AS = window.AS || {};
     }
   }
 
-  function applyBearing() {
-    var b = ((S.view.bearing || 0) % 360 + 360) % 360;
-    S.view.bearing = b;
-    var mr = $('#mapRot');
-    if (mr) mr.style.transform = 'translate(-50%,-50%) rotate(' + b + 'deg)';
+  var pinch = null;
+
+  function applyCompassUI(b) {
     var cb = $('#compassBtn'), ct = $('#compassTxt');
     if (cb) {
       cb.classList.toggle('rot', Math.round(b) !== 0 && Math.round(b) !== 360);
@@ -151,6 +151,14 @@ window.AS = window.AS || {};
       if (needle) needle.style.transform = 'rotate(' + b + 'deg)';
     }
     if (ct) ct.textContent = (Math.round(b) % 360) + '°';
+  }
+
+  function applyBearing() {
+    var b = ((S.view.bearing || 0) % 360 + 360) % 360;
+    S.view.bearing = b;
+    var mr = $('#mapRot');
+    if (mr) mr.style.transform = 'translate(-50%,-50%) rotate(' + b + 'deg)';
+    applyCompassUI(b);
   }
 
   var bearSaveT = null;
@@ -162,6 +170,51 @@ window.AS = window.AS || {};
     AS.objs.layout();
     clearTimeout(bearSaveT);
     bearSaveT = setTimeout(function () { AS.core.save(); }, 350);
+  }
+
+  function startPinch(px, py) {
+    if (!map) return;
+    pinch = {
+      active: true, px: px, py: py, mx: px, my: py,
+      s: 1, db: 0, b0: S.view.bearing || 0, z0: map.getZoom()
+    };
+  }
+
+  function movePinch(mx, my, scale, dBearing) {
+    if (!pinch || !map) return;
+    var minS = Math.pow(2, 3 - pinch.z0), maxS = Math.pow(2, 22 - pinch.z0);
+    var s = AS.core.clamp(scale, minS, maxS);
+    pinch.mx = mx; pinch.my = my; pinch.s = s; pinch.db = dBearing;
+    var b = ((pinch.b0 + dBearing) % 360 + 360) % 360;
+    S.view.bearing = b;
+    var ox = S.stage.w / 2, oy = S.stage.h / 2;
+    var rx0 = pinch.px - ox, ry0 = pinch.py - oy;
+    var dx = mx - pinch.px, dy = my - pinch.py;
+    var rad = dBearing * Math.PI / 180;
+    var c = Math.cos(rad), sn = Math.sin(rad);
+    var tx = (rx0 + dx) - s * (rx0 * c - ry0 * sn);
+    var ty = (ry0 + dy) - s * (rx0 * sn + ry0 * c);
+    var mr = $('#mapRot');
+    if (mr) {
+      mr.style.transform = 'translate(-50%,-50%) translate(' + tx.toFixed(2) + 'px,' + ty.toFixed(2) +
+        'px) rotate(' + (pinch.b0 + dBearing).toFixed(2) + 'deg) scale(' + s.toFixed(4) + ')';
+    }
+    applyCompassUI(b);
+    AS.objs.layout();
+  }
+
+  function endPinch() {
+    if (!pinch || !map) return;
+    var target = unproject(S.stage.w / 2, S.stage.h / 2);
+    var newZ = AS.core.clamp(pinch.z0 + Math.log2(pinch.s), 3, 22);
+    var newB = ((pinch.b0 + pinch.db) % 360 + 360) % 360;
+    if (Math.abs(pinch.db) > 0 && (newB < 2.5 || newB > 357.5)) newB = 0;
+    pinch = null;
+    S.view.bearing = newB;
+    applyBearing();
+    map.setView(target, newZ, { animate: false });
+    AS.objs.layout();
+    AS.core.save();
   }
 
   function panScreen(dx, dy) {
@@ -193,14 +246,34 @@ window.AS = window.AS || {};
     var mp = map.latLngToContainerPoint([lat, lng]);
     var ms = map.getSize();
     var dx = mp.x - ms.x / 2, dy = mp.y - ms.y / 2;
-    var th = (S.view.bearing || 0) * Math.PI / 180;
+    var bBase = pinch ? pinch.b0 : (S.view.bearing || 0);
+    var th = bBase * Math.PI / 180;
     var c = Math.cos(th), s = Math.sin(th);
-    return L.point(S.stage.w / 2 + dx * c - dy * s, S.stage.h / 2 + dx * s + dy * c);
+    var sx = S.stage.w / 2 + dx * c - dy * s;
+    var sy = S.stage.h / 2 + dx * s + dy * c;
+    if (pinch && pinch.active) {
+      var ux = sx - pinch.px, uy = sy - pinch.py;
+      var r2 = pinch.db * Math.PI / 180;
+      var c2 = Math.cos(r2), s2 = Math.sin(r2);
+      return L.point(
+        pinch.mx + pinch.s * (ux * c2 - uy * s2),
+        pinch.my + pinch.s * (ux * s2 + uy * c2)
+      );
+    }
+    return L.point(sx, sy);
   }
   function unproject(x, y) {
+    if (pinch && pinch.active) {
+      var ux = (x - pinch.mx) / pinch.s, uy = (y - pinch.my) / pinch.s;
+      var r2 = -pinch.db * Math.PI / 180;
+      var c2 = Math.cos(r2), s2 = Math.sin(r2);
+      x = pinch.px + ux * c2 - uy * s2;
+      y = pinch.py + ux * s2 + uy * c2;
+    }
     var ms = map.getSize();
     var rx = x - S.stage.w / 2, ry = y - S.stage.h / 2;
-    var th = -(S.view.bearing || 0) * Math.PI / 180;
+    var bBase = pinch ? pinch.b0 : (S.view.bearing || 0);
+    var th = -bBase * Math.PI / 180;
     var c = Math.cos(th), s = Math.sin(th);
     var mx = ms.x / 2 + rx * c - ry * s;
     var my = ms.y / 2 + rx * s + ry * c;
@@ -273,6 +346,7 @@ window.AS = window.AS || {};
   AS.mapx = {
     init: init, get map() { return map; }, layers: layers, setBg: setBg, setLock: setLock, applyLock: applyLock,
     setBearing: setBearing, applyBearing: applyBearing, panScreen: panScreen,
+    startPinch: startPinch, movePinch: movePinch, endPinch: endPinch,
     fly: fly, center: center, project: project, unproject: unproject, meters: meters, dist: dist,
     search: search, geolocate: geolocate, curLayer: function () { return cur; },
     currentFilter: currentFilter

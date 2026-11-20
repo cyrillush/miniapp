@@ -97,6 +97,8 @@ window.AS = window.AS || {};
     }
 
     if (cat === 'road') {
+      addGroup(body, '도로 · 터널 바탕');
+      symCards(body, ['road_2', 'road_4', 'road_tunnel', 'road_cross', 'road_t']);
       addGroup(body, '횡단 · 신호');
       symCards(body, ['crosswalk', 'signal', 'pedsignal']);
       addGroup(body, '차로 표시');
@@ -196,7 +198,7 @@ window.AS = window.AS || {};
         syncTool();
         if (S.tool === 'memo') { closeSheet(); toast('메모할 곳을 톡 누르세요'); return; }
         closeSheet();
-        toast(S.tool === 'pen' ? '손가락으로 그어 약도를 그리세요' : '지도에서 끌어 화살표를 그리세요');
+        toast(S.tool === 'pen' ? '그은 뒤 1초 누르면 화살표·도형이 반듯해져요' : '지도에서 끌어 화살표를 그리세요');
       });
       body.appendChild(card);
     });
