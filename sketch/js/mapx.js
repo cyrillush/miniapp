@@ -13,47 +13,64 @@ window.AS = window.AS || {};
   var BASE = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
   var BASE_ATTR = '© OpenStreetMap contributors · 타일 FOSSGIS';
   var TILES = {
-    map: { url: BASE, opt: { maxNativeZoom: 19, maxZoom: 20, attribution: BASE_ATTR }, filter: 'saturate(.55) brightness(1.04) contrast(.95)' },
-    road: { url: BASE, opt: { maxNativeZoom: 19, maxZoom: 20, attribution: BASE_ATTR }, filter: 'grayscale(1) brightness(1.12) contrast(.9)' },
-    dark: { url: BASE, opt: { maxNativeZoom: 19, maxZoom: 20, attribution: BASE_ATTR }, filter: 'grayscale(.6) invert(1) brightness(.9) contrast(1.1)' },
     sat: {
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      opt: { maxNativeZoom: 19, maxZoom: 20, attribution: 'Imagery © Esri · Maxar · Earthstar Geographics' },
+      url: 'https://mt{s}.google.com/vt/lyrs=s&hl=ko&x={x}&y={y}&z={z}',
+      opt: { subdomains: '0123', maxNativeZoom: 20, maxZoom: 21, attribution: '© Google' },
       filter: ''
-    }
+    },
+    map: { url: BASE, opt: { maxNativeZoom: 19, maxZoom: 20, attribution: BASE_ATTR }, filter: 'saturate(.65) brightness(1.03) contrast(.96)' },
+    dark: { url: BASE, opt: { maxNativeZoom: 19, maxZoom: 20, attribution: BASE_ATTR }, filter: 'grayscale(.6) invert(1) brightness(.9) contrast(1.1)' }
   };
   var FALLBACK = { url: 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attr: '© OpenStreetMap contributors · 타일 OSM France(HOT)', maxNative: 18 };
+  var SAT_FALLBACK = { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr: 'Imagery © Esri' };
 
   function init() {
-    var v = S.view || { lat: 37.49794, lng: 127.02758, z: 19 };
+    var v = S.view || { lat: 37.49794, lng: 127.02758, z: 19, bearing: 0 };
+    if (typeof v.bearing !== 'number') v.bearing = 0;
     map = L.map('map', {
-      center: [v.lat, v.lng], zoom: v.z, zoomControl: false, attributionControl: true,
-      zoomSnap: .5, zoomDelta: .5, maxZoom: 20, minZoom: 3,
-      worldCopyJump: true, preferCanvas: false, zoomAnimation: true
+      center: [v.lat, v.lng], zoom: v.z, zoomControl: false, attributionControl: false,
+      dragging: false, touchZoom: false,
+      zoomSnap: .25, zoomDelta: .5, maxZoom: 21, minZoom: 3,
+      worldCopyJump: true, preferCanvas: false, zoomAnimation: false
     });
     Object.keys(TILES).forEach(function (k) {
       layers[k] = L.tileLayer(TILES[k].url, Object.assign({ crossOrigin: true, keepBuffer: 2 }, TILES[k].opt));
       var errs = 0;
       layers[k].on('tileerror', function () {
         errs += 1;
-        if (errs === 4 && k !== 'sat') { useFallback(); }
+        if (errs === 4) {
+          if (k === 'sat') useSatFallback();
+          else useFallback();
+        }
       });
     });
-    cur = layers.map;
-    cur.addTo(map);
+    cur = layers[S.bg] || layers.sat;
+    if (S.bg !== 'road') cur.addTo(map);
     applyFilter(currentFilter());
+    var mr = $('#mapRot');
+    if (mr) mr.classList.toggle('blank', S.bg === 'road');
+    applyBearing();
     applyLock();
 
     map.on('move zoom viewreset resize', function () { AS.objs.layout(); });
     var savet = null;
     map.on('moveend zoomend', function () {
       var c = map.getCenter();
-      S.view = { lat: c.lat, lng: c.lng, z: map.getZoom() };
+      S.view = { lat: c.lat, lng: c.lng, z: map.getZoom(), bearing: S.view.bearing || 0 };
       clearTimeout(savet); savet = setTimeout(function () { AS.core.save(); }, 500);
     });
-    map.on('click', function () { AS.objs.deselect(); });
     setTimeout(function () { map.invalidateSize(); AS.objs.layout(); }, 120);
     return map;
+  }
+
+  var satFellBack = false;
+  function useSatFallback() {
+    if (satFellBack) return;
+    satFellBack = true;
+    var was = cur === layers.sat;
+    if (map.hasLayer(layers.sat)) map.removeLayer(layers.sat);
+    layers.sat = L.tileLayer(SAT_FALLBACK.url, { crossOrigin: true, maxNativeZoom: 19, maxZoom: 21, attribution: SAT_FALLBACK.attr, keepBuffer: 2 });
+    if (was) { layers.sat.addTo(map); cur = layers.sat; }
   }
 
   var fellBack = false;
@@ -81,13 +98,25 @@ window.AS = window.AS || {};
 
   function setBg(name) {
     S.bg = name;
-    var key = (name === 'capture') ? 'map' : name;
-    if (!layers[key]) key = 'map';
-    if (cur && cur !== layers[key]) { map.removeLayer(cur); layers[key].addTo(map); cur = layers[key]; }
-    applyFilter(currentFilter());
+    var mr = $('#mapRot');
+    if (mr) mr.classList.toggle('blank', name === 'road');
+    if (name === 'road') {
+      if (cur && map.hasLayer(cur)) { map.removeLayer(cur); cur = null; }
+      applyFilter('');
+    } else {
+      var key = (name === 'capture') ? 'map' : name;
+      if (!layers[key]) key = 'sat';
+      if (cur !== layers[key]) {
+        if (cur && map.hasLayer(cur)) map.removeLayer(cur);
+        layers[key].addTo(map);
+        cur = layers[key];
+      }
+      applyFilter(currentFilter());
+    }
     var cap = $('#capLayer');
     if (cap) cap.hidden = name !== 'capture' || !S.cap.src;
     if (name === 'capture' && !S.cap.src) { AS.toast('캡처 배경 사진을 먼저 선택하세요'); }
+    if (name === 'road') AS.toast('터널·도면 모드 — 도로 버튼으로 차선을 얹어 보세요');
     AS.ui.bgchips();
     AS.core.save();
   }
@@ -95,13 +124,11 @@ window.AS = window.AS || {};
   function applyLock() {
     if (!map) return;
     var locked = !!S.lock;
-    var on = function (h) { return function () { return locked ? false : h; }; };
-    map.dragging.enable();
-    if (locked) map.dragging.disable();
-    [map.touchZoom, map.doubleClickZoom, map.boxZoom].forEach(function (h) {
+    [map.doubleClickZoom, map.boxZoom].forEach(function (h) {
       if (!h) return;
       if (locked) h.disable(); else h.enable();
     });
+    if (map.scrollWheelZoom) { if (locked) map.scrollWheelZoom.disable(); else map.scrollWheelZoom.enable(); }
     var el = document.body;
     el.setAttribute('data-lock', locked ? '1' : '0');
     var b = $('#btnLock');
@@ -110,6 +137,40 @@ window.AS = window.AS || {};
       var em = b.querySelector('em');
       if (em) em.textContent = locked ? '지도 고정' : '지도 이동';
     }
+  }
+
+  function applyBearing() {
+    var b = ((S.view.bearing || 0) % 360 + 360) % 360;
+    S.view.bearing = b;
+    var mr = $('#mapRot');
+    if (mr) mr.style.transform = 'translate(-50%,-50%) rotate(' + b + 'deg)';
+    var cb = $('#compassBtn'), ct = $('#compassTxt');
+    if (cb) {
+      cb.classList.toggle('rot', Math.round(b) !== 0 && Math.round(b) !== 360);
+      var needle = cb.querySelector('.needle');
+      if (needle) needle.style.transform = 'rotate(' + b + 'deg)';
+    }
+    if (ct) ct.textContent = (Math.round(b) % 360) + '°';
+  }
+
+  var bearSaveT = null;
+  function setBearing(deg, snapZero) {
+    var b = ((deg % 360) + 360) % 360;
+    if (snapZero && (b < 3 || b > 357)) b = 0;
+    S.view.bearing = b;
+    applyBearing();
+    AS.objs.layout();
+    clearTimeout(bearSaveT);
+    bearSaveT = setTimeout(function () { AS.core.save(); }, 350);
+  }
+
+  function panScreen(dx, dy) {
+    if (!map) return;
+    var th = -(S.view.bearing || 0) * Math.PI / 180;
+    var c = Math.cos(th), s = Math.sin(th);
+    var pdx = dx * c - dy * s;
+    var pdy = dx * s + dy * c;
+    map.panBy([-pdx, -pdy], { animate: false, noMoveStart: true });
   }
 
   function setLock(v, silent) {
@@ -129,10 +190,21 @@ window.AS = window.AS || {};
   }
 
   function project(lat, lng) {
-    return map.latLngToContainerPoint([lat, lng]);
+    var mp = map.latLngToContainerPoint([lat, lng]);
+    var ms = map.getSize();
+    var dx = mp.x - ms.x / 2, dy = mp.y - ms.y / 2;
+    var th = (S.view.bearing || 0) * Math.PI / 180;
+    var c = Math.cos(th), s = Math.sin(th);
+    return L.point(S.stage.w / 2 + dx * c - dy * s, S.stage.h / 2 + dx * s + dy * c);
   }
   function unproject(x, y) {
-    return map.containerPointToLatLng([x, y]);
+    var ms = map.getSize();
+    var rx = x - S.stage.w / 2, ry = y - S.stage.h / 2;
+    var th = -(S.view.bearing || 0) * Math.PI / 180;
+    var c = Math.cos(th), s = Math.sin(th);
+    var mx = ms.x / 2 + rx * c - ry * s;
+    var my = ms.y / 2 + rx * s + ry * c;
+    return map.containerPointToLatLng([mx, my]);
   }
   function meters(px) {
     try { return map.distance(unproject(10, 10), unproject(10 + px, 10)); } catch (e) { return 0; }
@@ -200,6 +272,7 @@ window.AS = window.AS || {};
 
   AS.mapx = {
     init: init, get map() { return map; }, layers: layers, setBg: setBg, setLock: setLock, applyLock: applyLock,
+    setBearing: setBearing, applyBearing: applyBearing, panScreen: panScreen,
     fly: fly, center: center, project: project, unproject: unproject, meters: meters, dist: dist,
     search: search, geolocate: geolocate, curLayer: function () { return cur; },
     currentFilter: currentFilter

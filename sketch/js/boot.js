@@ -23,9 +23,10 @@
       var ci = document.getElementById('capImg');
       if (ci) ci.src = S.cap.src;
     }
-    AS.mapx.setBg(S.bg || 'map');
+    AS.mapx.setBg(S.bg || 'sat');
     AS.ui.bgchips();
     AS.ui.syncTool();
+    AS.mapx.applyBearing();
     AS.mapx.applyLock();
     C.baseline();
     C.syncUndo();

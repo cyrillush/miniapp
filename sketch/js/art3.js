@@ -27,6 +27,46 @@
     });
   }
 
+  var ROAD_TPL = {
+    road_2: {
+      v: '0 0 120 260',
+      s: '<rect x="14" y="0" width="92" height="260" rx="4" fill="#374151" stroke="#94A3B8" stroke-width="2"/>' +
+         '<path d="M22 4 L22 256 M98 4 L98 256" stroke="#F8FAFC" stroke-width="2.4"/>' +
+         '<path d="M58 4 L58 256 M62 4 L62 256" stroke="#FBBF24" stroke-width="2"/>'
+    },
+    road_4: {
+      v: '0 0 180 260',
+      s: '<rect x="8" y="0" width="164" height="260" rx="4" fill="#374151" stroke="#94A3B8" stroke-width="2"/>' +
+         '<path d="M16 4 L16 256 M164 4 L164 256" stroke="#F8FAFC" stroke-width="2.4"/>' +
+         '<path d="M53 6 L53 254 M127 6 L127 254" stroke="#E2E8F0" stroke-width="2" stroke-dasharray="16 14"/>' +
+         '<path d="M87.5 4 L87.5 256 M92.5 4 L92.5 256" stroke="#FBBF24" stroke-width="2.2"/>'
+    },
+    road_tunnel: {
+      v: '0 0 160 260',
+      s: '<rect x="4" y="0" width="152" height="260" rx="6" fill="#CBD5E1" stroke="#64748B" stroke-width="2"/>' +
+         '<rect x="18" y="0" width="124" height="260" fill="#27303F"/>' +
+         '<path d="M24 4 L24 256 M136 4 L136 256" stroke="#F8FAFC" stroke-width="2.2"/>' +
+         '<path d="M80 6 L80 254" stroke="#F8FAFC" stroke-width="2.2" stroke-dasharray="16 14"/>' +
+         '<path d="M10 18 L18 18 M10 62 L18 62 M10 106 L18 106 M10 150 L18 150 M10 194 L18 194 M10 238 L18 238 M142 18 L150 18 M142 62 L150 62 M142 106 L150 106 M142 150 L150 150 M142 194 L150 194 M142 238 L150 238" stroke="#F59E0B" stroke-width="3" stroke-linecap="round"/>' +
+         '<path d="M14 26 Q80 4 146 26" fill="none" stroke="#475569" stroke-width="6" stroke-linecap="round"/>' +
+         '<path d="M14 234 Q80 256 146 234" fill="none" stroke="#475569" stroke-width="6" stroke-linecap="round"/>'
+    },
+    road_cross: {
+      v: '0 0 220 220',
+      s: '<path d="M68 0 H152 V68 H220 V152 H152 V220 H68 V152 H0 V68 H68 Z" fill="#374151" stroke="#94A3B8" stroke-width="2"/>' +
+         '<path d="M74 4 V66 M146 4 V66 M74 154 V216 M146 154 V216 M4 74 H66 M154 74 H216 M4 146 H66 M154 146 H216" stroke="#F8FAFC" stroke-width="2"/>' +
+         '<path d="M108 4 V52 M112 4 V52 M108 168 V216 M112 168 V216 M4 108 H52 M4 112 H52 M168 108 H216 M168 112 H216" stroke="#FBBF24" stroke-width="2"/>' +
+         '<path d="M78 58 H142 M78 162 H142 M58 78 V142 M162 78 V142" stroke="#E2E8F0" stroke-width="8" stroke-dasharray="6 6"/>'
+    },
+    road_t: {
+      v: '0 0 220 200',
+      s: '<path d="M0 44 H220 V128 H152 V200 H68 V128 H0 Z" fill="#374151" stroke="#94A3B8" stroke-width="2"/>' +
+         '<path d="M4 50 H216 M4 122 H70 M150 122 H216 M74 126 V196 M146 126 V196" stroke="#F8FAFC" stroke-width="2"/>' +
+         '<path d="M4 84 H216 M4 88 H216 M108 140 V196 M112 140 V196" stroke="#FBBF24" stroke-width="2"/>' +
+         '<path d="M78 134 H142" stroke="#E2E8F0" stroke-width="8" stroke-dasharray="6 6"/>'
+    }
+  };
+
   window.ART3 = {
     data: A,
     acc: function (style, role) { return (ACC[style] || ACC.A)[role] || ACC.A.self; },
@@ -41,6 +81,7 @@
     },
     /** themed symbol: returns {v: viewBox, s: markup} */
     sym: function (style, name) {
+      if (ROAD_TPL[name]) return ROAD_TPL[name];
       if (name === 'crosswalk') {
         return { v: '0 0 100 100', s: (A.people[style] || A.people.A).crosswalk };
       }

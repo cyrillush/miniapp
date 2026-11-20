@@ -314,15 +314,23 @@ window.AS = window.AS || {};
     var bar = $('#selBar'), o = AS.objs.selObj();
     if (!o) { bar.hidden = true; return; }
     bar.hidden = false;
-    var isCar = o.type === 'car';
+    var isCar = o.type === 'car', isPen = o.type === 'pen';
+    var pa = $('#btnPenArrow');
+    if (pa) {
+      pa.hidden = !isPen;
+      pa.classList.toggle('on', !!(isPen && o.arrowEnd));
+    }
+    var zin = bar.querySelector('[data-act="zin"]'), zout = bar.querySelector('[data-act="zout"]');
+    if (zin) zin.hidden = isPen;
+    if (zout) zout.hidden = isPen;
     $('#roleSeg').style.display = isCar ? '' : 'none';
     $('#roleSep').style.display = isCar ? '' : 'none';
     if (isCar) renderRoles($('#roleSeg'), false);
     var info = [];
-    if (o.type !== 'pen') {
+    if (!isPen) {
       info.push(Math.round(o.rot) + '°');
       info.push(o.sc.toFixed(2) + '×');
-    } else info.push('펜');
+    } else info.push(o.snapped || '펜');
     $('#selInfo').textContent = info.join(' · ');
   }
 
@@ -332,14 +340,14 @@ window.AS = window.AS || {};
     if (!c) return;
     if (!S.tool || S.tool === 'idle') { c.hidden = true; return; }
     c.hidden = false;
-    c.textContent = S.tool === 'pen' ? '✏️ 펜으로 그리는 중 · 끝내기'
+    c.textContent = S.tool === 'pen' ? '✏️ 그리는 중 · 2초 꾹 누르면 모양 보정 · 끝내기'
       : S.tool === 'vec' ? '↗ 화살표로 긋는 중 · 끝내기'
         : '💬 메모할 곳을 누르세요 · 취소';
   }
 
   /* ────────── 배경 칩 ────────── */
   function bgchips() {
-    $$('#bgChips button').forEach(function (b) { b.classList.toggle('on', b.dataset.bg === S.bg); });
+    $$('#bgChips button[data-bg]').forEach(function (b) { b.classList.toggle('on', b.dataset.bg === S.bg); });
   }
 
   /* ────────── 검색 ────────── */
@@ -432,8 +440,8 @@ window.AS = window.AS || {};
     var prev = S.theme;
     S.theme = k;
     // 다크 콕핏(B)은 다크 지도와 어울린다 — 사용자가 직접 고른 배경이 아니면 자동 전환
-    if (k === 'B' && S.bg === 'map') AS.mapx.setBg('dark');
-    else if (prev === 'B' && k !== 'B' && S.bg === 'dark' && S.autoDark) AS.mapx.setBg('map');
+    if (k === 'B' && (S.bg === 'map' || S.bg === 'sat')) { S._prevBg = S.bg; AS.mapx.setBg('dark'); }
+    else if (prev === 'B' && k !== 'B' && S.bg === 'dark' && S.autoDark) AS.mapx.setBg(S._prevBg || 'sat');
     S.autoDark = (k === 'B');
     document.body.setAttribute('data-theme', k);
     var meta = document.getElementById('metaTheme');
@@ -482,7 +490,7 @@ window.AS = window.AS || {};
     $('#btnUndo').addEventListener('click', function () { C.undo(); });
     $('#btnSave').addEventListener('click', function () { AS.exportx.openSave(); });
 
-    $$('#bgChips button').forEach(function (b) {
+    $$('#bgChips button[data-bg]').forEach(function (b) {
       b.addEventListener('click', function () {
         if (b.dataset.bg === 'capture') {
           if (!S.cap.src || S.bg === 'capture') { $('#fileInput').click(); return; }
@@ -528,6 +536,34 @@ window.AS = window.AS || {};
     });
     $('#q').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
 
+    // 나침반 1손가락 회전 스와이프 / 탭하면 정북(0°)
+    var cmp = $('#compassBtn');
+    if (cmp) {
+      var cmpDrag = null;
+      cmp.addEventListener('pointerdown', function (e) {
+        e.stopPropagation();
+        cmpDrag = { x0: e.clientX, b0: S.view.bearing || 0, moved: false };
+        try { cmp.setPointerCapture(e.pointerId); } catch (er) {}
+      });
+      cmp.addEventListener('pointermove', function (e) {
+        if (!cmpDrag) return;
+        var dx = e.clientX - cmpDrag.x0;
+        if (!cmpDrag.moved && Math.abs(dx) < 4) return;
+        cmpDrag.moved = true;
+        AS.mapx.setBearing(cmpDrag.b0 + dx * 0.8, true);
+      });
+      var cmpEnd = function () {
+        if (!cmpDrag) return;
+        if (!cmpDrag.moved) {
+          AS.mapx.setBearing(0, false);
+          toast('지도를 정북(0°)으로 맞췄어요');
+        }
+        cmpDrag = null;
+      };
+      cmp.addEventListener('pointerup', cmpEnd);
+      cmp.addEventListener('pointercancel', cmpEnd);
+    }
+
     // 선택 미니바
     $('#selBar').addEventListener('click', function (e) {
       var b = e.target.closest('[data-act]');
@@ -535,6 +571,7 @@ window.AS = window.AS || {};
       var a = b.dataset.act;
       if (a === 'zin') AS.objs.scaleBy(1 / 1.18);
       else if (a === 'zout') AS.objs.scaleBy(1.18);
+      else if (a === 'arrow') AS.objs.togglePenArrow();
       else if (a === 'del') AS.objs.del();
       else if (a === 'dup') AS.objs.dup();
     });

@@ -26,6 +26,11 @@ window.AS = window.AS || {};
     { k: 'kickboard', n: '전동킥보드', w: 40 }
   ];
   var SYM = [
+    { k: 'road_2', n: '2차선 도로', g: 'road', w: 150 },
+    { k: 'road_4', n: '4차선 도로', g: 'road', w: 220 },
+    { k: 'road_tunnel', n: '터널 도로', g: 'road', w: 200 },
+    { k: 'road_cross', n: '십자 교차로', g: 'road', w: 260 },
+    { k: 'road_t', n: 'T자 삼거리', g: 'road', w: 260 },
     { k: 'crosswalk', n: '횡단보도', g: 'road', w: 78 },
     { k: 'signal', n: '차량신호등', g: 'road', w: 46 },
     { k: 'pedsignal', n: '보행신호등', g: 'road', w: 44 },
@@ -123,11 +128,11 @@ window.AS = window.AS || {};
   /* ────────── 상태 ────────── */
   var S = AS.S = {
     theme: 'A',
-    bg: 'map',
+    bg: 'sat',
     lock: false,
     objs: [],
     sel: null,
-    view: { lat: 37.49794, lng: 127.02758, z: 19 },
+    view: { lat: 37.49794, lng: 127.02758, z: 19, bearing: 0 },
     info: { when: '', place: '', note: '' },
     pen: { color: '#E9413B', mode: 'idle' },
     tool: 'idle',          // idle | pen | vec | memo
@@ -178,7 +183,7 @@ window.AS = window.AS || {};
     saveTimer = setTimeout(function () {
       try {
         localStorage.setItem(KEY, JSON.stringify({
-          v: 3, theme: S.theme, bg: S.bg === 'capture' ? 'map' : S.bg, view: S.view,
+          v: 4, theme: S.theme, bg: S.bg === 'capture' ? 'sat' : S.bg, view: S.view,
           info: S.info, objs: S.objs, newRole: S.newRole, carMode: S.carMode, snap: S.snap,
           cap: S.cap.src && S.cap.src.length < 700000 ? S.cap : { src: '', opacity: S.cap.opacity, scale: S.cap.scale }
         }));
@@ -194,8 +199,9 @@ window.AS = window.AS || {};
       if (!d || !d.objs) return false;
       S.objs = d.objs;
       S.theme = ['A', 'B', 'C', 'D'].indexOf(d.theme) >= 0 ? d.theme : 'A';
-      S.bg = d.bg || 'map';
+      S.bg = (d.v >= 4 && d.bg) ? d.bg : 'sat';
       S.view = d.view || S.view;
+      if (typeof S.view.bearing !== 'number') S.view.bearing = 0;
       S.info = d.info || S.info;
       S.newRole = normRole(d.newRole || 'self');
       S.carMode = d.carMode === 'vector' ? 'vector' : 'real';
@@ -231,18 +237,19 @@ window.AS = window.AS || {};
   }
 
   function makeObj(spec, lat, lng) {
+    var def = itemDef(spec.kind, spec.type) || {};
     var o = { id: uid(), type: spec.type, kind: spec.kind, lat: lat, lng: lng, rot: 0, sc: 1 };
     if (spec.type === 'car') {
       o.role = spec.role || S.newRole;
       o.vb = { x: 0, y: 0, w: 120, h: 200 };
-      o.w = spec.w;
+      o.w = spec.w || def.w || 34;
     } else if (spec.type === 'person') {
       o.vb = { x: 0, y: 0, w: 100, h: 100 };
-      o.w = spec.w;
+      o.w = spec.w || def.w || 26;
     } else {
       var sym = window.ART3.sym(S.theme, spec.kind);
       o.vb = vbox(sym);
-      o.w = spec.w;
+      o.w = spec.w || def.w || 34;
       if (spec.flip) o.flip = true;
     }
     applySize(o);

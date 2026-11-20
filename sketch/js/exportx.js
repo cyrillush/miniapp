@@ -156,22 +156,43 @@ window.AS = window.AS || {};
     if (!layer || !layer.getContainer) return 0;
     var stageR = $('#stage').getBoundingClientRect();
     var imgs = layer.getContainer().querySelectorAll('img.leaflet-tile');
+    var rad = (S.view.bearing || 0) * Math.PI / 180;
+    var denom = Math.abs(Math.cos(rad)) + Math.abs(Math.sin(rad)) || 1;
     var n = 0;
     for (var i = 0; i < imgs.length; i++) {
       var img = imgs[i];
       if (!img.complete || !img.naturalWidth) continue;
       var r = img.getBoundingClientRect();
-      if (r.width < 2 || r.bottom < stageR.top || r.top > stageR.bottom) continue;
+      if (r.width < 2 || r.right < stageR.left - 80 || r.left > stageR.right + 80 || r.bottom < stageR.top - 80 || r.top > stageR.bottom + 80) continue;
+      var tcx = (r.left + r.right) / 2 - stageR.left;
+      var tcy = (r.top + r.bottom) / 2 - stageR.top;
+      var tileL = r.width / denom;
       try {
-        ctx.drawImage(img, (r.left - stageR.left) * sc, (r.top - stageR.top) * sc, r.width * sc, r.height * sc);
+        ctx.save();
+        ctx.translate(tcx * sc, tcy * sc);
+        if (rad) ctx.rotate(rad);
+        ctx.drawImage(img, -tileL * sc / 2, -tileL * sc / 2, tileL * sc + 0.8, tileL * sc + 0.8);
+        ctx.restore();
         n++;
       } catch (e) { /* 타일 하나 실패는 무시 */ }
     }
     return n;
   }
 
-  /* 화면의 CSS 필터(다크·도면)를 캔버스에도 동일하게 적용 */
+  /* 화면의 CSS 필터(다크·지도) 및 터널·도면 백지 렌더 */
   function drawTiles(ctx, W, H, sc) {
+    if (S.bg === 'road') {
+      ctx.fillStyle = '#F4F7FB';
+      ctx.fillRect(0, 0, W, H);
+      var step = 28 * sc;
+      ctx.strokeStyle = 'rgba(30,64,120,0.08)';
+      ctx.lineWidth = Math.max(1, sc * 0.6);
+      ctx.beginPath();
+      for (var gx = 0; gx <= W; gx += step) { ctx.moveTo(gx, 0); ctx.lineTo(gx, H); }
+      for (var gy = 0; gy <= H; gy += step) { ctx.moveTo(0, gy); ctx.lineTo(W, gy); }
+      ctx.stroke();
+      return 1;
+    }
     var f = AS.mapx.currentFilter ? AS.mapx.currentFilter() : '';
     if (!f) return drawTilesRaw(ctx, W, H, sc);
     if (typeof ctx.filter === 'string') {

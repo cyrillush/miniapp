@@ -19,9 +19,10 @@
 <body data-theme="A" data-lock="0">
 
 <div id="stage">
-  <div id="map"></div>
+  <div id="mapRot"><div id="map"></div></div>
   <div id="capLayer" hidden><img id="capImg" alt="" /></div>
   <svg id="layer" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
+  <svg id="holdRing" viewBox="0 0 56 56" hidden aria-hidden="true"><circle class="bg" cx="28" cy="28" r="22"/><circle class="fg" cx="28" cy="28" r="22"/></svg>
   <div id="sel">
     <div class="selbox"></div>
     <button class="hnd rot" type="button" aria-label="회전"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20.4 4.4v4.2h-4.2"/></svg></button>
@@ -57,16 +58,21 @@
   </button>
 
   <div id="bgChips" role="group" aria-label="배경">
-    <button type="button" data-bg="map" class="on">일반지도</button>
-    <button type="button" data-bg="sat">위성</button>
+    <button type="button" data-bg="sat" class="on">스카이</button>
+    <button type="button" data-bg="map">지도</button>
+    <button type="button" data-bg="road">도면</button>
     <button type="button" data-bg="dark">다크</button>
-    <button type="button" data-bg="road">도로도면</button>
     <button type="button" data-bg="capture">캡처</button>
+    <button type="button" id="compassBtn" class="compass" title="좌우로 밀어 지도 회전 · 탭하면 정북">
+      <svg class="needle" viewBox="0 0 24 24"><path d="M12 3 15.2 12 12 10.6 8.8 12Z" fill="currentColor" stroke="none"/><path d="M12 21 15.2 12 12 13.4 8.8 12Z" fill="currentColor" fill-opacity=".32" stroke="none"/></svg>
+      <em id="compassTxt">0°</em>
+    </button>
   </div>
 
   <div id="selBar" hidden>
     <button class="sb" data-act="zin" type="button" aria-label="작게">−</button>
     <button class="sb wide" data-act="zout" type="button" aria-label="크게">+</button>
+    <button class="sb arrowbtn" id="btnPenArrow" data-act="arrow" type="button" hidden>↗ 화살표</button>
     <div class="sbsep"></div>
     <div class="roles" id="roleSeg"></div>
     <div class="sbsep" id="roleSep"></div>
