@@ -18,105 +18,123 @@
 </head>
 <body data-theme="A" data-lock="0">
 
-<div id="stage">
-  <div id="mapRot"><div id="map"></div></div>
-  <div id="capLayer" hidden><img id="capImg" alt="" /></div>
-  <svg id="layer" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
-  <svg id="holdRing" viewBox="0 0 56 56" hidden aria-hidden="true"><circle class="bg" cx="28" cy="28" r="22"/><circle class="fg" cx="28" cy="28" r="22"/></svg>
-  <div id="sel">
-    <div class="selbox"></div>
-    <button class="hnd rot" type="button" aria-label="회전"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20.4 4.4v4.2h-4.2"/></svg></button>
-    <button class="hnd size" type="button" aria-label="크기"><svg viewBox="0 0 24 24"><path d="M4.6 19.4 19.4 4.6"/><path d="M13 4.6h6.4v6.4"/><path d="M4.6 13v6.4H11"/></svg></button>
-    <div class="angle" hidden>0°</div>
-  </div>
-  <div id="chipRot" hidden>0°</div>
-</div>
-
-<div id="hud">
-  <div id="topbar">
-    <button id="brandTap" class="brand" type="button" aria-label="사고약도">
-      <span class="bmark" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M4 19.2 9.4 5.2l5.2 8.6 5.4-3.6-2 9z"/><circle cx="9.4" cy="5.2" r="2.1"/></svg>
-      </span>
-      <span class="bname">사고약도</span>
-    </button>
-    <div class="topacts">
-      <button id="btnLock" class="gl" type="button" aria-pressed="false">
-        <svg class="ic-unlock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7-2.1"/></svg>
-        <svg class="ic-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7.6 0v2.5"/></svg>
-        <em>지도 이동</em>
+<div id="appShell">
+  <!-- 상단 편집 영역 (약도 캔버스와 완전 분리) -->
+  <header id="topBarWrap">
+    <div id="topbar">
+      <button id="brandTap" class="brand" type="button" aria-label="사고약도">
+        <span class="bmark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 19.2 9.4 5.2l5.2 8.6 5.4-3.6-2 9z"/><circle cx="9.4" cy="5.2" r="2.1"/></svg>
+        </span>
+        <span class="bname">사고약도</span>
       </button>
-      <button id="btnGeo" class="gl icon" type="button" aria-label="현위치">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><circle cx="12" cy="12" r="7.6"/><path d="M12 2.2v2.6M12 19.2v2.6M2.2 12h2.6M19.2 12h2.6"/></svg>
+      <div class="topacts">
+        <button id="btnLock" class="gl" type="button" aria-pressed="false">
+          <svg class="ic-unlock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7-2.1"/></svg>
+          <svg class="ic-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7.6 0v2.5"/></svg>
+          <em>지도 이동</em>
+        </button>
+        <button id="btnGeo" class="gl icon" type="button" aria-label="현위치">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><circle cx="12" cy="12" r="7.6"/><path d="M12 2.2v2.6M12 19.2v2.6M2.2 12h2.6M19.2 12h2.6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <button id="searchPill" class="gl" type="button">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.6"/><path d="m19.6 19.6-3.4-3.4"/></svg>
+      <span id="placeTxt">도로·장소 검색</span>
+    </button>
+
+    <div id="bgChips" role="group" aria-label="배경">
+      <button type="button" data-bg="sat" class="on">스카이</button>
+      <button type="button" data-bg="map">지도</button>
+      <button type="button" data-bg="road">도로</button>
+      <button type="button" data-bg="dark">다크</button>
+      <button type="button" data-bg="capture">캡처</button>
+      <button type="button" id="tiltBtn" class="compass" title="위아래로 밀어 3D 각도 조절 · 탭하면 0°/35°">
+        <svg viewBox="0 0 24 24"><path d="M4 18 8 7h8l4 11Z"/><path d="M9.5 11.5h5"/></svg>
+        <em id="tiltTxt">3D 0°</em>
+      </button>
+      <button type="button" id="compassBtn" class="compass" title="좌우로 밀어 지도 회전 · 탭하면 정북">
+        <svg class="needle" viewBox="0 0 24 24"><path d="M12 3 15.2 12 12 10.6 8.8 12Z" fill="currentColor" stroke="none"/><path d="M12 21 15.2 12 12 13.4 8.8 12Z" fill="currentColor" fill-opacity=".32" stroke="none"/></svg>
+        <em id="compassTxt">0°</em>
       </button>
     </div>
-  </div>
 
-  <button id="searchPill" class="gl" type="button">
-    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.6"/><path d="m19.6 19.6-3.4-3.4"/></svg>
-    <span id="placeTxt">도로·장소 검색</span>
-  </button>
+    <button id="toolChip" type="button" hidden></button>
+  </header>
 
-  <div id="bgChips" role="group" aria-label="배경">
-    <button type="button" data-bg="sat" class="on">스카이</button>
-    <button type="button" data-bg="map">지도</button>
-    <button type="button" data-bg="road">도면</button>
-    <button type="button" data-bg="dark">다크</button>
-    <button type="button" data-bg="capture">캡처</button>
-    <button type="button" id="compassBtn" class="compass" title="좌우로 밀어 지도 회전 · 탭하면 정북">
-      <svg class="needle" viewBox="0 0 24 24"><path d="M12 3 15.2 12 12 10.6 8.8 12Z" fill="currentColor" stroke="none"/><path d="M12 21 15.2 12 12 13.4 8.8 12Z" fill="currentColor" fill-opacity=".32" stroke="none"/></svg>
-      <em id="compassTxt">0°</em>
-    </button>
-  </div>
+  <!-- 중앙 순수 약도 캔버스 (버튼에 가리지 않음) -->
+  <main id="stage">
+    <div id="stage3d">
+      <div id="mapRot"><div id="map"></div></div>
+      <div id="roadLayer" hidden></div>
+      <div id="capLayer" hidden><img id="capImg" alt="" /></div>
+      <svg id="layer" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
+      <svg id="holdRing" viewBox="0 0 56 56" hidden aria-hidden="true"><circle class="bg" cx="28" cy="28" r="22"/><circle class="fg" cx="28" cy="28" r="22"/></svg>
+      <div id="sel">
+        <div class="selbox"></div>
+        <button class="hnd rot" type="button" aria-label="회전"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20.4 4.4v4.2h-4.2"/></svg></button>
+        <button class="hnd size" type="button" aria-label="크기"><svg viewBox="0 0 24 24"><path d="M4.6 19.4 19.4 4.6"/><path d="M13 4.6h6.4v6.4"/><path d="M4.6 13v6.4H11"/></svg></button>
+        <div class="angle" hidden>0°</div>
+      </div>
+    </div>
+    <div id="chipRot" hidden>0°</div>
+  </main>
 
-  <div id="selBar" hidden>
-    <button class="sb" data-act="zin" type="button" aria-label="작게">−</button>
-    <button class="sb wide" data-act="zout" type="button" aria-label="크게">+</button>
-    <button class="sb arrowbtn" id="btnPenArrow" data-act="arrow" type="button" hidden>↗ 화살표</button>
-    <div class="sbsep"></div>
-    <div class="roles" id="roleSeg"></div>
-    <div class="sbsep" id="roleSep"></div>
-    <button class="sb" data-act="dup" type="button" aria-label="복제">
-      <svg viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="11.2" height="11.2" rx="2.4"/><path d="M15.6 5.4H6.6a1.2 1.2 0 0 0-1.2 1.2v9"/></svg>
-    </button>
-    <button class="sb danger" data-act="del" type="button" aria-label="삭제">
-      <svg viewBox="0 0 24 24"><path d="M4.8 6.8h14.4M9.4 6.8V4.4h5.2v2.4M6.6 6.8l.9 12.4h9l.9-12.4"/><path d="M10.2 10.4v5.4M13.8 10.4v5.4"/></svg>
-    </button>
-    <div class="selinfo" id="selInfo"></div>
-  </div>
+  <!-- 하단 편집 영역 (약도 캔버스와 완전 분리) -->
+  <footer id="bottomWrap">
+    <div id="selBar" hidden>
+      <button class="sb" data-act="zin" type="button" aria-label="작게">−</button>
+      <button class="sb wide" data-act="zout" type="button" aria-label="크게">+</button>
+      <button class="sb arrowbtn" id="btnPenArrow" data-act="arrow" type="button" hidden>↗ 화살표</button>
+      <div class="sbsep"></div>
+      <div class="roles" id="roleSeg"></div>
+      <div class="sbsep" id="roleSep"></div>
+      <button class="sb" data-act="dup" type="button" aria-label="복제">
+        <svg viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="11.2" height="11.2" rx="2.4"/><path d="M15.6 5.4H6.6a1.2 1.2 0 0 0-1.2 1.2v9"/></svg>
+      </button>
+      <button class="sb danger" data-act="del" type="button" aria-label="삭제">
+        <svg viewBox="0 0 24 24"><path d="M4.8 6.8h14.4M9.4 6.8V4.4h5.2v2.4M6.6 6.8l.9 12.4h9l.9-12.4"/><path d="M10.2 10.4v5.4M13.8 10.4v5.4"/></svg>
+      </button>
+      <div class="selinfo" id="selInfo"></div>
+    </div>
 
-  <button id="toolChip" type="button" hidden></button>
-
-  <div id="dock">
-    <button class="dk" type="button" data-cat="road">
-      <svg viewBox="0 0 24 24"><path d="M7.6 3.6v16.8M16.4 3.6v16.8" stroke-dasharray="4 3.4"/><path d="M3.4 4.6h17.2M3.4 19.4h17.2"/></svg>
-      <span>도로</span>
-    </button>
-    <button class="dk" type="button" data-cat="car">
-      <svg viewBox="0 0 24 24"><path d="M5.4 15.1v-2.4l1.5-3.8a2.2 2.2 0 0 1 2-1.4h6.2a2.2 2.2 0 0 1 2 1.4l1.5 3.8v2.4"/><path d="M4.2 15.1h15.6"/><circle cx="8" cy="17.1" r="1.6"/><circle cx="16" cy="17.1" r="1.6"/></svg>
-      <span>차량</span>
-    </button>
-    <button class="dk" type="button" data-cat="person">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="5.6" r="2.6"/><path d="M12 8.8c-2.3 0-3.7 1.6-3.7 3.9v3.1h1.8v4.9h3.8v-4.9h1.8v-3.1c0-2.3-1.4-3.9-3.7-3.9Z"/></svg>
-      <span>사람</span>
-    </button>
-    <button class="dk" type="button" data-cat="acc">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.4" stroke-dasharray="3 3"/><path d="M12 2.4v2.2M12 19.4v2.2M2.4 12h2.2M19.4 12h2.2"/></svg>
-      <span>사고</span>
-    </button>
-    <button class="dk" type="button" data-cat="draw">
-      <svg viewBox="0 0 24 24"><path d="M16.4 4.6 19.4 7.6 9.2 17.8 4.8 19.2l1.4-4.4z"/><path d="M14.2 6.8 17.2 9.8"/></svg>
-      <span>그리기</span>
-    </button>
-    <div class="dksep"></div>
-    <button class="dk act" type="button" id="btnUndo" aria-label="실행취소">
-      <svg viewBox="0 0 24 24"><path d="M9.2 14.6 4.4 9.8l4.8-4.8"/><path d="M4.4 9.8h9.2a5.9 5.9 0 0 1 0 11.8H9.6"/></svg>
-    </button>
-    <button class="dk save" type="button" id="btnSave">
-      <svg viewBox="0 0 24 24"><path d="M12 4.2v10.4"/><path d="m7.8 10.4 4.2 4.2 4.2-4.2"/><path d="M4.6 18.6h14.8"/></svg>
-      <span>저장</span>
-    </button>
-  </div>
+    <div id="dock">
+      <button class="dk" type="button" data-cat="road">
+        <svg viewBox="0 0 24 24"><path d="M7.6 3.6v16.8M16.4 3.6v16.8" stroke-dasharray="4 3.4"/><path d="M3.4 4.6h17.2M3.4 19.4h17.2"/></svg>
+        <span>도로</span>
+      </button>
+      <button class="dk" type="button" data-cat="car">
+        <svg viewBox="0 0 24 24"><path d="M5.4 15.1v-2.4l1.5-3.8a2.2 2.2 0 0 1 2-1.4h6.2a2.2 2.2 0 0 1 2 1.4l1.5 3.8v2.4"/><path d="M4.2 15.1h15.6"/><circle cx="8" cy="17.1" r="1.6"/><circle cx="16" cy="17.1" r="1.6"/></svg>
+        <span>차량</span>
+      </button>
+      <button class="dk" type="button" data-cat="person">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="5.6" r="2.6"/><path d="M12 8.8c-2.3 0-3.7 1.6-3.7 3.9v3.1h1.8v4.9h3.8v-4.9h1.8v-3.1c0-2.3-1.4-3.9-3.7-3.9Z"/></svg>
+        <span>사람</span>
+      </button>
+      <button class="dk" type="button" data-cat="dmg">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5" stroke-dasharray="3.2 2.5"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+        <span>파손</span>
+      </button>
+      <button class="dk" type="button" data-cat="etc">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.4"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4"/><circle cx="16.8" cy="16.8" r="3.4"/></svg>
+        <span>기타</span>
+      </button>
+      <button class="dk" type="button" data-cat="draw">
+        <svg viewBox="0 0 24 24"><path d="M16.4 4.6 19.4 7.6 9.2 17.8 4.8 19.2l1.4-4.4z"/><path d="M14.2 6.8 17.2 9.8"/></svg>
+        <span>그리기</span>
+      </button>
+      <div class="dksep"></div>
+      <button class="dk act" type="button" id="btnUndo" aria-label="실행취소">
+        <svg viewBox="0 0 24 24"><path d="M9.2 14.6 4.4 9.8l4.8-4.8"/><path d="M4.4 9.8h9.2a5.9 5.9 0 0 1 0 11.8H9.6"/></svg>
+      </button>
+      <button class="dk save" type="button" id="btnSave">
+        <svg viewBox="0 0 24 24"><path d="M12 4.2v10.4"/><path d="m7.8 10.4 4.2 4.2 4.2-4.2"/><path d="M4.6 18.6h14.8"/></svg>
+        <span>저장</span>
+      </button>
+    </div>
+  </footer>
 </div>
 
 <!-- 피커 시트 -->
@@ -144,7 +162,7 @@
       <button id="searchClose" class="xbtn" type="button" aria-label="닫기">✕</button>
     </header>
     <div class="qbar">
-      <input id="q" type="search" inputmode="search" autocomplete="off" placeholder="예) 강남역 사거리, 중앙로 사거리" />
+      <input id="q" type="search" inputmode="search" autocomplete="off" placeholder="예) 강남역 사거리, 순천 신대지구" />
       <button id="qGo" type="button" aria-label="검색">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.6"/><path d="m19.6 19.6-3.4-3.4"/></svg>
       </button>
@@ -173,6 +191,8 @@
 
 <script src="js/leaflet.js"></script>
 <script src="js/art3.js"></script>
+<script src="js/elements.js"></script>
+<script src="js/roads.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/core.js"></script>
 <script src="js/mapx.js"></script>

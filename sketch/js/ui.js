@@ -7,7 +7,6 @@ window.AS = window.AS || {};
   var C = AS.core, $ = C.$, $$ = C.$$, S = AS.S;
   var sheetCat = null, toastTimer = null, qTimer = null, pvN = 0;
 
-  /* ────────── 토스트 ────────── */
   function toast(msg, ms) {
     var el = $('#toast');
     el.textContent = msg;
@@ -31,18 +30,19 @@ window.AS = window.AS || {};
         return '<img class="sp-thumb" src="' + sp.src + '" alt=""' + ring + ' />';
       }
       var rKey = C.roleMeta(opt.role || S.newRole).key;
-      if (rKey !== 'self' && rKey !== 'other' && rKey !== 'none') rKey = 'third';
+      rKey = rKey === 'self' ? 'self' : rKey === 'c1' ? 'other' : rKey === 'none' ? 'none' : 'third';
       inner = ART3.car(t, kind, rKey);
       vb = { x: 0, y: 0, w: 120, h: 200 };
+    } else if (type === 'person') {
+      inner = ART3.person(t, kind);
+    } else if (type === 'sym') {
+      var s = ART3.sym(t, kind); inner = s.s; vb = C.vbox(s);
+    } else if (type === 'memo') {
+      return '<svg viewBox="0 0 60 30" width="82" height="41"><rect x="1.5" y="1.5" width="57" height="27" rx="8" fill="var(--acc-soft)" stroke="var(--acc)" stroke-width="1.3" stroke-opacity=".55"/><text x="30" y="16" text-anchor="middle" dominant-baseline="middle" font-size="12" font-weight="700" fill="var(--ink)">메모</text></svg>';
     }
-    else if (type === 'person') { inner = ART3.person(t, kind); }
-    else if (type === 'sym') { var s = ART3.sym(t, kind); inner = s.s; vb = C.vbox(s); }
-    else if (type === 'memo') {
-      return '<svg viewBox="0 0 60 30" width="82" height="41" style="color:var(--ink2)"><rect x="1.5" y="1.5" width="57" height="27" rx="8" fill="var(--acc-soft)" stroke="var(--acc)" stroke-width="1.3" stroke-opacity=".55"/><text x="30" y="16" text-anchor="middle" dominant-baseline="middle" font-size="12" font-weight="700" fill="var(--ink)">메모</text></svg>';
-    }
-    var h = opt.h || 58;
+    var h = opt.h || 54;
     var w = h * (vb.w / vb.h);
-    var MAXW = opt.maxW || 78;
+    var MAXW = opt.maxW || 76;
     if (w > MAXW) { w = MAXW; h = w * (vb.h / vb.w); }
     if (opt.flip) {
       var cx2 = 2 * (vb.x + vb.w / 2);
@@ -53,13 +53,53 @@ window.AS = window.AS || {};
       C.nsMarkup(inner, 'pv' + pvN) + '</svg>';
   }
 
+  /* ────────── 과실도표 프리셋 적용 ────────── */
+  function applyPreset(pr) {
+    C.pushUndo();
+    S.objs = [];
+    S.sel = null;
+    AS.mapx.setBearing(0, false);
+    AS.mapx.setTilt(0);
+    AS.mapx.setRoad(pr.bg);
+    var w = S.stage.w || 390, h = S.stage.h || 600;
+    (pr.cars || []).forEach(function (c) {
+      var ll = AS.mapx.unproject(c.x * w, c.y * h);
+      var o = C.makeObj({ type: 'car', kind: c.kind, role: c.role }, ll.lat, ll.lng);
+      o.rot = c.rot || 0;
+      S.objs.push(o);
+    });
+    (pr.arrows || []).forEach(function (a) {
+      if (!a.pts || a.pts.length < 2) return;
+      var pts = a.pts.map(function (q) {
+        var ll = AS.mapx.unproject(q[0] * w, q[1] * h);
+        return [ll.lat, ll.lng];
+      });
+      S.objs.push({
+        id: C.uid(), type: 'pen', lat: pts[0][0], lng: pts[0][1], rot: 0, sc: 1,
+        w: 1, h: 1, color: a.color || '#E9413B', lw: 3.8, arrowEnd: true, pts: pts
+      });
+    });
+    if (pr.impact) {
+      var ill = AS.mapx.unproject(pr.impact.x * w, pr.impact.y * h);
+      var imp = C.makeObj({ type: 'sym', kind: 'impact', w: 50 }, ill.lat, ill.lng);
+      S.objs.push(imp);
+    }
+    if (pr.summary) S.info.note = pr.summary;
+    S.newRole = C.nextCarRole();
+    AS.mapx.setLock(true, true);
+    AS.objs.render(); selbar(); C.save();
+    closeSheet();
+    toast('과실도표 [' + pr.no + '] ' + pr.label + ' 적용');
+  }
+
   /* ────────── 시트 ────────── */
   var TITLES = {
-    road: ['도로', '횡단보도 · 신호 · 차로 표시를 지도에 놓으세요'],
-    car: ['차량 (연속추돌 지원)', '차번을 고르고 차종을 누르면 자동으로 다음 번호로 넘어가요'],
-    person: ['사람 · 이동수단', '보행자와 개인형 이동장치'],
-    acc: ['사고 · 경로', '진행방향 · 충돌 · 파손 · 메모'],
-    draw: ['그리기', '펜 색을 고르고 지도에 직접 그으세요']
+    road: ['전체화면 도로 · 과실도표', '선택하면 화면 전체가 해당 도로 배경으로 바뀝니다'],
+    car: ['차량 (연속추돌 지원)', '자차 · 대차1 · 대차2 · 대차3 순으로 자동 배정돼요'],
+    person: ['사람 · 이동수단', '전원 흰색 · 배경판 없이 깔끔하게 배치돼요'],
+    dmg: ['파손부위 · 충격', '배경판 없이 테두리·글자만 깔끔하게 올라갑니다'],
+    etc: ['기타 요소 (신호·표지·선)', '배경 없이 신호등 · 횡단보도 · 차선 · 표지판 추가'],
+    draw: ['그리기 · 메모', '펜으로 긋고 1초 누르면 화살표·도형이 반듯해져요']
   };
 
   function openSheet(cat) {
@@ -75,50 +115,82 @@ window.AS = window.AS || {};
       if (S.newRole !== 'none') S.newRole = C.nextCarRole();
       roleWrap.hidden = false;
       renderRoles(roleWrap, true);
-    } else roleWrap.hidden = true;
-
-    var items = cat === 'car' ? C.CARS : cat === 'person' ? C.PEOPLE : null;
-    if (items) {
-      items.forEach(function (it) {
-        var card = document.createElement('button');
-        card.type = 'button'; card.className = 'card';
-        card.innerHTML = '<span class="art">' + previewSVG(cat === 'car' ? 'car' : 'person', it.k, { h: cat === 'car' ? 68 : 52 }) + '</span><b>' + it.n + '</b>';
-        card.addEventListener('click', function () {
-          place({ type: cat === 'car' ? 'car' : 'person', kind: it.k, w: it.w });
-        });
-        body.appendChild(card);
-      });
-      if (cat === 'car') {
-        var note = document.createElement('div');
-        note.className = 'grp';
-        note.textContent = '놓을 때마다 자차 → 대차 → 제3차 → 제4차… 순으로 자동 배정되며, 선택 후 복제(+)로도 바로 추가돼요';
-        body.appendChild(note);
-      }
+    } else {
+      roleWrap.hidden = true;
     }
 
     if (cat === 'road') {
-      addGroup(body, '도로 · 터널 바탕');
-      symCards(body, ['road_2', 'road_4', 'road_tunnel', 'road_cross', 'road_t']);
-      addGroup(body, '횡단 · 신호');
-      symCards(body, ['crosswalk', 'signal', 'pedsignal']);
-      addGroup(body, '차로 표시');
-      symCards(body, ['chip_stop', 'chip_lane', 'chip_oneway', 'chip_unprot', 'lane_dash', 'lane_center', 'lane_solid']);
+      addGroup(body, '과실도표 빠른 불러오기 (7종)');
+      AS.roads.PRESETS.forEach(function (pr) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'card preset';
+        b.innerHTML = '<div class="pthumb">' + AS.roads.thumb(pr.bg) + '</div>' +
+          '<div class="ptxt"><b>[' + pr.no + '] ' + pr.label + '</b><span>' + pr.summary + '</span></div>';
+        b.addEventListener('click', function () { applyPreset(pr); });
+        body.appendChild(b);
+      });
+      [1, 2, 3, 4].forEach(function (g) {
+        addGroup(body, AS.roads.GROUP_LABEL[g]);
+        AS.roads.LIST.filter(function (r) { return r.g === g; }).forEach(function (r) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'card roadthumb' + (S.bg === 'road' && S.roadId === r.id ? ' on' : '');
+          b.innerHTML = '<div class="rbox">' + AS.roads.thumb(r.id) + '</div><b>' + r.label + '</b>';
+          b.addEventListener('click', function () {
+            AS.mapx.setRoad(r.id);
+            closeSheet();
+            toast(r.label + ' 전체화면 적용');
+          });
+          body.appendChild(b);
+        });
+      });
     }
 
-    if (cat === 'acc') {
-      addGroup(body, '진행 방향');
+    if (cat === 'car') {
+      C.CARS.forEach(function (it) {
+        var card = document.createElement('button');
+        card.type = 'button'; card.className = 'card';
+        card.innerHTML = '<span class="art">' + previewSVG('car', it.k, { h: 66 }) + '</span><b>' + it.n + '</b>';
+        card.addEventListener('click', function () { place({ type: 'car', kind: it.k, w: it.w }); });
+        body.appendChild(card);
+      });
+      addGroup(body, '놓을 때마다 자차 → 대차1 → 대차2 → 대차3… 순으로 자동 지정되며, 선택 후 복제로도 이어 붙어요');
+    }
+
+    if (cat === 'person') {
+      C.PEOPLE.forEach(function (it) {
+        var card = document.createElement('button');
+        card.type = 'button'; card.className = 'card';
+        card.innerHTML = '<span class="art">' + previewSVG('person', it.k, { h: 52 }) + '</span><b>' + it.n + '</b>';
+        card.addEventListener('click', function () { place({ type: 'person', kind: it.k, w: it.w }); });
+        body.appendChild(card);
+      });
+    }
+
+    if (cat === 'dmg') {
+      addGroup(body, '파손 상태 · 충격지점 (투명 배경)');
+      symCards(body, ['damage', 'damage_dash', 'nodamage', 'nodamage_dash', 'existing', 'existing_dash', 'damage_legend', 'impact']);
+    }
+
+    if (cat === 'etc') {
+      addGroup(body, '경로 화살표');
       symCards(body, ['arrow', 'turn@0', 'turn@1', 'uturn']);
-      addGroup(body, '충돌 · 파손');
-      symCards(body, ['impact', 'damage', 'existing', 'nodamage']);
-      addGroup(body, '메모');
+      addGroup(body, '신호등 (10종)');
+      symCards(body, ['signal_01', 'signal_02', 'signal_03', 'signal_04', 'signal_05', 'signal_06', 'signal_07', 'signal_08', 'ped_g', 'ped_r']);
+      addGroup(body, '건물 · 횡단보도 · 차선 (배경 없음)');
+      symCards(body, ['building', 'building_s', 'crosswalk', 'crosswalk_s', 'lane_dash', 'lane_solid', 'lane_center', 'lane_bus']);
+      addGroup(body, '지시 · 규제 표지 (14종)');
+      symCards(body, [
+        'sign_straight', 'sign_left', 'sign_right', 'sign_uturn', 'sign_left_uturn',
+        'sign_straight_right', 'sign_straight_left', 'sign_x',
+        'chip_stop', 'chip_lane', 'chip_oneway', 'chip_unprot', 'chip_big', 'chip_small'
+      ]);
+      addGroup(body, '텍스트');
       var mc = document.createElement('button');
       mc.type = 'button'; mc.className = 'card tool';
       mc.innerHTML = '<span class="art">' + previewSVG('memo') + '</span><b>텍스트 메모</b>';
       mc.addEventListener('click', function () {
-        closeSheet();
-        S.tool = 'memo';
-        syncTool();
-        toast('지도에서 메모할 곳을 톡 누르세요');
+        closeSheet(); S.tool = 'memo'; syncTool(); toast('약도에서 메모할 곳을 톡 누르세요');
       });
       body.appendChild(mc);
     }
@@ -144,7 +216,7 @@ window.AS = window.AS || {};
       if (!def) C.SYM.forEach(function (s) { if (s.k === kind && !def) def = s; });
       var card = document.createElement('button');
       card.type = 'button'; card.className = 'card';
-      card.innerHTML = '<span class="art">' + previewSVG('sym', kind, { h: kind.indexOf('lane_') === 0 ? 52 : 40, flip: flip }) + '</span><b>' + (def ? def.n : kind) + '</b>';
+      card.innerHTML = '<span class="art">' + previewSVG('sym', kind, { h: kind.indexOf('lane_') === 0 ? 52 : 42, flip: flip }) + '</span><b>' + (def ? def.n : kind) + '</b>';
       card.addEventListener('click', function () {
         place({ type: 'sym', kind: kind, w: def ? def.w : 50, flip: !!(def && def.flip) });
       });
@@ -157,16 +229,13 @@ window.AS = window.AS || {};
       ['#E9413B', '빨강'], ['#2F6BFF', '파랑'], ['#0F172A', '검정'],
       ['#2E8A63', '초록'], ['#F2A93B', '주황']
     ];
-    var head = document.createElement('div');
-    head.className = 'grp'; head.textContent = '펜 색';
-    body.appendChild(head);
+    addGroup(body, '펜 색');
     var row = document.createElement('div');
     row.style.cssText = 'grid-column:1/-1;display:flex;gap:10px;padding:4px 2px 8px';
     colors.forEach(function (c) {
       var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'card';
-      b.style.cssText = 'flex:1;min-height:56px;padding:8px 4px;border-color:' + (S.pen.color === c[0] ? 'var(--acc)' : 'transparent');
+      b.type = 'button'; b.className = 'card';
+      b.style.cssText = 'flex:1;min-height:54px;padding:8px 4px;border-color:' + (S.pen.color === c[0] ? 'var(--acc)' : 'transparent');
       b.innerHTML = '<span class="dot" style="background:' + c[0] + '"></span><b style="font-size:10px">' + c[1] + '</b>';
       b.addEventListener('click', function () {
         S.pen.color = c[0];
@@ -178,27 +247,24 @@ window.AS = window.AS || {};
     body.appendChild(row);
 
     addGroup(body, '도구');
-    var tools = [
-      ['pen', '자유 펜', '지도 위를 손가락으로 그어요'],
-      ['vec', '직선 화살표', '끌어서 방향·길이 지정'],
-      ['memo', '텍스트 메모', '메모할 곳을 톡 누르세요']
-    ];
+    var tools = [['pen', '자유 펜'], ['vec', '직선 화살표'], ['memo', '텍스트 메모']];
     tools.forEach(function (t) {
       var card = document.createElement('button');
       card.type = 'button'; card.className = 'card tool';
       var icon = t[0] === 'pen'
-        ? '<svg viewBox="0 0 24 24" width="30" height="30" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><path d="M4 17c3-1 4-6 7-6s3 4 6 3"/><circle cx="5" cy="17.5" r="1.4"/></svg>'
+        ? '<svg viewBox="0 0 24 24" width="28" height="28" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><path d="M4 17c3-1 4-6 7-6s3 4 6 3"/><circle cx="5" cy="17.5" r="1.4"/></svg>'
         : t[0] === 'vec'
-          ? '<svg viewBox="0 0 24 24" width="30" height="30" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><path d="M5 19 17.5 6.5"/><path d="M12.4 5.4h6.4v6.4"/></svg>'
+          ? '<svg viewBox="0 0 24 24" width="28" height="28" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><path d="M5 19 17.5 6.5"/><path d="M12.4 5.4h6.4v6.4"/></svg>'
           : previewSVG('memo');
       card.innerHTML = '<span class="art">' + icon + '</span><b>' + t[1] + '</b>';
       if (S.tool === t[0]) card.classList.add('on');
       card.addEventListener('click', function () {
         S.tool = S.tool === t[0] ? 'idle' : t[0];
         syncTool();
-        if (S.tool === 'memo') { closeSheet(); toast('메모할 곳을 톡 누르세요'); return; }
         closeSheet();
-        toast(S.tool === 'pen' ? '그은 뒤 1초 누르면 화살표·도형이 반듯해져요' : '지도에서 끌어 화살표를 그리세요');
+        if (S.tool === 'memo') toast('약도에서 메모할 곳을 톡 누르세요');
+        else if (S.tool === 'pen') toast('그은 뒤 1초 누르면 화살표·도형이 반듯해져요');
+        else if (S.tool === 'vec') toast('끌어서 화살표를 그리세요');
       });
       body.appendChild(card);
     });
@@ -212,23 +278,16 @@ window.AS = window.AS || {};
     var clr = document.createElement('button');
     clr.type = 'button'; clr.className = 'card wide';
     clr.innerHTML = '<b style="color:var(--red)">✕ 전체 초기화</b>';
-    clr.addEventListener('click', function () {
-      closeSheet();
-      AS.exportx.confirmNew();
-    });
+    clr.addEventListener('click', function () { closeSheet(); AS.exportx.confirmNew(); });
     body.appendChild(clr);
   }
 
   function buildDrawBodyRefresh() {
-    var body = $('#sheetBody');
-    body.innerHTML = '';
-    buildDraw(body);
+    var body = $('#sheetBody'); body.innerHTML = ''; buildDraw(body);
   }
 
   function place(spec) {
-    S.tool = 'idle';
-    syncTool();
-    closeSheet();
+    S.tool = 'idle'; syncTool(); closeSheet();
     AS.objs.add(spec);
     toast(labelOf(spec) + ' 배치');
   }
@@ -249,7 +308,7 @@ window.AS = window.AS || {};
     $$('#dock .dk[data-cat]').forEach(function (b) { b.classList.toggle('on', b.dataset.cat === cat); });
   }
 
-  /* ────────── 역할 세그먼트 (연속추돌 다중 차량 지원) ────────── */
+  /* ────────── 역할 세그먼트 (자차 · 대차1 · 대차2 · 대차3 · +대차4) ────────── */
   function renderRoles(wrap, big) {
     wrap.innerHTML = '';
     var selO = AS.objs.selObj();
@@ -262,7 +321,7 @@ window.AS = window.AS || {};
         var nxt = parseInt(r.split(':')[1], 10);
         var nextKey = 'c' + nxt;
         b.className = 'addrole';
-        b.textContent = '+' + nxt + '차';
+        b.textContent = '+대차' + nxt;
         b.addEventListener('click', function () {
           S.newRole = nextKey;
           var o = AS.objs.selObj();
@@ -271,22 +330,18 @@ window.AS = window.AS || {};
           renderRoles(wrap, big);
           if (sheetCat === 'car') refreshCarSheetThumbs(nextKey);
           selbar();
-          toast('제' + nxt + '차 선택');
+          toast('대차' + nxt + ' 선택');
         });
         wrap.appendChild(b);
         return;
       }
       var rm = C.roleMeta(r);
-      var lbl = big ? (r === 'none' ? '표시없음' : rm.label) : (r === 'none' ? '없음' : rm.short);
-      if (r === 'none') {
-        b.textContent = lbl;
-      } else {
-        b.innerHTML = '<i class="rdot" style="background:' + rm.color + '"></i><span>' + lbl + '</span>';
-      }
+      var lbl = big ? rm.label : (r === 'none' ? '없음' : rm.short);
+      if (r === 'none') b.textContent = lbl;
+      else b.innerHTML = '<i class="rdot" style="background:' + rm.color + '"></i><span>' + lbl + '</span>';
       if (activeRole === r) b.className = 'on';
       b.addEventListener('click', function () {
-        S.newRole = r;
-        C.save();
+        S.newRole = r; C.save();
         var o = AS.objs.selObj();
         if (o && o.type === 'car') { o.role = r; AS.objs.render(); C.pushUndo(); }
         renderRoles(wrap, big);
@@ -296,9 +351,7 @@ window.AS = window.AS || {};
       wrap.appendChild(b);
     });
     var onBtn = wrap.querySelector('button.on');
-    if (onBtn && onBtn.scrollIntoView) {
-      try { onBtn.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {}
-    }
+    if (onBtn && onBtn.scrollIntoView) { try { onBtn.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
   }
 
   function refreshCarSheetThumbs(role) {
@@ -306,22 +359,19 @@ window.AS = window.AS || {};
     $$('.card', body).forEach(function (card, i) {
       if (C.CARS[i]) {
         var art = card.querySelector('.art');
-        if (art) art.innerHTML = previewSVG('car', C.CARS[i].k, { h: 68, role: role });
+        if (art) art.innerHTML = previewSVG('car', C.CARS[i].k, { h: 66, role: role });
       }
     });
   }
 
-  /* ────────── 선택 미니바 ────────── */
+  /* ────────── 선택 미니바 (하단바 내부) ────────── */
   function selbar() {
     var bar = $('#selBar'), o = AS.objs.selObj();
     if (!o) { bar.hidden = true; return; }
     bar.hidden = false;
     var isCar = o.type === 'car', isPen = o.type === 'pen';
     var pa = $('#btnPenArrow');
-    if (pa) {
-      pa.hidden = !isPen;
-      pa.classList.toggle('on', !!(isPen && o.arrowEnd));
-    }
+    if (pa) { pa.hidden = !isPen; pa.classList.toggle('on', !!(isPen && o.arrowEnd)); }
     var zin = bar.querySelector('[data-act="zin"]'), zout = bar.querySelector('[data-act="zout"]');
     if (zin) zin.hidden = isPen;
     if (zout) zout.hidden = isPen;
@@ -329,38 +379,28 @@ window.AS = window.AS || {};
     $('#roleSep').style.display = isCar ? '' : 'none';
     if (isCar) renderRoles($('#roleSeg'), false);
     var info = [];
-    if (!isPen) {
-      info.push(Math.round(o.rot) + '°');
-      info.push(o.sc.toFixed(2) + '×');
-    } else info.push(o.snapped || '펜');
+    if (!isPen) { info.push(Math.round(o.rot) + '°'); info.push(o.sc.toFixed(2) + '×'); }
+    else info.push(o.snapped || '펜');
     $('#selInfo').textContent = info.join(' · ');
   }
 
-  /* ────────── 도구 상태 칩 ────────── */
   function syncTool() {
     var c = $('#toolChip');
     if (!c) return;
     if (!S.tool || S.tool === 'idle') { c.hidden = true; return; }
     c.hidden = false;
-    c.textContent = S.tool === 'pen' ? '✏️ 그리는 중 · 2초 꾹 누르면 모양 보정 · 끝내기'
-      : S.tool === 'vec' ? '↗ 화살표로 긋는 중 · 끝내기'
-        : '💬 메모할 곳을 누르세요 · 취소';
+    c.textContent = S.tool === 'pen' ? '✏️ 그리는 중 · 1초 누르면 화살표·도형 보정 · 끝내기'
+      : S.tool === 'vec' ? '↗ 화살표 긋는 중 · 끝내기'
+        : '💬 약도에서 메모할 곳을 누르세요 · 취소';
   }
 
-  /* ────────── 배경 칩 ────────── */
   function bgchips() {
     $$('#bgChips button[data-bg]').forEach(function (b) { b.classList.toggle('on', b.dataset.bg === S.bg); });
   }
 
   /* ────────── 검색 ────────── */
-  function openSearch() {
-    $('#search').classList.add('open');
-    setTimeout(function () { $('#q').focus(); }, 220);
-  }
-  function closeSearch() {
-    $('#search').classList.remove('open');
-    $('#q').blur();
-  }
+  function openSearch() { $('#search').classList.add('open'); setTimeout(function () { $('#q').focus(); }, 220); }
+  function closeSearch() { $('#search').classList.remove('open'); $('#q').blur(); }
   function renderResults(list) {
     var box = $('#qList');
     if (!list.length) { box.innerHTML = '<p class="qempty">결과가 없어요. 도로명이나 건물명으로 다시 입력해 보세요.</p>'; return; }
@@ -375,6 +415,7 @@ window.AS = window.AS || {};
         S.info.place = it.name;
         $('#placeTxt').textContent = it.name;
         $('#searchPill').classList.add('has');
+        if (S.bg === 'road') AS.mapx.setBg('sat');
         AS.mapx.fly(it.lat, it.lng, 19);
         AS.mapx.setLock(false);
         toast(it.name + ' (으)로 이동');
@@ -384,15 +425,14 @@ window.AS = window.AS || {};
     });
   }
   function doSearch() {
-    var q = $('#q').value.trim();
-    if (!q) return;
+    var q = $('#q').value.trim(); if (!q) return;
     $('#qList').innerHTML = '<p class="qempty">찾는 중…</p>';
     AS.mapx.search(q).then(function (list) { renderResults(list); });
   }
 
   /* ────────── 비밀 테마 연구실 ────────── */
   var THEMES = [
-    { k: 'A', n: '모던 모빌리티', d: '화이트 글래스 · 비비드 오렌지', sw: ['#FF6B2C', '#2F6BFF', '#64748B', '#FFFFFF'] },
+    { k: 'A', n: '모던 모빌리티', d: '화이트 · 비비드 오렌지', sw: ['#FF6B2C', '#2F6BFF', '#64748B', '#FFFFFF'] },
     { k: 'B', n: '다크 콕핏', d: '카본 다크 · 네온 시안', sw: ['#2FE6FF', '#FFB627', '#FF5C8A', '#0A141A'] },
     { k: 'C', n: '정밀 도면', d: '딥네이비 · 에메랄드 계측', sw: ['#3FD3A8', '#4FA3FF', '#A7C2D8', '#0F2033'] },
     { k: 'D', n: '볼드 스티커', d: '크림 · 다이컷 스티커', sw: ['#FF5A36', '#1E6BFF', '#FFDD3D', '#FFF6E4'] }
@@ -404,7 +444,7 @@ window.AS = window.AS || {};
     body.dataset.lab = '1';
     body.innerHTML = '<button class="mclose" data-close="1" aria-label="닫기">✕</button>' +
       '<h3>🎨 디자인 연구실</h3>' +
-      '<p class="mhint">앱 UI와 지도 위 모든 차량·기호가 함께 바뀝니다. 취향을 골라 두면 다음에도 유지돼요.</p>' +
+      '<p class="mhint">앱 UI와 지도 위 차량 색감 테마를 바꿉니다.</p>' +
       '<div class="labgrid">' + THEMES.map(function (t) {
         return '<button class="labcard' + (S.theme === t.k ? ' on' : '') + '" data-theme="' + t.k + '" type="button">' +
           '<span class="sw">' + t.sw.map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('') + '</span>' +
@@ -414,7 +454,7 @@ window.AS = window.AS || {};
       '<div class="roles big" id="labCarMode" style="margin:8px 0 4px">' +
       '<button type="button" data-cm="real" class="' + (S.carMode !== 'vector' ? 'on' : '') + '">✨ 실사 미니어처</button>' +
       '<button type="button" data-cm="vector" class="' + (S.carMode === 'vector' ? 'on' : '') + '">📐 플랫 벡터</button></div>' +
-      '<p class="tip">이 화면은 제목 “사고약도”를 5번 두드리거나 0.6초 길게 누르면 언제든 열 수 있어요.</p>' +
+      '<p class="tip">제목 “사고약도”를 5번 두드리거나 0.6초 길게 누르면 언제든 열려요.</p>' +
       '<div class="mrow"><button class="btn primary" data-close="1">닫기</button></div>';
     $('#modal').hidden = false;
     $$('.labcard', body).forEach(function (b) {
@@ -439,9 +479,7 @@ window.AS = window.AS || {};
   }
 
   function setTheme(k) {
-    var prev = S.theme;
-    S.theme = k;
-    // 다크 콕핏(B)은 다크 지도와 어울린다 — 사용자가 직접 고른 배경이 아니면 자동 전환
+    var prev = S.theme; S.theme = k;
     if (k === 'B' && (S.bg === 'map' || S.bg === 'sat')) { S._prevBg = S.bg; AS.mapx.setBg('dark'); }
     else if (prev === 'B' && k !== 'B' && S.bg === 'dark' && S.autoDark) AS.mapx.setBg(S._prevBg || 'sat');
     S.autoDark = (k === 'B');
@@ -449,33 +487,24 @@ window.AS = window.AS || {};
     var meta = document.getElementById('metaTheme');
     var map = { A: '#EEF2F8', B: '#05090D', C: '#0C1A2B', D: '#FBF3E4' };
     if (meta) meta.setAttribute('content', map[k] || '#EEF2F8');
-    AS.objs.render();
-    AS.objs.chrome();
-    selbar();
-    C.save();
+    AS.objs.render(); AS.objs.chrome(); selbar(); C.save();
   }
 
-  /* ────────── 메모 ────────── */
   var memoPoint = null;
   function openMemo(p) {
     memoPoint = p || { x: S.stage.w / 2, y: S.stage.h / 2 };
-    var w = $('#memoWrap');
-    w.hidden = false;
-    var inp = $('#memoInput');
-    inp.value = '';
+    $('#memoWrap').hidden = false;
+    var inp = $('#memoInput'); inp.value = '';
     setTimeout(function () { inp.focus(); }, 40);
   }
   function closeMemo() { $('#memoWrap').hidden = true; }
   function commitMemo() {
-    var inp = $('#memoInput');
-    var t = inp.value.trim();
-    closeMemo();
-    if (!t) return;
+    var inp = $('#memoInput'), t = inp.value.trim();
+    closeMemo(); if (!t) return;
     AS.objs.addMemo(t, memoPoint.x, memoPoint.y);
     toast('메모 추가');
   }
 
-  /* ────────── 바인딩 ────────── */
   function bind() {
     $$('#dock .dk[data-cat]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -484,32 +513,25 @@ window.AS = window.AS || {};
       });
     });
     $('#sheetClose').addEventListener('click', closeSheet);
-    $('#toolChip').addEventListener('click', function () {
-      S.tool = 'idle'; syncTool(); toast('그리기를 끝냈어요');
-    });
+    $('#toolChip').addEventListener('click', function () { S.tool = 'idle'; syncTool(); toast('그리기를 끝냈어요'); });
     $('#sheet').addEventListener('click', function (e) { if (e.target === $('#sheet')) closeSheet(); });
-
     $('#btnUndo').addEventListener('click', function () { C.undo(); });
     $('#btnSave').addEventListener('click', function () { AS.exportx.openSave(); });
 
     $$('#bgChips button[data-bg]').forEach(function (b) {
       b.addEventListener('click', function () {
-        if (b.dataset.bg === 'capture') {
-          if (!S.cap.src || S.bg === 'capture') { $('#fileInput').click(); return; }
-        }
+        if (b.dataset.bg === 'capture' && (!S.cap.src || S.bg === 'capture')) { $('#fileInput').click(); return; }
+        if (b.dataset.bg === 'road' && S.bg !== 'road') { AS.mapx.setRoad(S.roadId || 'lane4'); openSheet('road'); return; }
+        if (b.dataset.bg === 'road' && S.bg === 'road') { openSheet('road'); return; }
         AS.mapx.setBg(b.dataset.bg);
       });
     });
     $('#fileInput').addEventListener('change', function (e) {
-      var f = e.target.files && e.target.files[0];
-      if (!f) return;
+      var f = e.target.files && e.target.files[0]; if (!f) return;
       var fr = new FileReader();
       fr.onload = function () {
-        S.cap.src = fr.result;
-        $('#capImg').src = fr.result;
-        AS.mapx.setBg('capture');
-        toast('캡처 배경으로 사용합니다');
-        C.save();
+        S.cap.src = fr.result; $('#capImg').src = fr.result;
+        AS.mapx.setBg('capture'); toast('캡처 배경으로 사용합니다'); C.save();
       };
       fr.readAsDataURL(f);
     });
@@ -518,12 +540,9 @@ window.AS = window.AS || {};
     $('#btnGeo').addEventListener('click', function () {
       toast('현위치 확인 중…');
       AS.mapx.geolocate().then(function (p) {
-        AS.mapx.fly(p.lat, p.lng, 19);
-        AS.mapx.setLock(false);
-        toast('현위치로 이동했습니다');
-      }).catch(function (e) {
-        toast(e && e.code === 1 ? '위치 권한이 꺼져 있어요' : '현위치를 잡지 못했어요');
-      });
+        if (S.bg === 'road') AS.mapx.setBg('sat');
+        AS.mapx.fly(p.lat, p.lng, 19); AS.mapx.setLock(false); toast('현위치로 이동했습니다');
+      }).catch(function (e) { toast(e && e.code === 1 ? '위치 권한이 꺼져 있어요' : '현위치를 잡지 못했어요'); });
     });
 
     $('#searchPill').addEventListener('click', openSearch);
@@ -531,14 +550,12 @@ window.AS = window.AS || {};
     $('#search').addEventListener('click', function (e) { if (e.target === $('#search')) closeSearch(); });
     $('#qGo').addEventListener('click', doSearch);
     $('#q').addEventListener('input', function () {
-      clearTimeout(qTimer);
-      var v = $('#q').value.trim();
-      if (v.length < 2) return;
+      clearTimeout(qTimer); var v = $('#q').value.trim(); if (v.length < 2) return;
       qTimer = setTimeout(doSearch, 420);
     });
     $('#q').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
 
-    // 나침반 1손가락 회전 스와이프 / 탭하면 정북(0°)
+    // 나침반 1손가락 좌우 회전
     var cmp = $('#compassBtn');
     if (cmp) {
       var cmpDrag = null;
@@ -551,25 +568,47 @@ window.AS = window.AS || {};
         if (!cmpDrag) return;
         var dx = e.clientX - cmpDrag.x0;
         if (!cmpDrag.moved && Math.abs(dx) < 4) return;
-        cmpDrag.moved = true;
-        AS.mapx.setBearing(cmpDrag.b0 + dx * 0.8, true);
+        cmpDrag.moved = true; AS.mapx.setBearing(cmpDrag.b0 + dx * 0.8, true);
       });
       var cmpEnd = function () {
         if (!cmpDrag) return;
-        if (!cmpDrag.moved) {
-          AS.mapx.setBearing(0, false);
-          toast('지도를 정북(0°)으로 맞췄어요');
-        }
+        if (!cmpDrag.moved) { AS.mapx.setBearing(0, false); toast('지도를 정북(0°)으로 맞췄어요'); }
         cmpDrag = null;
       };
       cmp.addEventListener('pointerup', cmpEnd);
       cmp.addEventListener('pointercancel', cmpEnd);
     }
 
-    // 선택 미니바
+    // 3D 각도(틸트) 1손가락 위아래 스와이프 / 탭하면 0° ↔ 35°
+    var tlt = $('#tiltBtn');
+    if (tlt) {
+      var tltDrag = null;
+      tlt.addEventListener('pointerdown', function (e) {
+        e.stopPropagation();
+        tltDrag = { y0: e.clientY, t0: S.view.tilt || 0, moved: false };
+        try { tlt.setPointerCapture(e.pointerId); } catch (er) {}
+      });
+      tlt.addEventListener('pointermove', function (e) {
+        if (!tltDrag) return;
+        var dy = e.clientY - tltDrag.y0;
+        if (!tltDrag.moved && Math.abs(dy) < 4) return;
+        tltDrag.moved = true; AS.mapx.setTilt(tltDrag.t0 - dy * 0.5);
+      });
+      var tltEnd = function () {
+        if (!tltDrag) return;
+        if (!tltDrag.moved) {
+          var next = (S.view.tilt || 0) > 10 ? 0 : 35;
+          AS.mapx.setTilt(next);
+          toast(next ? '3D 입체 각도 ' + next + '°' : '평면 탑뷰(0°)');
+        }
+        tltDrag = null;
+      };
+      tlt.addEventListener('pointerup', tltEnd);
+      tlt.addEventListener('pointercancel', tltEnd);
+    }
+
     $('#selBar').addEventListener('click', function (e) {
-      var b = e.target.closest('[data-act]');
-      if (!b) return;
+      var b = e.target.closest('[data-act]'); if (!b) return;
       var a = b.dataset.act;
       if (a === 'zin') AS.objs.scaleBy(1 / 1.18);
       else if (a === 'zout') AS.objs.scaleBy(1.18);
@@ -578,11 +617,9 @@ window.AS = window.AS || {};
       else if (a === 'dup') AS.objs.dup();
     });
 
-    // 비밀 테마: 5연타 또는 0.6초 롱프레스
     var brand = $('#brandTap'), taps = 0, tapTimer = null, holdTimer = null, held = false;
     brand.addEventListener('pointerdown', function () {
-      held = false;
-      clearTimeout(holdTimer);
+      held = false; clearTimeout(holdTimer);
       holdTimer = setTimeout(function () { held = true; openLab(true); }, 600);
     });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
@@ -591,19 +628,14 @@ window.AS = window.AS || {};
     brand.addEventListener('click', function (e) {
       e.preventDefault();
       if (held) { held = false; taps = 0; return; }
-      taps += 1;
-      clearTimeout(tapTimer);
-      tapTimer = setTimeout(function () { taps = 0; }, 2000);
+      taps += 1; clearTimeout(tapTimer); tapTimer = setTimeout(function () { taps = 0; }, 2000);
       if (taps >= 5) { taps = 0; clearTimeout(tapTimer); openLab(true); }
     });
     brand.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
-    // 메모
     $('#memoOk').addEventListener('click', commitMemo);
     $('#memoInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); commitMemo(); } });
     $('#memoWrap').addEventListener('click', function (e) { if (e.target === $('#memoWrap')) closeMemo(); });
-
-    // 모달 공통 닫기
     $('#modal').addEventListener('click', function (e) {
       if (e.target.closest('[data-close]') || e.target.classList.contains('mscrim')) closeModal();
     });
@@ -616,31 +648,26 @@ window.AS = window.AS || {};
       if (e.key === 'l' || e.key === 'L') AS.mapx.setLock(!S.lock);
     });
 
-    window.addEventListener('afterprint', function () {
-      setTimeout(function () { measure(); if (AS.mapx.map) AS.mapx.map.invalidateSize(); AS.objs.layout(); }, 120);
-    });
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () {
+        measure();
+        if (AS.mapx.map) AS.mapx.map.invalidateSize();
+        AS.mapx.renderRoadLayer();
+        AS.objs.layout();
+      });
+      ro.observe($('#stage'));
+    }
     window.addEventListener('resize', function () {
-      measure();
-      if (AS.mapx.map) AS.mapx.map.invalidateSize();
-      AS.objs.layout();
+      measure(); if (AS.mapx.map) AS.mapx.map.invalidateSize();
+      AS.mapx.renderRoadLayer(); AS.objs.layout();
     });
-    window.addEventListener('orientationchange', function () { setTimeout(function () { measure(); AS.objs.layout(); }, 300); });
+    window.addEventListener('orientationchange', function () { setTimeout(function () { measure(); AS.mapx.renderRoadLayer(); AS.objs.layout(); }, 300); });
   }
 
-  function closeModal() {
-    $('#modal').hidden = true;
-    var b = $('#modalBody');
-    b.innerHTML = '';
-    delete b.dataset.lab;
-  }
-
-  function measure() {
-    var r = $('#stage').getBoundingClientRect();
-    S.stage.w = r.width; S.stage.h = r.height;
-  }
+  function closeModal() { $('#modal').hidden = true; var b = $('#modalBody'); b.innerHTML = ''; delete b.dataset.lab; }
+  function measure() { var r = $('#stage').getBoundingClientRect(); S.stage.w = r.width; S.stage.h = r.height; }
 
   AS.toast = toast;
-
   AS.ui = {
     toast: toast, bind: bind, syncTool: syncTool, openSheet: openSheet, closeSheet: closeSheet, selbar: selbar, bgchips: bgchips,
     openSearch: openSearch, closeSearch: closeSearch, openLab: openLab, setTheme: setTheme,

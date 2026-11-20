@@ -44,7 +44,7 @@ window.AS = window.AS || {};
         if (sp) return sp;
       }
       var rm = C.roleMeta(o.role || 'self');
-      var rKey = (rm.key === 'self' || rm.key === 'other' || rm.key === 'none') ? rm.key : 'third';
+      var rKey = rm.key === 'self' ? 'self' : rm.key === 'c1' ? 'other' : rm.key === 'none' ? 'none' : 'third';
       return ART3.car(t, o.kind, rKey);
     }
     if (o.type === 'person') return ART3.person(t, o.kind);
@@ -303,16 +303,24 @@ window.AS = window.AS || {};
   }
 
   /* ─────────────────────────── 제스처 ─────────────────────────── */
-  var ptrs = {}, drag = null, base = null, penDraft = null, vecDraft = null;
+  var ptrs = {}, rawPtrs = {}, drag = null, base = null, penDraft = null, vecDraft = null;
 
-  function ptOf(e) {
+  function rawPtOf(e) {
     var r = $('#stage').getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  function ptOf(e) {
+    var raw = rawPtOf(e);
+    return AS.mapx.screenToPlane ? AS.mapx.screenToPlane(raw.x, raw.y) : raw;
   }
   function pcount() { return Object.keys(ptrs).length; }
   function twoPtrs() {
     var k = Object.keys(ptrs);
     return [ptrs[k[0]], ptrs[k[1]]];
+  }
+  function twoRawPtrs() {
+    var k = Object.keys(rawPtrs);
+    return [rawPtrs[k[0]], rawPtrs[k[1]]];
   }
 
   function bindStage() {
@@ -327,16 +335,19 @@ window.AS = window.AS || {};
     if (e.button && e.button !== 0) return;
     var tg = e.target;
     if (tg && tg.closest && tg.closest('.hnd')) return;
-    var p = ptOf(e);
+    var rp = rawPtOf(e);
+    var p = AS.mapx.screenToPlane ? AS.mapx.screenToPlane(rp.x, rp.y) : rp;
+    rawPtrs[e.pointerId] = rp;
     ptrs[e.pointerId] = p;
 
     if (pcount() === 2 && drag) {
-      var t = twoPtrs();
+      var t = twoPtrs(), rt = twoRawPtrs();
       if (drag.mode === 'map' || drag.mode === 'mappinch') {
         drag.mode = 'mappinch';
-        drag.d0 = Math.hypot(t[0].x - t[1].x, t[0].y - t[1].y) || 1;
-        drag.a0 = Math.atan2(t[1].y - t[0].y, t[1].x - t[0].x) * 180 / Math.PI;
-        drag.mid = { x: (t[0].x + t[1].x) / 2, y: (t[0].y + t[1].y) / 2 };
+        drag.d0 = Math.hypot(rt[0].x - rt[1].x, rt[0].y - rt[1].y) || 1;
+        drag.a0 = Math.atan2(rt[1].y - rt[0].y, rt[1].x - rt[0].x) * 180 / Math.PI;
+        drag.mid = { x: (rt[0].x + rt[1].x) / 2, y: (rt[0].y + rt[1].y) / 2 };
+        drag.rawMid0 = { x: drag.mid.x, y: drag.mid.y };
         AS.mapx.startPinch(drag.mid.x, drag.mid.y);
         return;
       }
@@ -386,7 +397,9 @@ window.AS = window.AS || {};
 
   function onMove(e) {
     if (!ptrs[e.pointerId]) return;
-    ptrs[e.pointerId] = ptOf(e);
+    var rp = rawPtOf(e);
+    rawPtrs[e.pointerId] = rp;
+    ptrs[e.pointerId] = AS.mapx.screenToPlane ? AS.mapx.screenToPlane(rp.x, rp.y) : rp;
     if (penDraft) { extendPen(ptrs[e.pointerId]); return; }
     if (vecDraft) { extendVec(ptrs[e.pointerId]); return; }
     if (!drag) return;
@@ -402,11 +415,12 @@ window.AS = window.AS || {};
       return;
     }
     if (drag.mode === 'mappinch') {
-      var mt = twoPtrs();
-      var md = Math.hypot(mt[0].x - mt[1].x, mt[0].y - mt[1].y) || 1;
-      var ma = Math.atan2(mt[1].y - mt[0].y, mt[1].x - mt[0].x) * 180 / Math.PI;
-      var mid = { x: (mt[0].x + mt[1].x) / 2, y: (mt[0].y + mt[1].y) / 2 };
-      AS.mapx.movePinch(mid.x, mid.y, md / drag.d0, ma - drag.a0);
+      var rt = twoRawPtrs();
+      var md = Math.hypot(rt[0].x - rt[1].x, rt[0].y - rt[1].y) || 1;
+      var ma = Math.atan2(rt[1].y - rt[0].y, rt[1].x - rt[0].x) * 180 / Math.PI;
+      var mid = { x: (rt[0].x + rt[1].x) / 2, y: (rt[0].y + rt[1].y) / 2 };
+      var dTilt = -(mid.y - drag.rawMid0.y) * 0.25;
+      AS.mapx.movePinch(mid.x, mid.y, md / drag.d0, ma - drag.a0, dTilt);
       drag.moved = true;
       return;
     }
@@ -459,6 +473,7 @@ window.AS = window.AS || {};
   function onUp(e) {
     if (!ptrs[e.pointerId]) { return; }
     delete ptrs[e.pointerId];
+    delete rawPtrs[e.pointerId];
     if (penDraft) { finishPen(); return; }
     if (vecDraft) { finishVec(); return; }
     if (!drag) return;

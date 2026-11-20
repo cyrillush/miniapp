@@ -1,10 +1,10 @@
 /* ==========================================================================
-   exportx.js — 저장 · PNG 합성(지도 타일 + 약도 + 머리글) · A4 보고서 인쇄
+   exportx.js — 저장 · PNG 합성(전체화면 도로 + 3D 틸트 워프 + 머리글) · A4 보고서
    ========================================================================== */
 window.AS = window.AS || {};
 (function (AS) {
   'use strict';
-  var C = AS.core, $ = C.$, $$ = C.$$, S = AS.S;
+  var C = AS.core, $ = C.$, S = AS.S;
 
   function nowLocal() {
     var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -23,7 +23,6 @@ window.AS = window.AS || {};
     return m[1] + '.' + m[2] + '.' + m[3] + ' (' + days[d.getDay()] + ') ' + m[4] + ':' + m[5];
   }
 
-  /* ────────── 저장 모달 ────────── */
   function openSave() {
     var body = $('#modalBody');
     delete body.dataset.lab;
@@ -38,7 +37,7 @@ window.AS = window.AS || {};
       '<button class="btn" id="btnRep">A4 보고서</button></div>' +
       '<div class="mrow"><button class="btn ghost sm" id="btnNew">새 약도</button>' +
       '<button class="btn ghost sm" data-close="1">닫기</button></div>' +
-      '<p class="tip">PNG는 지도 배경 + 배치 요소 + 머리글이 합성된 이미지입니다. 휴대폰에서 저장이 막히면 미리보기 이미지를 길게 눌러 “사진 저장”을 쓰세요.</p>';
+      '<p class="tip">PNG는 배경 + 배치 요소 + 머리글이 합성된 이미지입니다.</p>';
     $('#modal').hidden = false;
 
     var read = function () {
@@ -58,7 +57,7 @@ window.AS = window.AS || {};
         showPreview(url);
       }).catch(function (e) {
         b.textContent = 'PNG 저장'; b.disabled = false;
-        AS.toast('이미지 합성 실패 · ' + (e && e.message ? e.message : '알 수 없는 오류'), 2600);
+        AS.toast('이미지 합성 실패 · ' + (e && e.message ? e.message : '오류'), 2600);
       });
     });
     $('#btnRep').addEventListener('click', function () {
@@ -70,8 +69,7 @@ window.AS = window.AS || {};
 
   function esc(s) { return AS.objs.esc(s || ''); }
 
-  /* ────────── PNG ────────── */
-  function svgToImage(markup, w, h) {
+  function svgToImage(markup) {
     return new Promise(function (res, rej) {
       var blob = new Blob([markup], { type: 'image/svg+xml;charset=utf-8' });
       var url = URL.createObjectURL(blob);
@@ -107,7 +105,6 @@ window.AS = window.AS || {};
     ctx.save();
     ctx.fillStyle = T.head;
     ctx.fillRect(0, 0, W, hh);
-    // 액센트 바
     ctx.fillStyle = T.acc;
     var barW = Math.round(6 * sc), pad = Math.round(18 * sc);
     ctx.beginPath();
@@ -174,95 +171,112 @@ window.AS = window.AS || {};
         ctx.drawImage(img, -tileL * sc / 2, -tileL * sc / 2, tileL * sc + 0.8, tileL * sc + 0.8);
         ctx.restore();
         n++;
-      } catch (e) { /* 타일 하나 실패는 무시 */ }
+      } catch (e) {}
     }
     return n;
   }
 
-  /* 화면의 CSS 필터(다크·지도) 및 터널·도면 백지 렌더 */
   function drawTiles(ctx, W, H, sc) {
-    if (S.bg === 'road') {
-      ctx.fillStyle = '#F4F7FB';
-      ctx.fillRect(0, 0, W, H);
-      var step = 28 * sc;
-      ctx.strokeStyle = 'rgba(30,64,120,0.08)';
-      ctx.lineWidth = Math.max(1, sc * 0.6);
-      ctx.beginPath();
-      for (var gx = 0; gx <= W; gx += step) { ctx.moveTo(gx, 0); ctx.lineTo(gx, H); }
-      for (var gy = 0; gy <= H; gy += step) { ctx.moveTo(0, gy); ctx.lineTo(W, gy); }
-      ctx.stroke();
-      return 1;
-    }
     var f = AS.mapx.currentFilter ? AS.mapx.currentFilter() : '';
     if (!f) return drawTilesRaw(ctx, W, H, sc);
     if (typeof ctx.filter === 'string') {
-      ctx.save();
-      ctx.filter = f;
+      ctx.save(); ctx.filter = f;
       var n = drawTilesRaw(ctx, W, H, sc);
       ctx.restore();
       return n;
     }
-    var t = document.createElement('canvas');
-    t.width = W; t.height = H;
-    var tc = t.getContext('2d');
-    drawTilesRaw(tc, W, H, sc);
-    try {
-      var data = tc.getImageData(0, 0, W, H), d = data.data;
-      var inv = f.indexOf('invert') >= 0, gray = f.indexOf('grayscale') >= 0;
-      for (var i = 0; i < d.length; i += 4) {
-        var r = d[i], g = d[i + 1], b = d[i + 2];
-        if (gray) { var l = 0.299 * r + 0.587 * g + 0.114 * b; r = g = b = l; }
-        if (inv) { r = 255 - r; g = 255 - g; b = 255 - b; }
-        d[i] = r * .9; d[i + 1] = g * .9; d[i + 2] = b * .9;
-      }
-      tc.putImageData(data, 0, 0);
-      ctx.drawImage(t, 0, 0);
-    } catch (e) { /* 픽셀 접근 실패 시 원본 유지 */ }
-    return 1;
+    return drawTilesRaw(ctx, W, H, sc);
+  }
+
+  /* 3D 틸트 원근 워프 (flat -> dst) */
+  function warpTilt(srcCanvas, dstCtx, W, H, sc, tiltDeg) {
+    var P = AS.mapx.PERSPECTIVE * sc;
+    var ox = W * 0.5, oy = H * AS.mapx.TILT_ORIGIN_Y;
+    var r = tiltDeg * Math.PI / 180;
+    var cosR = Math.cos(r), sinR = Math.sin(r);
+    dstCtx.fillStyle = S.theme === 'B' ? '#05090D' : '#1E293B';
+    dstCtx.fillRect(0, 0, W, H);
+    for (var sy = 0; sy < H; sy += 2) {
+      var uy = sy - oy;
+      var denom = P * cosR + uy * sinR;
+      if (denom < 60 * sc) continue;
+      var dy = (uy * P) / denom;
+      var py = oy + dy;
+      if (py < 0 || py >= H - 2) continue;
+      var k = P / Math.max(80 * sc, P - dy * sinR);
+      var dstW = W * k;
+      var dstX = ox - ox * k;
+      dstCtx.drawImage(srcCanvas, 0, py, W, 2, dstX, sy, dstW, 2.5);
+    }
+  }
+
+  function roadSvgPromise(w, h) {
+    if (S.bg !== 'road' || !S.roadId || S.roadId === 'blank') return Promise.resolve(null);
+    var markup = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+      AS.roads.build(S.roadId, w, h) + '</svg>';
+    return svgToImage(markup);
   }
 
   function compose(sc, opt) {
     sc = sc || 2;
     opt = opt || {};
     return new Promise(function (resolve, reject) {
+      var st3 = $('#stage3d');
+      var savedTransform = st3 ? st3.style.transform : '';
+      if (st3) st3.style.transform = '';
+
       var stageR = $('#stage').getBoundingClientRect();
       var w = Math.round(stageR.width), h = Math.round(stageR.height);
       var W = w * sc, H = h * sc;
       var headCss = opt.headless ? 0 : 64, headH = Math.round(headCss * sc);
-      var cv = document.createElement('canvas');
-      cv.width = W; cv.height = H + headH;
-      var ctx = cv.getContext('2d');
 
-      if (headH) drawHeader(ctx, W, headH, sc);
-
-      ctx.save();
-      ctx.translate(0, headH);
-      ctx.beginPath();
-      ctx.rect(0, 0, W, H);
-      ctx.clip();            // 타일이 머리글 영역을 덮지 않도록 지도 영역만 그린다
-      ctx.fillStyle = S.theme === 'B' ? '#05090D' : S.theme === 'C' ? '#0C1A2B' : '#EEF2F8';
-      ctx.fillRect(0, 0, W, H);
+      var flat = document.createElement('canvas');
+      flat.width = W; flat.height = H;
+      var fctx = flat.getContext('2d');
+      fctx.fillStyle = S.theme === 'B' ? '#05090D' : S.theme === 'C' ? '#0C1A2B' : '#F4F7FB';
+      fctx.fillRect(0, 0, W, H);
 
       var capImg = $('#capImg');
       if (S.bg === 'capture' && S.cap.src && capImg && capImg.complete && capImg.naturalWidth) {
-        drawCover(ctx, capImg, 0, 0, W, H);
-      } else {
-        drawTiles(ctx, W, H, sc);
+        drawCover(fctx, capImg, 0, 0, W, H);
+      } else if (S.bg === 'road' && S.roadId === 'blank') {
+        var step = 28 * sc;
+        fctx.strokeStyle = 'rgba(30,64,120,0.08)';
+        fctx.lineWidth = Math.max(1, sc * 0.6);
+        fctx.beginPath();
+        for (var gx = 0; gx <= W; gx += step) { fctx.moveTo(gx, 0); fctx.lineTo(gx, H); }
+        for (var gy = 0; gy <= H; gy += step) { fctx.moveTo(0, gy); fctx.lineTo(W, gy); }
+        fctx.stroke();
+      } else if (S.bg !== 'road') {
+        drawTiles(fctx, W, H, sc);
       }
-      ctx.restore();
 
-      var markup = AS.objs.svgMarkup();
-      svgToImage(markup, w, h).then(function (img) {
-        ctx.drawImage(img, 0, headH, W, H);
-        // 테두리
+      if (st3) st3.style.transform = savedTransform;
+
+      Promise.all([roadSvgPromise(w, h), svgToImage(AS.objs.svgMarkup())]).then(function (imgs) {
+        if (imgs[0]) fctx.drawImage(imgs[0], 0, 0, W, H);
+        fctx.drawImage(imgs[1], 0, 0, W, H);
+
+        var cv = document.createElement('canvas');
+        cv.width = W; cv.height = H + headH;
+        var ctx = cv.getContext('2d');
+        if (headH) drawHeader(ctx, W, headH, sc);
+
+        ctx.save();
+        ctx.translate(0, headH);
+        ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+        if ((S.view.tilt || 0) > 0.2) warpTilt(flat, ctx, W, H, sc, S.view.tilt);
+        else ctx.drawImage(flat, 0, 0);
+        ctx.restore();
+
         ctx.strokeStyle = themeColors().line;
         ctx.lineWidth = Math.max(1, sc);
         ctx.strokeRect(.5, .5, cv.width - 1, cv.height - 1);
-        // 워터마크
+
         ctx.font = font(Math.round(9.5 * sc), 700);
         ctx.fillStyle = themeColors().sub;
         ctx.textAlign = 'right';
-        var wtxt = '사고약도 v3';
+        var wtxt = '사고약도';
         var tw = ctx.measureText(wtxt).width;
         var pad = Math.round(7 * sc);
         ctx.globalAlpha = .82;
@@ -282,7 +296,6 @@ window.AS = window.AS || {};
     });
   }
 
-  /* ────────── PNG 미리보기 ────────── */
   function showPreview(url) {
     var body = $('#modalBody');
     delete body.dataset.lab;
@@ -307,13 +320,11 @@ window.AS = window.AS || {};
     });
   }
 
-  /* ────────── A4 보고서 ────────── */
   function printReport(url) {
     var el = $('#printArea');
     var objs = S.objs;
     var cars = objs.filter(function (o) { return o.type === 'car'; });
-    var rows = [];
-    var carList = cars.map(function (o, i) {
+    var carList = cars.map(function (o) {
       var nm = (C.CARS.filter(function (c) { return c.k === o.kind; })[0] || {}).n || o.kind;
       var rl = C.roleMeta(o.role || 'self').label;
       return nm + '(' + rl + ')';
@@ -321,8 +332,8 @@ window.AS = window.AS || {};
     var count = {
       '차량': cars.length,
       '사람·이동수단': objs.filter(function (o) { return o.type === 'person'; }).length,
-      '충돌·파손': objs.filter(function (o) { return o.type === 'sym' && ['impact', 'damage', 'existing', 'nodamage'].indexOf(o.kind) >= 0; }).length,
-      '경로·도로표시': objs.filter(function (o) { return o.type === 'sym' && ['impact', 'damage', 'existing', 'nodamage'].indexOf(o.kind) < 0; }).length,
+      '충돌·파손': objs.filter(function (o) { return o.type === 'sym' && ['impact', 'damage', 'damage_dash', 'existing', 'existing_dash', 'nodamage', 'nodamage_dash'].indexOf(o.kind) >= 0; }).length,
+      '경로·도로표시': objs.filter(function (o) { return o.type === 'sym' && ['impact', 'damage', 'damage_dash', 'existing', 'existing_dash', 'nodamage', 'nodamage_dash'].indexOf(o.kind) < 0; }).length,
       '메모·펜': objs.filter(function (o) { return o.type === 'memo' || o.type === 'pen' || o.type === 'vec'; }).length
     };
     var sum = Object.keys(count).filter(function (k) { return count[k]; }).map(function (k) { return k + ' ' + count[k]; }).join(' · ');
@@ -335,7 +346,7 @@ window.AS = window.AS || {};
       '<tr><th>사고 경위</th><td>' + (S.info.note || '—') + '</td></tr>' +
       '<tr><th>차량</th><td>' + (carList || '—') + '</td></tr>' +
       '<tr><th>배치 요소</th><td>' + (sum || '—') + '</td></tr>' +
-      '<tr><th>작성</th><td>사고약도 v3 · ' + new Date().toLocaleDateString('ko-KR') + '</td></tr>' +
+      '<tr><th>작성</th><td>사고약도 · ' + new Date().toLocaleDateString('ko-KR') + '</td></tr>' +
       '</table>' +
       '<div class="pr-foot"><span>사고약도 — 현장 약도 작성 도구</span><span>cyrillush.github.io/miniapp/sketch</span></div>';
 
@@ -344,10 +355,8 @@ window.AS = window.AS || {};
     var img = el.querySelector('img');
     if (img && !img.complete) { img.onload = function () { setTimeout(fire, 80); }; img.onerror = fire; }
     else setTimeout(fire, 120);
-    window.onafterprint = function () { /* 인쇄 후에도 DOM 유지(재인쇄 가능) */ };
   }
 
-  /* ────────── 새 약도 ────────── */
   function confirmNew() {
     var body = $('#modalBody');
     delete body.dataset.lab;
@@ -359,9 +368,7 @@ window.AS = window.AS || {};
       '<button class="btn primary" id="btnDoNew">초기화</button></div>';
     $('#modal').hidden = false;
     $('#btnDoNew').addEventListener('click', function () {
-      C.reset();
-      AS.ui.closeModal();
-      AS.toast('새 약도를 시작합니다');
+      C.reset(); AS.ui.closeModal(); AS.toast('새 약도를 시작합니다');
     });
   }
 

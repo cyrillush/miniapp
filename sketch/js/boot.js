@@ -27,6 +27,7 @@
     AS.ui.bgchips();
     AS.ui.syncTool();
     AS.mapx.applyBearing();
+    AS.mapx.applyTilt();
     AS.mapx.applyLock();
     C.baseline();
     C.syncUndo();
