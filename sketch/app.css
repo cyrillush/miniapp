@@ -185,6 +185,15 @@ body[data-theme="D"] #bgChips button { border: 1.6px solid #2B2724; box-shadow: 
 body[data-theme="D"] .dk.save { box-shadow: 0 3px 0 #2B2724; }
 .dk:active { transform: scale(.95); }
 
+#toolChip {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 82px);
+  padding: 9px 16px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  background: var(--acc); color: var(--acc-ink); box-shadow: 0 8px 22px color-mix(in srgb, var(--acc) 38%, transparent);
+  white-space: nowrap; animation: barin .18s ease;
+}
+body[data-theme="D"] #toolChip { box-shadow: 0 3px 0 #2B2724; }
+
 /* 선택 미니바 */
 #selBar {
   position: absolute; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);

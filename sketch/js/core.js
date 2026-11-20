@@ -75,23 +75,29 @@ window.AS = window.AS || {};
   var saveTimer = null;
   var undoStack = [];
   var redoGuard = false;
+  var committed = null;
 
   function snapObjects() { return JSON.parse(JSON.stringify(S.objs)); }
 
+  /* 각 동작이 끝난 뒤 호출: '직전 상태'를 스택에 넣고 현재를 새 기준선으로 삼는다 */
   function pushUndo() {
     if (redoGuard) return;
-    undoStack.push(snapObjects());
+    if (!committed) committed = snapObjects();
+    undoStack.push(committed);
     if (undoStack.length > 40) undoStack.shift();
+    committed = snapObjects();
     syncUndo();
   }
+  function baseline() { committed = snapObjects(); }
   function undo() {
     if (!undoStack.length) { AS.toast('되돌릴 작업이 없어요'); return; }
     var prev = undoStack.pop();
     redoGuard = true;
     S.objs = prev;
     S.sel = null;
+    committed = snapObjects();
     redoGuard = false;
-    AS.objs.render(); AS.ui.selbar(); AS.save(); syncUndo();
+    AS.objs.render(); AS.ui.selbar(); save(); syncUndo();
     AS.toast('실행취소');
   }
   function syncUndo() {
@@ -132,7 +138,7 @@ window.AS = window.AS || {};
   }
 
   function reset() {
-    S.objs = []; S.sel = null; clearUndo();
+    S.objs = []; S.sel = null; clearUndo(); committed = snapObjects();
     S.info = { when: '', place: '', note: '' };
     AS.objs.render(); AS.ui.selbar(); save();
   }
@@ -184,7 +190,7 @@ window.AS = window.AS || {};
     $: $, $$: $$, clamp: clamp, uid: uid, vbox: vbox,
     CARS: CARS, PEOPLE: PEOPLE, SYM: SYM, ROLE_NAME: ROLE_NAME, ROLE_SHORT: ROLE_SHORT,
     itemDef: itemDef, makeObj: makeObj, applySize: applySize,
-    pushUndo: pushUndo, undo: undo, clearUndo: clearUndo, syncUndo: syncUndo,
+    pushUndo: pushUndo, undo: undo, clearUndo: clearUndo, syncUndo: syncUndo, baseline: baseline,
     save: save, load: load, reset: reset, nsMarkup: nsMarkup, snapObjects: snapObjects,
     KEY: KEY
   };

@@ -300,7 +300,7 @@ window.AS = window.AS || {};
     var o = hit(p.x, p.y);
     if (o) {
       e.stopPropagation(); e.preventDefault();
-      if (S.tool === 'memo') { S.tool = 'idle'; AS.ui.memo(p); return; }
+      if (S.tool === 'memo') { S.tool = 'idle'; AS.ui.syncTool(); AS.ui.memo(p); return; }
       select(o.id, { silent: true });
       if (!S.lock) AS.mapx.setLock(true, true); else AS.ui.selbar();
       // 지도 잠금을 유지한 채(이미 잠김) 드래그 시작
@@ -309,7 +309,7 @@ window.AS = window.AS || {};
       return;
     }
     // 빈 곳
-    if (S.tool === 'memo') { S.tool = 'idle'; AS.ui.memo(p); e.stopPropagation(); e.preventDefault(); return; }
+    if (S.tool === 'memo') { S.tool = 'idle'; AS.ui.syncTool(); AS.ui.memo(p); e.stopPropagation(); e.preventDefault(); return; }
     if (S.sel) deselect();
   }
 

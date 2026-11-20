@@ -104,6 +104,7 @@ window.AS = window.AS || {};
       mc.addEventListener('click', function () {
         closeSheet();
         S.tool = 'memo';
+        syncTool();
         toast('지도에서 메모할 곳을 톡 누르세요');
       });
       body.appendChild(mc);
@@ -181,6 +182,7 @@ window.AS = window.AS || {};
       if (S.tool === t[0]) card.classList.add('on');
       card.addEventListener('click', function () {
         S.tool = S.tool === t[0] ? 'idle' : t[0];
+        syncTool();
         if (S.tool === 'memo') { closeSheet(); toast('메모할 곳을 톡 누르세요'); return; }
         closeSheet();
         toast(S.tool === 'pen' ? '손가락으로 그어 약도를 그리세요' : '지도에서 끌어 화살표를 그리세요');
@@ -212,6 +214,7 @@ window.AS = window.AS || {};
 
   function place(spec) {
     S.tool = 'idle';
+    syncTool();
     closeSheet();
     AS.objs.add(spec);
     toast(labelOf(spec) + ' 배치');
@@ -278,6 +281,17 @@ window.AS = window.AS || {};
       info.push(o.sc.toFixed(2) + '×');
     } else info.push('펜');
     $('#selInfo').textContent = info.join(' · ');
+  }
+
+  /* ────────── 도구 상태 칩 ────────── */
+  function syncTool() {
+    var c = $('#toolChip');
+    if (!c) return;
+    if (!S.tool || S.tool === 'idle') { c.hidden = true; return; }
+    c.hidden = false;
+    c.textContent = S.tool === 'pen' ? '✏️ 펜으로 그리는 중 · 끝내기'
+      : S.tool === 'vec' ? '↗ 화살표로 긋는 중 · 끝내기'
+        : '💬 메모할 곳을 누르세요 · 취소';
   }
 
   /* ────────── 배경 칩 ────────── */
@@ -406,6 +420,9 @@ window.AS = window.AS || {};
       });
     });
     $('#sheetClose').addEventListener('click', closeSheet);
+    $('#toolChip').addEventListener('click', function () {
+      S.tool = 'idle'; syncTool(); toast('그리기를 끝냈어요');
+    });
     $('#sheet').addEventListener('click', function (e) { if (e.target === $('#sheet')) closeSheet(); });
 
     $('#btnUndo').addEventListener('click', function () { C.undo(); });
@@ -530,7 +547,7 @@ window.AS = window.AS || {};
   AS.toast = toast;
 
   AS.ui = {
-    toast: toast, bind: bind, openSheet: openSheet, closeSheet: closeSheet, selbar: selbar, bgchips: bgchips,
+    toast: toast, bind: bind, syncTool: syncTool, openSheet: openSheet, closeSheet: closeSheet, selbar: selbar, bgchips: bgchips,
     openSearch: openSearch, closeSearch: closeSearch, openLab: openLab, setTheme: setTheme,
     memo: openMemo, closeModal: closeModal, measure: measure, previewSVG: previewSVG,
     renderRoles: renderRoles, syncDock: syncDock, THEMES: THEMES

@@ -25,7 +25,9 @@
     }
     AS.mapx.setBg(S.bg || 'map');
     AS.ui.bgchips();
+    AS.ui.syncTool();
     AS.mapx.applyLock();
+    C.baseline();
     C.syncUndo();
     document.getElementById('btnUndo').disabled = true;
 
