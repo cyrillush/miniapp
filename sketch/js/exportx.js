@@ -32,7 +32,7 @@ window.AS = window.AS || {};
       '<h3>약도 저장</h3>' +
       '<p class="mhint">머리글(일시·장소·경위)이 함께 들어간 한 장으로 저장합니다.</p>' +
       '<div class="fld"><span>일시</span><input id="fWhen" type="datetime-local" value="' + (S.info.when || nowLocal()) + '" /></div>' +
-      '<div class="fld"><span>장소</span><input id="fPlace" type="text" maxlength="60" placeholder="예) 순천시 중앙로 ○○사거리" value="' + esc(S.info.place || '') + '" /></div>' +
+      '<div class="fld"><span>장소</span><input id="fPlace" type="text" maxlength="60" placeholder="예) 서초대로 ○○사거리" value="' + esc(S.info.place || '') + '" /></div>' +
       '<div class="fld"><span>사고 경위 (한 줄)</span><input id="fNote" type="text" maxlength="70" placeholder="예) 2차로 주행 중 우측에서 진입한 차량과 충돌" value="' + esc(S.info.note || '') + '" /></div>' +
       '<div class="mrow"><button class="btn primary" id="btnPng">PNG 저장</button>' +
       '<button class="btn" id="btnRep">A4 보고서</button></div>' +

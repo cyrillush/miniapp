@@ -430,7 +430,9 @@ window.AS = window.AS || {};
 
     $$('#bgChips button').forEach(function (b) {
       b.addEventListener('click', function () {
-        if (b.dataset.bg === 'capture' && !S.cap.src) { $('#fileInput').click(); return; }
+        if (b.dataset.bg === 'capture') {
+          if (!S.cap.src || S.bg === 'capture') { $('#fileInput').click(); return; }
+        }
         AS.mapx.setBg(b.dataset.bg);
       });
     });
