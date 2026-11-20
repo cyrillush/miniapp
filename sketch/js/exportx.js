@@ -292,10 +292,10 @@ window.AS = window.AS || {};
     var objs = S.objs;
     var cars = objs.filter(function (o) { return o.type === 'car'; });
     var rows = [];
-    var roleName = C.ROLE_NAME;
     var carList = cars.map(function (o, i) {
       var nm = (C.CARS.filter(function (c) { return c.k === o.kind; })[0] || {}).n || o.kind;
-      return nm + '(' + roleName[o.role || 'self'] + ')';
+      var rl = C.roleMeta(o.role || 'self').label;
+      return nm + '(' + rl + ')';
     }).join(', ');
     var count = {
       '차량': cars.length,

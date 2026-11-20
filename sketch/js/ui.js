@@ -23,7 +23,18 @@ window.AS = window.AS || {};
   function previewSVG(type, kind, opt) {
     opt = opt || {};
     var t = S.theme, inner = '', vb = { x: 0, y: 0, w: 100, h: 100 };
-    if (type === 'car') { inner = ART3.car(t, kind, opt.role || S.newRole); vb = { x: 0, y: 0, w: 120, h: 200 }; }
+    if (type === 'car') {
+      if (S.carMode !== 'vector' && window.CAR_SPRITES && window.CAR_SPRITES[kind]) {
+        var sp = window.CAR_SPRITES[kind];
+        var rm = C.roleMeta(opt.role || S.newRole);
+        var ring = rm.key === 'none' ? '' : ' style="filter:drop-shadow(0 0 3px ' + rm.color + '88)"';
+        return '<img class="sp-thumb" src="' + sp.src + '" alt=""' + ring + ' />';
+      }
+      var rKey = C.roleMeta(opt.role || S.newRole).key;
+      if (rKey !== 'self' && rKey !== 'other' && rKey !== 'none') rKey = 'third';
+      inner = ART3.car(t, kind, rKey);
+      vb = { x: 0, y: 0, w: 120, h: 200 };
+    }
     else if (type === 'person') { inner = ART3.person(t, kind); }
     else if (type === 'sym') { var s = ART3.sym(t, kind); inner = s.s; vb = C.vbox(s); }
     else if (type === 'memo') {
@@ -45,7 +56,7 @@ window.AS = window.AS || {};
   /* ────────── 시트 ────────── */
   var TITLES = {
     road: ['도로', '횡단보도 · 신호 · 차로 표시를 지도에 놓으세요'],
-    car: ['차량', '역할(자차/대차/제3차)을 고르고 차종을 누르세요'],
+    car: ['차량 (연속추돌 지원)', '차번을 고르고 차종을 누르면 자동으로 다음 번호로 넘어가요'],
     person: ['사람 · 이동수단', '보행자와 개인형 이동장치'],
     acc: ['사고 · 경로', '진행방향 · 충돌 · 파손 · 메모'],
     draw: ['그리기', '펜 색을 고르고 지도에 직접 그으세요']
@@ -61,6 +72,7 @@ window.AS = window.AS || {};
     var roleWrap = $('#sheetRole');
 
     if (cat === 'car') {
+      if (S.newRole !== 'none') S.newRole = C.nextCarRole();
       roleWrap.hidden = false;
       renderRoles(roleWrap, true);
     } else roleWrap.hidden = true;
@@ -77,10 +89,9 @@ window.AS = window.AS || {};
         body.appendChild(card);
       });
       if (cat === 'car') {
-        // 차량 카드 안내
         var note = document.createElement('div');
         note.className = 'grp';
-        note.textContent = '놓은 뒤 미니바에서 자차/대차/제3차를 바꿀 수 있어요';
+        note.textContent = '놓을 때마다 자차 → 대차 → 제3차 → 제4차… 순으로 자동 배정되며, 선택 후 복제(+)로도 바로 추가돼요';
         body.appendChild(note);
       }
     }
@@ -236,33 +247,65 @@ window.AS = window.AS || {};
     $$('#dock .dk[data-cat]').forEach(function (b) { b.classList.toggle('on', b.dataset.cat === cat); });
   }
 
-  /* ────────── 역할 세그먼트 ────────── */
+  /* ────────── 역할 세그먼트 (연속추돌 다중 차량 지원) ────────── */
   function renderRoles(wrap, big) {
     wrap.innerHTML = '';
-    ['self', 'other', 'third', 'none'].forEach(function (r) {
+    var selO = AS.objs.selObj();
+    var activeRole = (!big && selO && selO.type === 'car') ? C.normRole(selO.role || 'self') : C.normRole(S.newRole || 'self');
+    var list = C.roleList(true);
+    list.forEach(function (r) {
       var b = document.createElement('button');
       b.type = 'button';
-      b.textContent = big ? (r === 'none' ? '표시없음' : C.ROLE_NAME[r]) : C.ROLE_NAME[r];
-      if (S.newRole === r) b.className = 'on';
+      if (r.indexOf('__next:') === 0) {
+        var nxt = parseInt(r.split(':')[1], 10);
+        var nextKey = 'c' + nxt;
+        b.className = 'addrole';
+        b.textContent = '+' + nxt + '차';
+        b.addEventListener('click', function () {
+          S.newRole = nextKey;
+          var o = AS.objs.selObj();
+          if (o && o.type === 'car') { o.role = nextKey; AS.objs.render(); C.pushUndo(); }
+          C.save();
+          renderRoles(wrap, big);
+          if (sheetCat === 'car') refreshCarSheetThumbs(nextKey);
+          selbar();
+          toast('제' + nxt + '차 선택');
+        });
+        wrap.appendChild(b);
+        return;
+      }
+      var rm = C.roleMeta(r);
+      var lbl = big ? (r === 'none' ? '표시없음' : rm.label) : (r === 'none' ? '없음' : rm.short);
+      if (r === 'none') {
+        b.textContent = lbl;
+      } else {
+        b.innerHTML = '<i class="rdot" style="background:' + rm.color + '"></i><span>' + lbl + '</span>';
+      }
+      if (activeRole === r) b.className = 'on';
       b.addEventListener('click', function () {
         S.newRole = r;
         C.save();
-        $$('button', wrap).forEach(function (x) { x.classList.remove('on'); });
-        b.classList.add('on');
         var o = AS.objs.selObj();
-        if (o && o.type === 'car') { o.role = r; AS.objs.render(); }
-        if (sheetCat === 'car') { // 카드 미리보기 색 갱신
-          var body = $('#sheetBody');
-          $$('.card', body).forEach(function (card, i) {
-            if (C.CARS[i]) {
-              var art = card.querySelector('.art');
-              if (art) art.innerHTML = previewSVG('car', C.CARS[i].k, { h: 68, role: r });
-            }
-          });
-        }
+        if (o && o.type === 'car') { o.role = r; AS.objs.render(); C.pushUndo(); }
+        renderRoles(wrap, big);
+        if (sheetCat === 'car') refreshCarSheetThumbs(r);
         selbar();
       });
       wrap.appendChild(b);
+    });
+    var onBtn = wrap.querySelector('button.on');
+    if (onBtn && onBtn.scrollIntoView) {
+      try { onBtn.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {}
+    }
+  }
+
+  function refreshCarSheetThumbs(role) {
+    var body = $('#sheetBody');
+    $$('.card', body).forEach(function (card, i) {
+      if (C.CARS[i]) {
+        var art = card.querySelector('.art');
+        if (art) art.innerHTML = previewSVG('car', C.CARS[i].k, { h: 68, role: role });
+      }
     });
   }
 
@@ -358,11 +401,22 @@ window.AS = window.AS || {};
           '<b>' + t.n + '</b><span>' + t.d + '</span>' +
           '<span class="mini">' + labMini(t.k) + '</span></button>';
       }).join('') + '</div>' +
+      '<div class="roles big" id="labCarMode" style="margin:8px 0 4px">' +
+      '<button type="button" data-cm="real" class="' + (S.carMode !== 'vector' ? 'on' : '') + '">✨ 실사 미니어처</button>' +
+      '<button type="button" data-cm="vector" class="' + (S.carMode === 'vector' ? 'on' : '') + '">📐 플랫 벡터</button></div>' +
       '<p class="tip">이 화면은 제목 “사고약도”를 5번 두드리거나 0.6초 길게 누르면 언제든 열 수 있어요.</p>' +
       '<div class="mrow"><button class="btn primary" data-close="1">닫기</button></div>';
     $('#modal').hidden = false;
     $$('.labcard', body).forEach(function (b) {
       b.addEventListener('click', function () { setTheme(b.dataset.theme); $$('.labcard', body).forEach(function (x) { x.classList.toggle('on', x === b); }); });
+    });
+    $$('#labCarMode button', body).forEach(function (b) {
+      b.addEventListener('click', function () {
+        S.carMode = b.dataset.cm;
+        $$('#labCarMode button', body).forEach(function (x) { x.classList.toggle('on', x === b); });
+        AS.objs.render(); C.save();
+        toast(S.carMode === 'real' ? '실사 미니어처 차량 적용' : '플랫 벡터 차량 적용');
+      });
     });
     if (first) toast('디자인 연구실이 열렸어요', 2200);
   }

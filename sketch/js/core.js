@@ -46,8 +46,74 @@ window.AS = window.AS || {};
     { k: 'nodamage', n: '손상없음', g: 'acc', w: 44 }
   ];
 
-  var ROLE_NAME = { self: '자차', other: '대차', third: '제3차', none: '무' };
-  var ROLE_SHORT = { self: '자', other: '대', third: '3', none: '' };
+  var ROLE_NAME = { self: '자차', other: '대차', third: '제3차', c3: '제3차', c4: '제4차', c5: '제5차', c6: '제6차', c7: '제7차', c8: '제8차', none: '무' };
+  var ROLE_SHORT = { self: '자차', other: '대차', third: '3차', c3: '3차', c4: '4차', c5: '5차', c6: '6차', c7: '7차', c8: '8차', none: '' };
+  var ROLE_COLORS = {
+    self: '#FF6B2C', other: '#2F6BFF', third: '#10B981', c3: '#10B981',
+    c4: '#8B5CF6', c5: '#EC4899', c6: '#0EA5E9', c7: '#F59E0B', c8: '#6366F1', none: '#64748B'
+  };
+  var EXTRA_PAL = ['#10B981', '#8B5CF6', '#EC4899', '#0EA5E9', '#F59E0B', '#6366F1', '#14B8A6', '#E11D48'];
+
+  function normRole(r) {
+    if (!r) return 'self';
+    if (r === 'third') return 'c3';
+    return r;
+  }
+
+  function roleNum(r) {
+    r = normRole(r);
+    if (r === 'self') return 1;
+    if (r === 'other') return 2;
+    var m = String(r).match(/^c(\d+)$/);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
+  function roleMeta(r) {
+    r = normRole(r);
+    if (r === 'none') return { key: 'none', label: '표시없음', short: '', color: '#64748B', num: 0 };
+    if (r === 'self') return { key: 'self', label: '자차', short: '자차', color: ROLE_COLORS.self, num: 1 };
+    if (r === 'other') return { key: 'other', label: '대차', short: '대차', color: ROLE_COLORS.other, num: 2 };
+    var n = roleNum(r) || 3;
+    var col = ROLE_COLORS['c' + n] || EXTRA_PAL[(n - 3) % EXTRA_PAL.length];
+    return { key: 'c' + n, label: '제' + n + '차', short: n + '차', color: col, num: n };
+  }
+
+  function highestCarNum() {
+    var mx = 3;
+    for (var i = 0; i < S.objs.length; i++) {
+      var o = S.objs[i];
+      if (o.type === 'car') {
+        var n = roleNum(o.role);
+        if (n > mx) mx = n;
+      }
+    }
+    var nr = roleNum(S.newRole);
+    if (nr > mx) mx = nr;
+    return mx;
+  }
+
+  function roleList(includeNext) {
+    var list = ['self', 'other'];
+    var mx = highestCarNum();
+    for (var i = 3; i <= mx; i++) list.push('c' + i);
+    if (includeNext) list.push('__next:' + (mx + 1));
+    list.push('none');
+    return list;
+  }
+
+  function nextCarRole() {
+    var used = {};
+    for (var i = 0; i < S.objs.length; i++) {
+      var o = S.objs[i];
+      if (o.type === 'car' && o.role && o.role !== 'none') used[normRole(o.role)] = 1;
+    }
+    if (!used.self) return 'self';
+    if (!used.other) return 'other';
+    for (var n = 3; n <= 30; n++) {
+      if (!used['c' + n]) return 'c' + n;
+    }
+    return 'c3';
+  }
 
   function vbox(s) {
     var p = String(s.v || '0 0 100 100').split(/[\s,]+/).map(Number);
@@ -66,6 +132,7 @@ window.AS = window.AS || {};
     pen: { color: '#E9413B', mode: 'idle' },
     tool: 'idle',          // idle | pen | vec | memo
     newRole: 'self',
+    carMode: 'real',       // real(실사 미니어처) | vector(플랫 벡터)
     snap: true,
     cap: { src: '', opacity: .92, scale: 1 },
     stage: { w: 390, h: 844 }
@@ -112,7 +179,7 @@ window.AS = window.AS || {};
       try {
         localStorage.setItem(KEY, JSON.stringify({
           v: 3, theme: S.theme, bg: S.bg === 'capture' ? 'map' : S.bg, view: S.view,
-          info: S.info, objs: S.objs, newRole: S.newRole, snap: S.snap,
+          info: S.info, objs: S.objs, newRole: S.newRole, carMode: S.carMode, snap: S.snap,
           cap: S.cap.src && S.cap.src.length < 700000 ? S.cap : { src: '', opacity: S.cap.opacity, scale: S.cap.scale }
         }));
       } catch (e) { /* 용량 초과 등은 조용히 무시 */ }
@@ -130,7 +197,8 @@ window.AS = window.AS || {};
       S.bg = d.bg || 'map';
       S.view = d.view || S.view;
       S.info = d.info || S.info;
-      S.newRole = d.newRole || 'self';
+      S.newRole = normRole(d.newRole || 'self');
+      S.carMode = d.carMode === 'vector' ? 'vector' : 'real';
       S.snap = d.snap !== false;
       if (d.cap) S.cap = d.cap;
       return true;
@@ -189,6 +257,7 @@ window.AS = window.AS || {};
   AS.core = {
     $: $, $$: $$, clamp: clamp, uid: uid, vbox: vbox,
     CARS: CARS, PEOPLE: PEOPLE, SYM: SYM, ROLE_NAME: ROLE_NAME, ROLE_SHORT: ROLE_SHORT,
+    normRole: normRole, roleNum: roleNum, roleMeta: roleMeta, roleList: roleList, nextCarRole: nextCarRole,
     itemDef: itemDef, makeObj: makeObj, applySize: applySize,
     pushUndo: pushUndo, undo: undo, clearUndo: clearUndo, syncUndo: syncUndo, baseline: baseline,
     save: save, load: load, reset: reset, nsMarkup: nsMarkup, snapObjects: snapObjects,

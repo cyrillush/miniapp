@@ -18,9 +18,35 @@ window.AS = window.AS || {};
   }
 
   /* ─────────────────────────── 아트 마크업 ─────────────────────────── */
+  function carSpriteSVG(kind, role) {
+    var sp = window.CAR_SPRITES && window.CAR_SPRITES[kind];
+    if (!sp) return null;
+    var rm = C.roleMeta(role);
+    var col = rm.color;
+    var pad = 6, maxW = 120 - pad * 2, maxH = 200 - pad * 2;
+    var aspect = sp.w / sp.h;
+    var iw = maxH * aspect, ih = maxH;
+    if (iw > maxW) { iw = maxW; ih = maxW / aspect; }
+    var x = (120 - iw) / 2, y = (200 - ih) / 2;
+    var ring = rm.key === 'none' ? '' :
+      '<rect x="' + fmt(x - 4) + '" y="' + fmt(y - 4) + '" width="' + fmt(iw + 8) + '" height="' + fmt(ih + 8) +
+      '" rx="' + fmt(Math.min(24, iw * .38)) + '" fill="' + col + '" fill-opacity=".10" stroke="' + col +
+      '" stroke-width="2.6" stroke-opacity=".85"/>' +
+      '<path d="M60 ' + fmt(Math.max(2, y - 9)) + ' L53 ' + fmt(Math.max(8, y - 1)) + ' L67 ' + fmt(Math.max(8, y - 1)) + ' Z" fill="' + col + '"/>';
+    return ring + '<image href="' + sp.src + '" x="' + fmt(x) + '" y="' + fmt(y) + '" width="' + fmt(iw) + '" height="' + fmt(ih) + '" preserveAspectRatio="xMidYMid meet"/>';
+  }
+
   function artInner(o) {
     var t = S.theme;
-    if (o.type === 'car') return ART3.car(t, o.kind, o.role || 'self');
+    if (o.type === 'car') {
+      if (S.carMode !== 'vector') {
+        var sp = carSpriteSVG(o.kind, o.role || 'self');
+        if (sp) return sp;
+      }
+      var rm = C.roleMeta(o.role || 'self');
+      var rKey = (rm.key === 'self' || rm.key === 'other' || rm.key === 'none') ? rm.key : 'third';
+      return ART3.car(t, o.kind, rKey);
+    }
     if (o.type === 'person') return ART3.person(t, o.kind);
     if (o.type === 'sym') return ART3.sym(t, o.kind).s;
     return '';
@@ -96,15 +122,17 @@ window.AS = window.AS || {};
 
   function badgeMarkup(o) {
     if (o.type !== 'car' || !o.role || o.role === 'none') return '';
-    var t = S.theme, acc = ART3.acc(t, o.role), L = C.ROLE_SHORT[o.role];
+    var t = S.theme, rm = C.roleMeta(o.role), acc = rm.color, L = rm.short;
+    if (!L) return '';
     var x = fmt(o._cx), y = fmt(o._cy);
-    var r = C.clamp(o.w * o.sc * .155, 6.5, 11);
-    var fs = fmt(r * 1.06);
+    var sc = o.sc || 1;
+    var h = C.clamp(o.w * sc * .32, 16, 24);
+    var w = Math.max(h * 1.15, L.length * h * .62 + h * .55);
+    var fs = fmt(h * .56);
     var txt = 'font-size="' + fs + '" font-weight="800" text-anchor="middle" dominant-baseline="central" font-family="Pretendard,Apple SD Gothic Neo,Noto Sans KR,sans-serif"';
-    if (t === 'B') return '<g><circle cx="' + x + '" cy="' + y + '" r="' + fmt(r) + '" fill="#05090D" stroke="' + acc + '" stroke-width="1.5"/><text x="' + x + '" y="' + y + '" ' + txt + ' fill="' + acc + '">' + L + '</text></g>';
-    if (t === 'D') return '<g><circle cx="' + x + '" cy="' + y + '" r="' + fmt(r) + '" fill="' + acc + '" stroke="#FFFFFF" stroke-width="' + fmt(r * .3) + '"/><text x="' + x + '" y="' + y + '" ' + txt + ' fill="#FFFFFF">' + L + '</text></g>';
-    if (t === 'C') return '<g><circle cx="' + x + '" cy="' + y + '" r="' + fmt(r * .95) + '" fill="#0F2033" stroke="' + acc + '" stroke-width="1.2"/><text x="' + x + '" y="' + y + '" ' + txt + ' fill="' + acc + '">' + L + '</text></g>';
-    return '<g><circle cx="' + x + '" cy="' + y + '" r="' + fmt(r) + '" fill="#FFFFFF" stroke="' + acc + '" stroke-width="' + fmt(Math.max(1.4, r * .21)) + '"/><text x="' + x + '" y="' + y + '" ' + txt + ' fill="' + acc + '">' + L + '</text></g>';
+    var rx = fmt(h / 2), x0 = fmt(o._cx - w / 2), y0 = fmt(o._cy - h / 2);
+    if (t === 'B') return '<g><rect x="' + x0 + '" y="' + y0 + '" width="' + fmt(w) + '" height="' + fmt(h) + '" rx="' + rx + '" fill="#05090D" stroke="' + acc + '" stroke-width="1.8"/><text x="' + x + '" y="' + y + '" ' + txt + ' fill="' + acc + '">' + L + '</text></g>';
+    return '<g><rect x="' + x0 + '" y="' + y0 + '" width="' + fmt(w) + '" height="' + fmt(h) + '" rx="' + rx + '" fill="' + acc + '" stroke="#FFFFFF" stroke-width="1.7"/><text x="' + x + '" y="' + y + '" ' + txt + ' fill="#FFFFFF">' + L + '</text></g>';
   }
 
   /* ─────────────────────────── 렌더 ─────────────────────────── */
@@ -524,6 +552,9 @@ window.AS = window.AS || {};
     var o = C.makeObj(spec, ll.lat, ll.lng);
     if (spec.type === 'memo') o.text = spec.text || '';
     S.objs.push(o);
+    if (spec.type === 'car' && S.newRole !== 'none') {
+      S.newRole = C.nextCarRole();
+    }
     C.pushUndo();
     S.sel = o.id;
     render(); AS.ui.selbar(); C.save();
@@ -561,12 +592,26 @@ window.AS = window.AS || {};
     var o = selObj(); if (!o) return;
     var copy = JSON.parse(JSON.stringify(o));
     copy.id = C.uid();
+    if (copy.type === 'car' && copy.role !== 'none') {
+      copy.role = C.nextCarRole();
+      S.newRole = copy.role;
+    }
     var p = AS.mapx.project(o.lat, o.lng);
-    var ll = AS.mapx.unproject(p.x + 22, p.y + 18);
+    var ll;
+    if (copy.type === 'car') {
+      var rad = (o.rot || 0) * Math.PI / 180;
+      var step = (o.h || 90) * (o.sc || 1) * 1.04;
+      ll = AS.mapx.unproject(p.x - Math.sin(rad) * step, p.y + Math.cos(rad) * step);
+    } else {
+      ll = AS.mapx.unproject(p.x + 24, p.y + 38);
+    }
     copy.lat = ll.lat; copy.lng = ll.lng;
     S.objs.push(copy); C.pushUndo();
     S.sel = copy.id;
     render(); AS.ui.selbar(); C.save();
+    if (copy.type === 'car' && copy.role !== 'none') {
+      AS.toast(C.roleMeta(copy.role).label + ' 추가');
+    }
   }
 
   function scaleBy(k) {
