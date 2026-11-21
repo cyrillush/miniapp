@@ -35,6 +35,16 @@ window.AS = window.AS || {};
       vb = { x: 0, y: 0, w: 120, h: 200 };
     } else if (type === 'person') {
       inner = ART3.person(t, kind);
+      if (opt.name !== false) {
+        var pd = C.itemDef(kind, 'person');
+        if (pd) {
+          var tw = pd.n.length * 16 + 10;
+          vb = { x: 0, y: 0, w: 100 + tw, h: 100 };
+          inner += '<text x="104" y="50" font-size="16" font-weight="900" fill="#FFFFFF" text-anchor="start"' +
+            ' dominant-baseline="middle" font-family="Pretendard,Apple SD Gothic Neo,Noto Sans KR,sans-serif"' +
+            ' paint-order="stroke" stroke="#0B1524" stroke-width="5.4" stroke-linejoin="round">' + pd.n + '</text>';
+        }
+      }
     } else if (type === 'sym') {
       var s = ART3.sym(t, kind); inner = s.s; vb = C.vbox(s);
     } else if (type === 'memo') {
@@ -101,7 +111,7 @@ window.AS = window.AS || {};
 
   /* ────────── 시트 ────────── */
   var TITLES = {
-    road: ['전체화면 도로 · 과실도표', '선택하면 화면 전체가 해당 도로 배경으로 바뀝니다'],
+    road: ['', ''],
     car: ['차량 (연속추돌 지원)', '자차 · 대차1 · 대차2 · 대차3 순으로 자동 배정돼요'],
     person: ['사람 · 이동수단', '전원 흰색 · 배경판 없이 깔끔하게 배치돼요'],
     dmg: ['파손부위 · 충격', '배경판 없이 테두리·글자만 깔끔하게 올라갑니다'],
@@ -112,8 +122,12 @@ window.AS = window.AS || {};
   function openSheet(cat) {
     sheetCat = cat;
     var t = TITLES[cat] || ['항목', ''];
-    $('#sheetTitle').textContent = t[0];
-    $('#sheetSub').textContent = t[1];
+    var head = $('#sheet .sheetwrap > header');
+    var title = $('#sheetTitle'), sub = $('#sheetSub');
+    title.textContent = t[0];
+    sub.textContent = t[1];
+    /* 도로는 제목 없이 깔끔하게 — 닫기 버튼만 남긴다 */
+    if (head) head.classList.toggle('bare', cat === 'road');
     var body = $('#sheetBody');
     body.innerHTML = '';
     var roleWrap = $('#sheetRole');
@@ -128,7 +142,7 @@ window.AS = window.AS || {};
 
     if (cat === 'road') {
       var rs = roadSearchUI(body);
-      rs.group('과실도표 빠른 불러오기 (7종)');
+      rs.group('자주 쓰는 사고 상황');
       AS.roads.PRESETS.forEach(function (pr) {
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'card preset';
@@ -181,10 +195,10 @@ window.AS = window.AS || {};
     }
 
     if (cat === 'etc') {
-      addGroup(body, '경로 화살표');
+      addGroup(body, '경로 화살표 (흰색 노면 도색)');
       symCards(body, ['arrow', 'turn@0', 'turn@1', 'uturn']);
-      addGroup(body, '신호등 (10종)');
-      symCards(body, ['signal_01', 'signal_02', 'signal_03', 'signal_04', 'signal_05', 'signal_06', 'signal_07', 'signal_08', 'ped_g', 'ped_r']);
+      addGroup(body, '신호등 (좌회전·우회전·직진 구분)');
+      symCards(body, ['s4_go', 's4_left', 's4_go_left', 's4_red_left', 'sr_go', 'sr_stop', 's3_red', 's3_amber', 's3_green', 'ped_g', 'ped_r']);
       addGroup(body, '건물 · 횡단보도 · 차선 (배경 없음)');
       symCards(body, ['building', 'building_s', 'crosswalk', 'crosswalk_s', 'lane_dash', 'lane_solid', 'lane_center', 'lane_bus']);
       addGroup(body, '지시 · 규제 표지 (14종)');
@@ -604,6 +618,12 @@ window.AS = window.AS || {};
     $('#sheet').addEventListener('click', function (e) { if (e.target === $('#sheet')) closeSheet(); });
     $('#btnUndo').addEventListener('click', function () { C.undo(); });
     $('#btnSave').addEventListener('click', function () { AS.exportx.openSave(); });
+    var rb = $('#btnClear');
+    if (rb) rb.addEventListener('click', openReset);
+    var szb = $('#btnSize');
+    if (szb) szb.addEventListener('click', cycleBtnSize);
+    var cs = $('#capSwap');
+    if (cs) cs.addEventListener('click', function () { $('#fileInput').click(); });
 
     $$('#bgChips button[data-bg]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -617,8 +637,9 @@ window.AS = window.AS || {};
       var f = e.target.files && e.target.files[0]; if (!f) return;
       var fr = new FileReader();
       fr.onload = function () {
-        S.cap.src = fr.result; $('#capImg').src = fr.result;
-        AS.mapx.setBg('capture'); toast('캡처 배경으로 사용합니다'); C.save();
+        S.cap.src = fr.result; S.cap.base = null; $('#capImg').src = fr.result;
+        AS.mapx.setBg('capture'); toast('캡처 배경으로 사용합니다 — 두 손가락으로 확대·이동'); C.save();
+        e.target.value = '';
       };
       fr.readAsDataURL(f);
     });
@@ -755,6 +776,53 @@ window.AS = window.AS || {};
   }
 
   function closeModal() { $('#modal').hidden = true; var b = $('#modalBody'); b.innerHTML = ''; delete b.dataset.lab; }
+
+  /* ────────── 요소 조작 버튼 크기 (작게 · 보통 · 크게) ────────── */
+  var BTNSZ = ['sm', 'md', 'lg'];
+  var BTN_LABEL = { sm: '버튼 작게', md: '버튼 보통', lg: '버튼 크게' };
+  function applyBtnSize(v, silent) {
+    S.btnSize = BTNSZ.indexOf(v) >= 0 ? v : 'md';
+    document.body.setAttribute('data-btnsz', S.btnSize);
+    var b = $('#btnSize');
+    if (b) {
+      b.textContent = BTN_LABEL[S.btnSize];
+      b.setAttribute('aria-label', '요소 조작 버튼 크기 — ' + BTN_LABEL[S.btnSize] + ' (누를 때마다 작게·보통·크게 순환)');
+    }
+    AS.objs.chrome();
+    C.save();
+    if (!silent) toast(S.btnSize === 'sm' ? '조작 버튼 작게 — 손이 작은 화면용'
+      : S.btnSize === 'lg' ? '조작 버튼 크게 — 한 손·장갑 조작용'
+      : '조작 버튼 보통 크기');
+  }
+  function cycleBtnSize() {
+    applyBtnSize(BTNSZ[(BTNSZ.indexOf(S.btnSize) + 1) % BTNSZ.length]);
+  }
+
+  /* ────────── 화면 요소 전체 지우기 ────────── */
+  function openReset() {
+    var body = $('#modalBody');
+    delete body.dataset.lab;
+    body.innerHTML =
+      '<button class="mclose" data-close="1" aria-label="닫기">✕</button>' +
+      '<h3>화면 요소 전체 지우기</h3>' +
+      '<p class="mhint">지도에 놓은 차량·사람·표시를 모두 지웁니다. 배경(지도·캡처·도로)은 그대로 남고, 실행취소(↶)로 되돌릴 수 있어요.</p>' +
+      '<div class="mrow"><button class="btn ghost" data-close="1">취소</button>' +
+      '<button class="btn primary" id="btnDoClear">초기화</button></div>';
+    $('#modal').hidden = false;
+    $('#btnDoClear').addEventListener('click', function () {
+      C.clearElements();
+      closeModal();
+      toast('화면 요소를 모두 지웠어요 — ↶로 되돌릴 수 있어요', 2400);
+    });
+  }
+
+  /* 캡처 배경일 때만 '사진 교체' 버튼 노출 */
+  function syncCapture() {
+    var b = $('#capSwap');
+    if (!b) return;
+    b.hidden = S.bg !== 'capture';
+  }
+
   function measure() { var r = $('#stage').getBoundingClientRect(); S.stage.w = r.width; S.stage.h = r.height; }
 
   AS.toast = toast;
@@ -762,6 +830,7 @@ window.AS = window.AS || {};
     toast: toast, bind: bind, syncTool: syncTool, openSheet: openSheet, closeSheet: closeSheet, selbar: selbar, bgchips: bgchips,
     openSearch: openSearch, openSearchWith: openSearchWith, closeSearch: closeSearch, openLab: openLab, setTheme: setTheme,
     memo: openMemo, closeModal: closeModal, measure: measure, previewSVG: previewSVG,
-    renderRoles: renderRoles, syncDock: syncDock, THEMES: THEMES
+    renderRoles: renderRoles, syncDock: syncDock, THEMES: THEMES,
+    openReset: openReset, applyBtnSize: applyBtnSize, cycleBtnSize: cycleBtnSize, syncCapture: syncCapture
   };
 })(window.AS);

@@ -1,29 +1,94 @@
 /* ==========================================================================
-   roads.js — 전체화면 도로 배경 템플릿 (35종) + 과실도표 불러오기 (7종)
+   roads.js — 전체화면 도로 배경 템플릿 (60종) + 과실도표 불러오기 (7종)  v3.7
+   한국 실제 도로 생김새(경계석·보도블록·정지선·차로별 노면 화살표·적색 미끄럼방지)를
+   과하지 않게 반영하고, 지저분했던 템플릿(유턴·안전지대·차로감소·스크램블·오거리·
+   생활도로·고속도로·지하차도·터널·사선주차)을 전면 재작성했다.
    모두 (W, H) 전체 캔버스 크기에 꽉 차게 생성한다.
    ========================================================================== */
 window.AS = window.AS || {};
 (function (AS) {
   'use strict';
   var f = function (n) { return Math.round(n * 10) / 10; };
+  var uid = 0;
 
   var C = {
-    ground: '#E4EAE0', walk: '#EFF2F5', asp: '#4B5563', asp2: '#374151',
-    white: '#FFFFFF', yel: '#FBBF24', blue: '#38BDF8', block: '#E8ECF1',
-    blockS: '#D6DEE7', tree: '#C4DCB8', treeS: '#AECFA0', build: '#F5F8FB', buildS: '#DCE4ED'
+    ground: '#E6EBE1', grass: '#D8E5C9', walk: '#E9EDF1', walkS: '#DBE1E8',
+    asp: '#4B5563', aspD: '#3F4753', white: '#FFFFFF', yel: '#FBBF24',
+    blue: '#3B82F6', curb: '#C6D0DA', block: '#E8ECF1', blockS: '#D6DEE7',
+    build: '#F6F9FC', buildS: '#DBE3EC', tree: '#C2DBB1', treeS: '#ABCA99',
+    water: '#CFE2F1', wall: '#A9B5C3', wallD: '#8C99A9', concrete: '#C3CCD6'
   };
 
+  /* ───────────────────────── 기본 도형 ───────────────────────── */
   var rect = function (x, y, w, h, fill, extra) {
     return '<rect x="' + f(x) + '" y="' + f(y) + '" width="' + f(w) + '" height="' + f(h) + '" fill="' + fill + '"' + (extra ? ' ' + extra : '') + '/>';
   };
   var line = function (x1, y1, x2, y2, col, w, extra) {
     return '<line x1="' + f(x1) + '" y1="' + f(y1) + '" x2="' + f(x2) + '" y2="' + f(y2) + '" stroke="' + col + '" stroke-width="' + f(w) + '"' + (extra ? ' ' + extra : '') + '/>';
   };
+  var poly = function (d, fill, extra) { return '<path d="' + d + '" fill="' + fill + '"' + (extra ? ' ' + extra : '') + '/>'; };
+  var circ = function (cx, cy, r, fill, extra) {
+    return '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(r) + '" fill="' + fill + '"' + (extra ? ' ' + extra : '') + '/>';
+  };
+  var text = function (x, y, s, size, col, ex) {
+    return '<text x="' + f(x) + '" y="' + f(y) + '" text-anchor="middle" font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif"' +
+      ' font-size="' + f(size) + '" font-weight="800" fill="' + col + '"' + (ex ? ' ' + ex : '') + '>' + s + '</text>';
+  };
 
+  /* 노면 도색 화살표 (직진 · 좌회전 · 유턴) — 흰색 단색 */
+  var AR_UP = 'M37 160 L37 64 L10 64 L50 8 L90 64 L63 64 L63 160 Z';
+  var AR_LEFT = 'M104 160 L104 40 Q104 31 95 31 L46 31 L46 8 L6 44 L46 80 L46 57 L67 57 Q76 57 76 66 L76 160 Z';
+  var AR_UTURN = 'M68 210 L68 40 A28 28 0 0 0 12 40 L12 170 L0 170 L22 214 L44 170 L32 170 L32 50 A8 8 0 0 1 48 50 L48 210 Z';
+
+  function glyph(kind, x, y, hpx, deg, col, op) {
+    var d = kind === 'left' ? AR_LEFT : kind === 'uturn' ? AR_UTURN : AR_UP;
+    var base = kind === 'uturn' ? 220 : 168;
+    var cx0 = kind === 'uturn' ? 40 : kind === 'left' ? 55 : 50;
+    var cy0 = kind === 'uturn' ? 110 : 84;
+    var k = hpx / base;
+    return '<path d="' + d + '" fill="' + (col || C.white) + '" opacity="' + (op == null ? .95 : op) + '"' +
+      ' transform="translate(' + f(x) + ',' + f(y) + ') rotate(' + (deg || 0) + ') scale(' + k.toFixed(3) +
+      ') translate(' + f(-cx0) + ',' + f(-cy0) + ')"/>';
+  }
+  var upArrow = function (x, y, h, deg, col, op) { return glyph('up', x, y, h, deg, col, op); };
+  var leftArrow = function (x, y, h, deg, col, op) { return glyph('left', x, y, h, deg, col, op); };
+  var uturnArrow = function (x, y, h, deg, col, op) { return glyph('uturn', x, y, h, deg, col, op); };
+
+  /* 보도(인도) — 블록 포장 + 경계석 */
+  function sidewalk(x, y, w, h, tone) {
+    if (w < 4 || h < 4) return '';
+    var s = rect(x, y, w, h, tone || C.walk);
+    var st = 14;
+    if (w >= h) {
+      for (var xx = x + st; xx < x + w - 2; xx += st) s += line(xx, y + 2, xx, y + h - 2, C.walkS, 1.1);
+    } else {
+      for (var yy = y + st; yy < y + h - 2; yy += st) s += line(x + 2, yy, x + w - 2, yy, C.walkS, 1.1);
+    }
+    return s;
+  }
+  function curbV(x, y0, y1) { return line(x, y0, x, y1, C.curb, 3.2); }
+  function curbH(x0, x1, y) { return line(x0, y, x1, y, C.curb, 3.2); }
+
+  /* 횡단보도 띠 — 가로 띠(세로 줄무늬) / 세로 띠(가로 줄무늬) */
+  function cwBand(x0, x1, y, bandH) {
+    var s = '', span = x1 - x0, step = Math.max(9, span / 10), bw = Math.max(5, step * 0.55);
+    for (var x = x0 + 4; x + bw < x1 - 2; x += step) s += rect(x, y, bw, bandH, C.white, 'opacity=".94"');
+    return s;
+  }
+  function cwBandV(x, y0, y1, bandW) {
+    var s = '', span = y1 - y0, step = Math.max(9, span / 10), bh = Math.max(5, step * 0.55);
+    for (var y = y0 + 4; y + bh < y1 - 2; y += step) s += rect(x, y, bandW, bh, C.white, 'opacity=".94"');
+    return s;
+  }
+  function stopBar(x, y, w, vertical) {
+    return vertical ? rect(x, y, 5.4, w, C.white, 'opacity=".94"') : rect(x, y, w, 5.4, C.white, 'opacity=".94"');
+  }
+
+  /* 건물 블록 */
   function urbanBlock(x, y, w, h, seed) {
     if (w < 18 || h < 18) return '';
     var s = rect(x, y, w, h, C.block, 'stroke="' + C.blockS + '" stroke-width="1"');
-    var cols = Math.max(1, Math.round(w / 110)), rows = Math.max(1, Math.round(h / 110));
+    var cols = Math.max(1, Math.round(w / 118)), rows = Math.max(1, Math.round(h / 118));
     var cw = w / cols, ch = h / rows;
     for (var i = 0; i < cols; i++) {
       for (var j = 0; j < rows; j++) {
@@ -34,8 +99,10 @@ window.AS = window.AS || {};
           var bh = ch * (0.30 + ((k * 11 + m * 23) % 34) / 100);
           var bx = x + i * cw + cw * (0.08 + ((k * 5 + m * 29) % 40) / 100);
           var by = y + j * ch + ch * (0.10 + ((k * 3 + m * 19) % 40) / 100);
-          s += rect(Math.min(bx, x + (i + 1) * cw - bw - 5), Math.min(by, y + (j + 1) * ch - bh - 5),
-            bw, bh, C.build, 'stroke="' + C.buildS + '" stroke-width="1" rx="2"');
+          bx = Math.min(bx, x + (i + 1) * cw - bw - 5);
+          by = Math.min(by, y + (j + 1) * ch - bh - 5);
+          s += rect(bx + 1.5, by + 1.5, bw, bh, 'rgba(15,27,46,.07)');
+          s += rect(bx, by, bw, bh, C.build, 'stroke="' + C.buildS + '" stroke-width="1" rx="2"');
         }
       }
     }
@@ -46,7 +113,8 @@ window.AS = window.AS || {};
     var s = '';
     var bandW = Math.max(14, W * 0.048);
     if (side === 'left' && x0 > 20) {
-      s += rect(x0 - bandW, 0, bandW, H, C.walk);
+      s += sidewalk(x0 - bandW, 0, bandW, H);
+      s += curbV(x0, 0, H);
       var y = 0, i = 0;
       while (y < H) {
         var h = H * (0.16 + ((i * 37) % 18) / 100);
@@ -55,7 +123,8 @@ window.AS = window.AS || {};
       }
     }
     if (side === 'right' && W - x1 > 20) {
-      s += rect(x1, 0, bandW, H, C.walk);
+      s += sidewalk(x1, 0, bandW, H);
+      s += curbV(x1, 0, H);
       var y2 = 0, i2 = 0;
       while (y2 < H) {
         var h2 = H * (0.16 + ((i2 * 41) % 18) / 100);
@@ -66,6 +135,7 @@ window.AS = window.AS || {};
     return s;
   }
 
+  /* ───────────────────────── 직선 도로 ───────────────────────── */
   function laneRoad(W, H, o) {
     o = o || {};
     var n = o.lanes || 4;
@@ -78,57 +148,40 @@ window.AS = window.AS || {};
     s += groundStrip(W, H, x0, x1, 'left');
     s += groundStrip(W, H, x0, x1, 'right');
     s += rect(x0, 0, x1 - x0, H, C.asp);
-    s += line(x0 + 2.4, 0, x0 + 2.4, H, C.white, 2.4);
-    s += line(x1 - 2.4, 0, x1 - 2.4, H, C.white, 2.4);
+    /* 차도 경계 white edge line + 경계석 */
+    s += line(x0 + 3, 0, x0 + 3, H, C.white, 2.6);
+    s += line(x1 - 3, 0, x1 - 3, H, C.white, 2.6);
+    var half = twoWay ? n / 2 : 0;
     for (var i = 1; i < n; i++) {
       var x = x0 + laneW * i;
-      if (twoWay && Math.abs(i - n / 2) < 0.01) continue;
+      if (twoWay && Math.abs(i - half) < 0.01) continue;
       s += line(x, 0, x, H, C.white, 2.2, 'stroke-dasharray="16 15"');
     }
     if (twoWay) {
       s += line(cx - 2.6, 0, cx - 2.6, H, C.yel, 2.4);
       s += line(cx + 2.6, 0, cx + 2.6, H, C.yel, 2.4);
     }
-    if (o.curbLine === 'blue') s += line(x0 + 6, 0, x0 + 6, H, C.blue, 4) + line(x1 - 6, 0, x1 - 6, H, C.blue, 4);
-    else if (o.curbLine === 'yellow') s += line(x0 + 6, 0, x0 + 6, H, C.yel, 4) + line(x1 - 6, 0, x1 - 6, H, C.yel, 4);
-    else if (o.curbLine === 'blueL') s += line(x0 + 6, 0, x0 + 6, H, C.blue, 4);
+    if (o.curbLine === 'blue') s += line(x0 + 8, 0, x0 + 8, H, C.blue, 4) + line(x1 - 8, 0, x1 - 8, H, C.blue, 4);
+    else if (o.curbLine === 'yellow') s += line(x0 + 8, 0, x0 + 8, H, C.yel, 4) + line(x1 - 8, 0, x1 - 8, H, C.yel, 4);
+    else if (o.curbLine === 'blueL') s += line(x0 + 8, 0, x0 + 8, H, C.blue, 4);
+    /* 차로별 진직 화살표 — 실사 도로처럼 한 번씩만 */
+    if (o.arrows !== false) {
+      var ah = Math.min(laneW * 1.5, H * 0.10);
+      for (var j = 0; j < n; j++) {
+        var lx = x0 + laneW * (j + 0.5);
+        if (twoWay && j >= half) s += upArrow(lx, H * 0.78, ah, 0);
+        else if (twoWay) s += upArrow(lx, H * 0.22, ah, 180);
+        else s += upArrow(lx, H * 0.80 - (j % 2) * H * 0.06, ah, 0);
+      }
+    }
     return { svg: s, x0: x0, x1: x1, cx: cx, laneW: laneW, n: n };
   }
 
-  function tunnelRoad(W, H, lanes) {
-    var hw = (lanes === 2 ? 0.24 : 0.30) * W;
-    var cx = W * 0.5, x0 = cx - hw, x1 = cx + hw;
-    var s = rect(0, 0, W, H, '#CBD5E1');
-    s += rect(x0 - 16, 0, 16, H, '#94A3B8') + rect(x1, 0, 16, H, '#94A3B8');
-    s += rect(x0, 0, x1 - x0, H, '#27303F');
-    s += line(x0 + 3, 0, x0 + 3, H, C.white, 2.4);
-    s += line(x1 - 3, 0, x1 - 3, H, C.white, 2.4);
-    if (lanes === 4) {
-      var lw = (x1 - x0) / 4;
-      s += line(x0 + lw, 0, x0 + lw, H, C.white, 2.2, 'stroke-dasharray="16 14"');
-      s += line(x0 + lw * 3, 0, x0 + lw * 3, H, C.white, 2.2, 'stroke-dasharray="16 14"');
-      s += line(cx - 2.4, 0, cx - 2.4, H, C.yel, 2.4) + line(cx + 2.4, 0, cx + 2.4, H, C.yel, 2.4);
-    } else {
-      s += line(cx, 0, cx, H, C.white, 2.2, 'stroke-dasharray="16 14"');
-    }
-    // 터널 벽 LED 유도등
-    for (var y = 26; y < H; y += 64) {
-      s += rect(x0 - 11, y, 7, 14, '#F59E0B', 'rx="2"') + rect(x1 + 4, y, 7, 14, '#F59E0B', 'rx="2"');
-    }
-    // 입출구 아치 표시
-    s += '<path d="M' + f(x0 - 12) + ' 24 Q' + f(cx) + ' 4 ' + f(x1 + 12) + ' 24" fill="none" stroke="#475569" stroke-width="6" stroke-linecap="round"/>';
-    s += '<path d="M' + f(x0 - 12) + ' ' + f(H - 24) + ' Q' + f(cx) + ' ' + f(H - 4) + ' ' + f(x1 + 12) + ' ' + f(H - 24) + '" fill="none" stroke="#475569" stroke-width="6" stroke-linecap="round"/>';
-    return s;
+  function laneRoadH(W, H, o) {
+    return '<g transform="translate(' + f(W) + ',0) rotate(90)">' + laneRoad(H, W, o).svg + '</g>';
   }
 
-  function crosswalkBand(y, x0, x1) {
-    var s = '', h = Math.max(14, (x1 - x0) * 0.115);
-    for (var x = x0 + 5; x < x1 - 6; x += Math.max(9, (x1 - x0) / 12)) {
-      s += rect(x, y, Math.max(5, (x1 - x0) / 26), h, C.white, 'opacity=".95"');
-    }
-    return s;
-  }
-
+  /* ───────────────────────── 교차로 ───────────────────────── */
   function crossRoad(W, H, o) {
     o = o || {};
     var hw = (o.hw != null ? o.hw : 0.22) * Math.min(W, H);
@@ -136,79 +189,178 @@ window.AS = window.AS || {};
     var x0 = cx - hw, x1 = cx + hw, y0 = cy - hw, y1 = cy + hw;
     var n = o.lanes || 4;
     var twoWay = o.twoWay !== false;
+    var laneW = (hw * 2) / n;
+    var cwD = Math.max(13, hw * 0.20);       /* 횡단보도 폭 */
+    var gap = 14;                             /* 보도 폭 */
     var s = rect(0, 0, W, H, C.ground);
-    s += rect(x0, 0, x1 - x0, H, C.asp);
-    s += rect(0, y0, W, y1 - y0, C.asp);
-    s += rect(x0 - 12, 0, 12, y0 - 10, C.walk) + rect(x0 - 12, y1 + 10, 12, H - y1 - 10, C.walk);
-    s += rect(x1, 0, 12, y0 - 10, C.walk) + rect(x1, y1 + 10, 12, H - y1 - 10, C.walk);
-    s += rect(0, y0 - 10, x0 - 12, 10, C.walk) + rect(x1 + 12, y0 - 10, W - x1 - 12, 10, C.walk);
-    s += rect(0, y1, x0 - 12, 10, C.walk) + rect(x1 + 12, y1, W - x1 - 12, 10, C.walk);
-    var gap = 46;
-    s += urbanBlock(6, 6, x0 - gap, y0 - gap, 1);
-    s += urbanBlock(x1 + gap, 6, W - x1 - gap - 6, y0 - gap, 2);
-    s += urbanBlock(6, y1 + gap, x0 - gap, H - y1 - gap - 6, 3);
-    s += urbanBlock(x1 + gap, y1 + gap, W - x1 - gap - 6, H - y1 - gap - 6, 4);
-    var laneW = hw * 2 / n;
+
+    /* 도로 본체 */
+    s += rect(x0, 0, x1 - x0, y0, C.asp);
+    s += rect(x0, y1, x1 - x0, H - y1, C.asp);
+    s += rect(0, y0, x0, hw * 2, C.asp);
+    s += rect(x1, y0, W - x1, hw * 2, C.asp);
+    s += rect(x0, y0, hw * 2, hw * 2, C.asp);
+
+    /* 보도 · 경계석 */
+    s += sidewalk(x0 - gap, 0, gap, y0 - gap); s += curbV(x0, 0, y0 - gap);
+    s += sidewalk(x1, 0, gap, y0 - gap); s += curbV(x1, 0, y0 - gap);
+    s += sidewalk(x0 - gap, y1 + gap, gap, H - y1 - gap); s += curbV(x0, y1 + gap, H);
+    s += sidewalk(x1, y1 + gap, gap, H - y1 - gap); s += curbV(x1, y1 + gap, H);
+    s += sidewalk(0, y0 - gap, x0 - gap, gap); s += curbH(0, x0 - gap, y0);
+    s += sidewalk(x1 + gap, y0 - gap, W - x1 - gap, gap); s += curbH(x1 + gap, W, y0);
+    s += sidewalk(0, y1, x0 - gap, gap); s += curbH(0, x0 - gap, y1);
+    s += sidewalk(x1 + gap, y1, W - x1 - gap, gap); s += curbH(x1 + gap, W, y1);
+
+    /* 모퉁이 보도 */
+    s += rect(x0 - gap, y0 - gap, gap, gap, C.walk);
+    s += rect(x1, y0 - gap, gap, gap, C.walk);
+    s += rect(x0 - gap, y1, gap, gap, C.walk);
+    s += rect(x1, y1, gap, gap, C.walk);
+
+    /* 블록 */
+    s += urbanBlock(6, 6, x0 - gap - 12, y0 - gap - 12, 1);
+    s += urbanBlock(x1 + gap + 6, 6, W - x1 - gap - 12, y0 - gap - 12, 2);
+    s += urbanBlock(6, y1 + gap + 6, x0 - gap - 12, H - y1 - gap - 12, 3);
+    s += urbanBlock(x1 + gap + 6, y1 + gap + 6, W - x1 - gap - 12, H - y1 - gap - 12, 4);
+
+    /* 차로선 — 교차로 앞에서 끊는다 */
+    var half = twoWay ? n / 2 : 0;
+    var endN = y0 - cwD - 4, endS = y1 + cwD + 4, endW = x0 - cwD - 4, endE = x1 + cwD + 4;
     for (var i = 1; i < n; i++) {
       var xx = x0 + laneW * i, yy = y0 + laneW * i;
-      if (twoWay && Math.abs(i - n / 2) < 0.01) continue;
-      s += line(xx, 0, xx, y0 - 24, C.white, 2.2, 'stroke-dasharray="15 14"');
-      s += line(xx, y1 + 24, xx, H, C.white, 2.2, 'stroke-dasharray="15 14"');
-      s += line(0, yy, x0 - 24, yy, C.white, 2.2, 'stroke-dasharray="15 14"');
-      s += line(x1 + 24, yy, W, yy, C.white, 2.2, 'stroke-dasharray="15 14"');
+      if (twoWay && Math.abs(i - half) < 0.01) continue;
+      s += line(xx, 0, xx, endN, C.white, 2.2, 'stroke-dasharray="15 14"');
+      s += line(xx, endS, xx, H, C.white, 2.2, 'stroke-dasharray="15 14"');
+      s += line(0, yy, endW, yy, C.white, 2.2, 'stroke-dasharray="15 14"');
+      s += line(endE, yy, W, yy, C.white, 2.2, 'stroke-dasharray="15 14"');
     }
     if (twoWay) {
-      s += line(cx - 2.4, 0, cx - 2.4, y0 - 24, C.yel, 2.4) + line(cx + 2.4, 0, cx + 2.4, y0 - 24, C.yel, 2.4);
-      s += line(cx - 2.4, y1 + 24, cx - 2.4, H, C.yel, 2.4) + line(cx + 2.4, y1 + 24, cx + 2.4, H, C.yel, 2.4);
-      s += line(0, cy - 2.4, x0 - 24, cy - 2.4, C.yel, 2.4) + line(0, cy + 2.4, x0 - 24, cy + 2.4, C.yel, 2.4);
-      s += line(x1 + 24, cy - 2.4, W, cy - 2.4, C.yel, 2.4) + line(x1 + 24, cy + 2.4, W, cy + 2.4, C.yel, 2.4);
+      s += line(cx - 2.4, 0, cx - 2.4, endN, C.yel, 2.4) + line(cx + 2.4, 0, cx + 2.4, endN, C.yel, 2.4);
+      s += line(cx - 2.4, endS, cx - 2.4, H, C.yel, 2.4) + line(cx + 2.4, endS, cx + 2.4, H, C.yel, 2.4);
+      s += line(0, cy - 2.4, endW, cy - 2.4, C.yel, 2.4) + line(0, cy + 2.4, endW, cy + 2.4, C.yel, 2.4);
+      s += line(endE, cy - 2.4, W, cy - 2.4, C.yel, 2.4) + line(endE, cy + 2.4, W, cy + 2.4, C.yel, 2.4);
     }
-    var cw = Math.max(12, (x1 - x0) * 0.1);
-    s += crosswalkBand(y0 - cw - 6, x0, x1);
-    s += crosswalkBand(y1 + 6, x0, x1);
-    for (var y = y0 + 5; y < y1 - 5; y += Math.max(9, (y1 - y0) / 12)) {
-      s += rect(x0 - cw - 6, y, cw, Math.max(5, (y1 - y0) / 26), C.white, 'opacity=".95"');
-      s += rect(x1 + 6, y, cw, Math.max(5, (y1 - y0) / 26), C.white, 'opacity=".95"');
+
+    /* 횡단보도 4곳 */
+    s += cwBand(x0, x1, y0 - cwD - 2, cwD);
+    s += cwBand(x0, x1, y1 + 2, cwD);
+    s += cwBandV(x0 - cwD - 2, y0, y1, cwD);
+    s += cwBandV(x1 + 2, y0, y1, cwD);
+
+    /* 정지선 — 횡단보도 바로 앞(진입 방향 차로만) */
+    var sw = 6;
+    s += stopBar(x0 + 1, y0 - cwD - 2 - sw - 6, hw - 4);                    /* 남→북 진행(좌하) */
+    s += stopBar(cx + 2, y1 + cwD + 2 + 8, hw - 4);                          /* 북→남 */
+    s += stopBar(x0 - cwD - 2 - sw - 6, cy + 2, hw - 4, true);               /* 서→동 */
+    s += stopBar(x1 + cwD + 2 + 8, y0 + 1, hw - 4, true);                    /* 동→서 */
+
+    /* 진입로 차로 안내 화살표 — 중앙선 쪽 차로가 좌회전 */
+    var ah = Math.min(laneW * 1.5, 46);
+    if (n >= 4) {
+      s += leftArrow(cx - laneW * 0.5, y0 - cwD - 46, ah, 180);
+      s += upArrow(x0 + laneW * 0.5, y0 - cwD - 46, ah, 180);
+      s += leftArrow(cx + laneW * 0.5, y1 + cwD + 54, ah, 0);
+      s += upArrow(x1 - laneW * 0.5, y1 + cwD + 54, ah, 0);
+      s += leftArrow(x0 - cwD - 46, cy + laneW * 0.5, ah, 90);
+      s += upArrow(x0 - cwD - 46, y1 - laneW * 0.5, ah, 90);
+      s += leftArrow(x1 + cwD + 54, cy - laneW * 0.5, ah, 270);
+      s += upArrow(x1 + cwD + 54, y0 + laneW * 0.5, ah, 270);
     }
-    return { svg: s };
+    return { svg: s, geo: { cx: cx, cy: cy, hw: hw, x0: x0, x1: x1, y0: y0, y1: y1, laneW: laneW } };
   }
 
   function teeRoad(W, H, dir) {
     var hw = Math.min(W, H) * 0.19;
-    var cx = W * 0.5;
     var s = rect(0, 0, W, H, C.ground);
-    var blocks = [];
+    var gap = 13;
     if (dir === 'up' || dir === 'down') {
       var hy = dir === 'up' ? H * 0.32 : H * 0.68;
-      var y0 = hy - hw, y1 = hy + hw, x0 = cx - hw, x1 = cx + hw;
-      s += rect(0, y0, W, y1 - y0, C.asp);
-      s += rect(x0, dir === 'up' ? y1 : 0, x1 - x0, dir === 'up' ? H - y1 : y0, C.asp);
-      blocks = dir === 'up'
-        ? [[6, 6, W - 12, y0 - 18], [6, y1 + 12, x0 - 18, H - y1 - 18], [x1 + 12, y1 + 12, W - x1 - 18, H - y1 - 18]]
-        : [[6, 6, x0 - 18, y0 - 18], [x1 + 12, 6, W - x1 - 18, y0 - 18], [6, y1 + 12, W - 12, H - y1 - 18]];
-      s += line(cx - 2.4, dir === 'up' ? y1 : 0, cx - 2.4, dir === 'up' ? H : y0, C.yel, 2.4);
-      s += line(cx + 2.4, dir === 'up' ? y1 : 0, cx + 2.4, dir === 'up' ? H : y0, C.yel, 2.4);
-      s += line(0, y0 + 2.4, W, y0 + 2.4, C.white, 2.4);
-      s += line(0, y1 - 2.4, W, y1 - 2.4, C.white, 2.4);
-      s += line(0, hy - 2.4, W, hy - 2.4, C.yel, 2.2) + line(0, hy + 2.4, W, hy + 2.4, C.yel, 2.2);
-      s += line(x0 + 2.4, dir === 'up' ? y1 : 0, x0 + 2.4, dir === 'up' ? H : y0, C.white, 2.4);
-      s += line(x1 - 2.4, dir === 'up' ? y1 : 0, x1 - 2.4, dir === 'up' ? H : y0, C.white, 2.4);
-      s += crosswalkBand(dir === 'up' ? y1 + 8 : y0 - 26, x0, x1);
+      var y0 = hy - hw, y1 = hy + hw, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw;
+      var stemTop = dir === 'up' ? y1 : 0, stemBot = dir === 'up' ? H : y0;
+      s += rect(0, y0, W, hw * 2, C.asp);
+      s += rect(x0, stemTop, hw * 2, stemBot - stemTop, C.asp);
+      /* 보도 */
+      s += sidewalk(0, y0 - gap, x0 - gap, gap); s += curbH(0, x0 - gap, y0);
+      s += sidewalk(x1 + gap, y0 - gap, W - x1 - gap, gap); s += curbH(x1 + gap, W, y0);
+      s += sidewalk(0, y1, x0 - gap, gap); s += curbH(0, x0 - gap, y1);
+      s += sidewalk(x1 + gap, y1, W - x1 - gap, gap); s += curbH(x1 + gap, W, y1);
+      s += sidewalk(x0 - gap, stemTop, gap, stemBot - stemTop); s += curbV(x0, stemTop, stemBot);
+      s += sidewalk(x1, stemTop, gap, stemBot - stemTop); s += curbV(x1, stemTop, stemBot);
+      s += rect(x0 - gap, y0 - gap, gap, gap, C.walk);
+      s += rect(x1, y0 - gap, gap, gap, C.walk);
+      if (dir === 'up') {
+        s += urbanBlock(6, 6, W - 12, y0 - gap - 12, 5);
+        s += urbanBlock(6, y1 + gap + 6, x0 - gap - 12, H - y1 - gap - 12, 6);
+        s += urbanBlock(x1 + gap + 6, y1 + gap + 6, W - x1 - gap - 12, H - y1 - gap - 12, 7);
+      } else {
+        s += urbanBlock(6, 6, x0 - gap - 12, y0 - gap - 12, 6);
+        s += urbanBlock(x1 + gap + 6, 6, W - x1 - gap - 12, y0 - gap - 12, 7);
+        s += urbanBlock(6, y1 + gap + 6, W - 12, H - y1 - gap - 12, 5);
+      }
+      /* 차로선 */
+      s += line(x0 + 3, stemTop, x0 + 3, stemBot, C.white, 2.6) + line(x1 - 3, stemTop, x1 - 3, stemBot, C.white, 2.6);
+      /* 가로 도로 가장자리 — 줄기 입구에서는 끊는다 */
+      if (dir === 'up') {
+        s += line(0, y0 + 3, W, y0 + 3, C.white, 2.6);
+        s += line(0, y1 - 3, x0, y1 - 3, C.white, 2.6) + line(x1, y1 - 3, W, y1 - 3, C.white, 2.6);
+      } else {
+        s += line(0, y1 - 3, W, y1 - 3, C.white, 2.6);
+        s += line(0, y0 + 3, x0, y0 + 3, C.white, 2.6) + line(x1, y0 + 3, W, y0 + 3, C.white, 2.6);
+      }
+      var lw = hw / 2;
+      s += line(x0 + lw, stemTop, x0 + lw, stemBot, C.white, 2.2, 'stroke-dasharray="15 14"');
+      s += line(x1 - lw, stemTop, x1 - lw, stemBot, C.white, 2.2, 'stroke-dasharray="15 14"');
+      s += line(0, hy - 2.4, W, hy - 2.4, C.yel, 2.4) + line(0, hy + 2.4, W, hy + 2.4, C.yel, 2.4);
+      s += line(cx - 2.4, stemTop, cx - 2.4, stemBot, C.yel, 2.4) + line(cx + 2.4, stemTop, cx + 2.4, stemBot, C.yel, 2.4);
+      var cwD = Math.max(12, hw * 0.18);
+      if (dir === 'up') {
+        s += cwBand(x0, x1, y1 + gap + 2, cwD);
+        s += stopBar(x0 + 1, y1 + gap + cwD + 8, hw - 4);
+        s += upArrow(x0 + lw * 0.5, y1 + gap + cwD + 62, Math.min(lw * 1.5, 46), 0);
+      } else {
+        s += cwBand(x0, x1, y0 - gap - cwD - 2, cwD);
+        s += stopBar(cx + 2, y0 - gap - cwD - 8 - 5, hw - 4);
+        s += upArrow(x1 - lw * 0.5, y0 - gap - cwD - 62, Math.min(lw * 1.5, 46), 180);
+      }
     } else {
       var vx = dir === 'right' ? W * 0.34 : W * 0.66;
       var x0r = vx - hw, x1r = vx + hw, hyr = H * 0.5, y0r = hyr - hw, y1r = hyr + hw;
-      s += rect(x0r, 0, x1r - x0r, H, C.asp);
-      s += rect(dir === 'right' ? x1r : 0, y0r, dir === 'right' ? W - x1r : x0r, y1r - y0r, C.asp);
-      blocks = dir === 'right'
-        ? [[0, 0, x0r - 18, H], [x1r + 12, 6, W - x1r - 18, y0r - 18], [x1r + 12, y1r + 12, W - x1r - 18, H - y1r - 18]]
-        : [[0, 6, x0r - 18, y0r - 18], [0, y1r + 12, x0r - 18, H - y1r - 18], [x1r + 12, 0, W - x1r - 18, H]];
+      var armL = dir === 'right' ? 0 : x0r, armR = dir === 'right' ? W : x0r;
+      s += rect(x0r, 0, hw * 2, H, C.asp);
+      if (dir === 'right') s += rect(x1r, y0r, W - x1r, hw * 2, C.asp);
+      else s += rect(0, y0r, x0r, hw * 2, C.asp);
+      s += sidewalk(x0r - gap, 0, gap, y0r - gap); s += curbV(x0r, 0, y0r - gap);
+      s += sidewalk(x1r, 0, gap, y0r - gap); s += curbV(x1r, 0, y0r - gap);
+      s += sidewalk(x0r - gap, y1r + gap, gap, H - y1r - gap); s += curbV(x0r, y1r + gap, H);
+      s += sidewalk(x1r, y1r + gap, gap, H - y1r - gap); s += curbV(x1r, y1r + gap, H);
+      if (dir === 'right') {
+        s += sidewalk(x1r + gap, y0r - gap, W - x1r - gap, gap); s += curbH(x1r + gap, W, y0r);
+        s += sidewalk(x1r + gap, y1r, W - x1r - gap, gap); s += curbH(x1r + gap, W, y1r);
+        s += urbanBlock(0, 0, x0r - gap - 12, H, 8);
+        s += urbanBlock(x1r + gap + 6, y1r + gap + 6, W - x1r - gap - 12, H - y1r - gap - 12, 9);
+      } else {
+        s += sidewalk(0, y0r - gap, x0r - gap, gap); s += curbH(0, x0r - gap, y0r);
+        s += sidewalk(0, y1r, x0r - gap, gap); s += curbH(0, x0r - gap, y1r);
+        s += urbanBlock(x1r + gap + 6, 0, W - x1r - gap - 12, H, 8);
+        s += urbanBlock(0, y1r + gap + 6, x0r - gap - 12, H - y1r - gap - 12, 9);
+      }
+      s += line(x0r + 3, 0, x0r + 3, H, C.white, 2.6);
+      /* 세로 도로 가장자리 — 가로 가지 입구에서는 끊는다 */
+      s += line(x1r - 3, 0, x1r - 3, y0r, C.white, 2.6) + line(x1r - 3, y1r, x1r - 3, H, C.white, 2.6);
       s += line(vx - 2.4, 0, vx - 2.4, H, C.yel, 2.4) + line(vx + 2.4, 0, vx + 2.4, H, C.yel, 2.4);
-      s += line(x0r + 2.4, 0, x0r + 2.4, H, C.white, 2.4) + line(x1r - 2.4, 0, x1r - 2.4, H, C.white, 2.4);
       var gx0 = dir === 'right' ? x1r : 0, gx1 = dir === 'right' ? W : x0r;
-      s += line(gx0, y0r + 2.4, gx1, y0r + 2.4, C.white, 2.4) + line(gx0, y1r - 2.4, gx1, y1r - 2.4, C.white, 2.4);
-      s += line(gx0, hyr, gx1, hyr, C.white, 2.2, 'stroke-dasharray="14 13"');
+      s += line(gx0 + 6, y0r + 3, gx1, y0r + 3, C.white, 2.6) + line(gx0 + 6, y1r - 3, gx1, y1r - 3, C.white, 2.6);
+      s += line(gx0, hyr - 2.4, gx1, hyr - 2.4, C.yel, 2.2) + line(gx0, hyr + 2.4, gx1, hyr + 2.4, C.yel, 2.2);
+      s += line(vx, y0r + 3, vx, y1r - 3, C.white, 2.2, 'stroke-dasharray="14 13"');
+      var cwD2 = Math.max(12, hw * 0.18);
+      if (dir === 'right') {
+        s += cwBandV(x1r + gap + 2, y0r, y1r, cwD2);
+        s += stopBar(x1r + gap + cwD2 + 8, y0r + 1, hw - 4, true);
+      } else {
+        s += cwBandV(x0r - gap - cwD2 - 2, y0r, y1r, cwD2);
+        s += stopBar(x0r - gap - cwD2 - 13, y0r + 1, hw - 4, true);
+      }
     }
-    blocks.forEach(function (b, i) { if (b[2] > 20 && b[3] > 20) s += urbanBlock(b[0], b[1], b[2], b[3], i + 5); });
     return s;
   }
 
@@ -218,29 +370,57 @@ window.AS = window.AS || {};
     var road = Math.min(W, H) * (big ? 0.13 : 0.115);
     var arm = Math.min(W, H) * 0.16;
     var s = rect(0, 0, W, H, C.ground);
+    s += urbanBlock(6, 6, cx - arm - 46, cy - arm - 46, 11);
+    s += urbanBlock(cx + arm + 40, 6, W - cx - arm - 46, cy - arm - 46, 12);
+    s += urbanBlock(6, cy + arm + 40, cx - arm - 46, H - cy - arm - 46, 13);
+    s += urbanBlock(cx + arm + 40, cy + arm + 40, W - cx - arm - 46, H - cy - arm - 46, 14);
+    /* 진입로 4방향 */
     s += rect(cx - arm, 0, arm * 2, H, C.asp) + rect(0, cy - arm, W, arm * 2, C.asp);
-    s += urbanBlock(6, 6, cx - arm - 44, cy - arm - 44, 11);
-    s += urbanBlock(cx + arm + 38, 6, W - cx - arm - 44, cy - arm - 44, 12);
-    s += urbanBlock(6, cy + arm + 38, cx - arm - 44, H - cy - arm - 44, 13);
-    s += urbanBlock(cx + arm + 38, cy + arm + 38, W - cx - arm - 44, H - cy - arm - 44, 14);
-    s += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(R) + '" fill="' + C.asp + '"/>';
-    s += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(R - road) + '" fill="' + C.tree + '"/>';
-    s += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(R - road / 2) + '" fill="none" stroke="' + C.white + '" stroke-width="2.4" stroke-dasharray="16 15"/>';
-    s += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(R - 2) + '" fill="none" stroke="' + C.white + '" stroke-width="2.4"/>';
-    s += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(R - road + 2) + '" fill="none" stroke="' + C.white + '" stroke-width="3"/>';
+    /* 진입로 보도 */
+    s += sidewalk(cx - arm - 11, 0, 11, cy - arm - 40); s += sidewalk(cx + arm, 0, 11, cy - arm - 40);
+    s += sidewalk(cx - arm - 11, cy + arm + 40, 11, H - cy - arm - 40); s += sidewalk(cx + arm, cy + arm + 40, 11, H - cy - arm - 40);
+    s += sidewalk(0, cy - arm - 11, cx - arm - 40, 11); s += sidewalk(cx + arm + 40, cy - arm - 11, W - cx - arm - 40, 11);
+    s += sidewalk(0, cy + arm, cx - arm - 40, 11); s += sidewalk(cx + arm + 40, cy + arm, W - cx - arm - 40, 11);
+    /* 진입로 차로 */
+    s += line(cx - 2.4, 0, cx - 2.4, cy - arm - 34, C.yel, 2.4) + line(cx + 2.4, 0, cx + 2.4, cy - arm - 34, C.yel, 2.4);
+    s += line(cx - 2.4, cy + arm + 34, cx - 2.4, H, C.yel, 2.4) + line(cx + 2.4, cy + arm + 34, cx + 2.4, H, C.yel, 2.4);
+    s += line(0, cy - 2.4, cx - arm - 34, cy - 2.4, C.yel, 2.4) + line(0, cy + 2.4, cx - arm - 34, cy + 2.4, C.yel, 2.4);
+    s += line(cx + arm + 34, cy - 2.4, W, cy - 2.4, C.yel, 2.4) + line(cx + arm + 34, cy + 2.4, W, cy + 2.4, C.yel, 2.4);
+    s += line(cx - arm + 2, 0, cx - arm + 2, cy - arm - 34, C.white, 2.4) + line(cx + arm - 2, 0, cx + arm - 2, cy - arm - 34, C.white, 2.4);
+    s += line(cx - arm + 2, cy + arm + 34, cx - arm + 2, H, C.white, 2.4) + line(cx + arm - 2, cy + arm + 34, cx + arm - 2, H, C.white, 2.4);
+    /* 회전 링 */
+    s += circ(cx, cy, R, C.asp);
+    s += circ(cx, cy, R - road, C.tree, 'stroke="' + C.treeS + '" stroke-width="1.4"');
+    s += circ(cx, cy, R + 1.6, 'none', 'stroke="' + C.white + '" stroke-width="2.4"');
+    s += circ(cx, cy, R - road / 2, 'none', 'stroke="' + C.white + '" stroke-width="2.2" stroke-dasharray="15 14"');
+    s += circ(cx, cy, R - road + 1.4, 'none', 'stroke="' + C.white + '" stroke-width="2.6"');
+    /* 진입로 횡단보도 · 정지선 */
+    var cwH = arm * 0.34, dz = R + road * 0.4;
+    s += cwBand(cx - arm + 3, cx + arm - 3, cy - dz - cwH, cwH);
+    s += cwBand(cx - arm + 3, cx + arm - 3, cy + dz, cwH);
+    s += cwBandV(cx - dz - cwH, cy - arm + 3, cy + arm - 3, cwH);
+    s += cwBandV(cx + dz, cy - arm + 3, cy + arm - 3, cwH);
+    s += stopBar(cx - arm + 1, cy - dz - cwH - 9, arm - 4);
+    s += stopBar(cx + 2, cy + dz + cwH + 6, arm - 4);
+    s += stopBar(cx - dz - cwH - 9, cy + 2, arm - 4, true);
+    s += stopBar(cx + dz + cwH + 6, cy - arm + 1, arm - 4, true);
     return s;
   }
 
+  /* ───────────────────────── 곡선 · 합류 ───────────────────────── */
   function curveRoad(W, H, dir) {
     var wdt = Math.min(W, H) * 0.42;
     var s = rect(0, 0, W, H, C.ground);
-    s += urbanBlock(6, 6, W * 0.3, H * 0.24, 21) + urbanBlock(W * 0.62, H * 0.68, W * 0.32, H * 0.26, 22);
+    s += urbanBlock(6, 6, W * 0.30, H * 0.20, 21) + urbanBlock(W * 0.60, H * 0.70, W * 0.34, H * 0.24, 22);
+    s += urbanBlock(6, H * 0.72, W * 0.24, H * 0.22, 23);
     var d = dir === 'left'
       ? 'M ' + f(W * 0.62) + ' ' + f(H * 1.02) + ' L ' + f(W * 0.62) + ' ' + f(H * 0.55) + ' Q ' + f(W * 0.62) + ' ' + f(H * 0.25) + ' ' + f(W * 0.28) + ' ' + f(H * 0.25) + ' L ' + f(-W * 0.05) + ' ' + f(H * 0.25)
       : 'M ' + f(W * 0.38) + ' ' + f(H * 1.02) + ' L ' + f(W * 0.38) + ' ' + f(H * 0.55) + ' Q ' + f(W * 0.38) + ' ' + f(H * 0.25) + ' ' + f(W * 0.72) + ' ' + f(H * 0.25) + ' L ' + f(W * 1.05) + ' ' + f(H * 0.25);
-    s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(wdt + 24) + '"/>';
-    s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(wdt) + '"/>';
-    s += '<path d="' + d + '" fill="none" stroke="' + C.yel + '" stroke-width="3.6"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(wdt + 26) + '"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.curb + '" stroke-width="' + f(wdt + 12) + '"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.white + '" stroke-width="' + f(wdt) + '"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(wdt - 9) + '"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.yel + '" stroke-width="2.6"/>';
     return s;
   }
 
@@ -253,8 +433,9 @@ window.AS = window.AS || {};
     var d = left
       ? 'M ' + f(W * 0.02) + ' ' + f(H * 0.92) + ' Q ' + f(W * 0.2) + ' ' + f(H * 0.7) + ' ' + f(jx) + ' ' + f(H * 0.44)
       : 'M ' + f(W * 0.98) + ' ' + f(H * 0.92) + ' Q ' + f(W * 0.8) + ' ' + f(H * 0.7) + ' ' + f(jx) + ' ' + f(H * 0.44);
-    s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(W * 0.2) + '" stroke-linecap="round"/>';
-    s += '<path d="' + d + '" fill="none" stroke="' + C.white + '" stroke-width="3" stroke-dasharray="14 13"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(W * 0.2 + 24) + '" stroke-linecap="butt"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(W * 0.2) + '" stroke-linecap="butt"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.white + '" stroke-width="2.6" stroke-dasharray="14 13" opacity=".8"/>';
     if (left) s += urbanBlock(cx + mainW / 2 + 38, 6, W - cx - mainW / 2 - 44, H * 0.38, 31);
     else s += urbanBlock(6, 6, cx - mainW / 2 - 44, H * 0.38, 31);
     s += line(cx - mainW / 2 + 3, 0, cx - mainW / 2 + 3, H, C.white, 2.4) + line(cx + mainW / 2 - 3, 0, cx + mainW / 2 - 3, H, C.white, 2.4);
@@ -266,21 +447,58 @@ window.AS = window.AS || {};
     return s;
   }
 
+  function yRoad(W, H) {
+    var rw = Math.min(W * 0.30, H * 0.21), cx = W * 0.5, jy = H * 0.46;
+    var s = rect(0, 0, W, H, C.ground);
+    var arms = 'M' + f(cx - rw * 1.52) + ' -10L' + f(cx) + ' ' + f(jy) + 'L' + f(cx + rw * 1.52) + ' -10';
+    var stem = 'M' + f(cx) + ' ' + f(jy) + 'L' + f(cx) + ' ' + f(H + 10);
+    s += '<path d="' + arms + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 28) + '" stroke-linejoin="round"/>';
+    s += '<path d="' + stem + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 28) + '"/>';
+    s += '<path d="' + arms + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linejoin="round" stroke-linecap="round"/>';
+    s += '<path d="' + stem + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '"/>';
+    /* 분기부 빈틈 메우기 */
+    s += '<circle cx="' + f(cx) + '" cy="' + f(jy) + '" r="' + f(rw * 0.52) + '" fill="' + C.asp + '"/>';
+    s += '<path d="' + arms + '" fill="none" stroke="' + C.yel + '" stroke-width="2.4" stroke-dasharray="15 14"/>';
+    s += '<path d="' + stem + '" fill="none" stroke="' + C.yel + '" stroke-width="2.4" stroke-dasharray="15 14"/>';
+    s += urbanBlock(5, 5, cx - rw * 1.52 - rw * 0.9, H * 0.26, 91);
+    s += urbanBlock(cx + rw * 1.52 + rw * 0.4, 5, W - (cx + rw * 1.52 + rw * 0.4) - 6, H * 0.26, 92);
+    s += urbanBlock(5, jy + rw * 1.1, cx - rw * 1.35, H - jy - rw * 1.1, 93);
+    s += urbanBlock(cx + rw * 1.1, jy + rw * 1.1, W - cx - rw * 1.1 - 6, H - jy - rw * 1.1, 94);
+    return s;
+  }
+
+  function sCurve(W, H) {
+    var rw = Math.min(W * 0.40, H * 0.24);
+    var s = rect(0, 0, W, H, C.ground);
+    s += urbanBlock(6, 6, W * 0.30, H * 0.20, 81);
+    s += urbanBlock(W * 0.52, H * 0.52, W * 0.42, H * 0.34, 82);
+    s += urbanBlock(6, H * 0.72, W * 0.26, H * 0.22, 83);
+    var d = 'M' + f(W * 0.30) + ' -20' +
+      'C' + f(W * 0.30) + ' ' + f(H * 0.20) + ' ' + f(W * 0.72) + ' ' + f(H * 0.20) + ' ' + f(W * 0.72) + ' ' + f(H * 0.45) +
+      'C' + f(W * 0.72) + ' ' + f(H * 0.70) + ' ' + f(W * 0.30) + ' ' + f(H * 0.72) + ' ' + f(W * 0.30) + ' ' + f(H + 20);
+    s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 26) + '" stroke-linecap="round"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.white + '" stroke-width="' + f(rw) + '" stroke-linecap="round"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw - 9) + '" stroke-linecap="round"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.yel + '" stroke-width="3" stroke-dasharray="16 14"/>';
+    return s;
+  }
+
+  /* ───────────────────────── 주차 ───────────────────────── */
   function parkingLot(W, H, style) {
     var s = '';
     if (style === 2) {
-      /* 실내 주차장 */
-      s = rect(0, 0, W, H, '#334155');
-      var bayW = W / 5.2, bayH = H * 0.28, yTop = H * 0.12;
+      s = rect(0, 0, W, H, '#3E4753');
+      var bayW = W / 5.2, bayH = H * 0.26, yTop = H * 0.12;
       for (var row = 0; row < 3; row++) {
         var y = yTop + row * (bayH + H * 0.06);
-        for (var i = 0; i <= 5; i++) s += line(i * bayW, y, i * bayW, y + bayH, '#DDE4EE', 2.8);
-        s += line(0, y, W, y, '#DDE4EE', 2.8) + line(0, y + bayH, W, y + bayH, '#DDE4EE', 2.8);
+        for (var i = 0; i <= 5; i++) s += line(i * bayW + 4, y, i * bayW + 4, y + bayH, '#DDE4EE', 2.6);
+        s += line(0, y, W, y, '#DDE4EE', 2.6) + line(0, y + bayH, W, y + bayH, '#DDE4EE', 2.6);
+        s += '<text x="' + f(W * 0.04) + '" y="' + f(y + bayH * 0.62) + '" font-family="sans-serif" font-size="' + f(Math.min(bayH * 0.5, 26)) + '" font-weight="800" fill="#9FB0C4">B' + (row + 1) + '</text>';
       }
+      s += rect(0, H * 0.05, W, 2, '#5B6675');
       return s;
     }
-    /* 야외 주차장: 상·하 주차면(닫힌 칸) + 중앙 통로 */
-    var n = 5, bw = W / n, top = H * 0.06, bd = H * 0.26;
+    var n = 5, bw = W / n, top = H * 0.07, bd = H * 0.24;
     var aisle0 = top + bd, aisle1 = H - top - bd;
     s = rect(0, 0, W, H, C.asp);
     s += rect(0, 0, W, top, C.block) + rect(0, H - top, W, top, C.block);
@@ -290,127 +508,135 @@ window.AS = window.AS || {};
       s += line(bx, top, bx, aisle0, C.white, 2.6);
       s += line(bx, aisle1, bx, H - top, C.white, 2.6);
     }
-    // 통로 중앙 점선 + 진행 화살표(위/아래)
-    s += line(W * 0.5, aisle0 + 6, W * 0.5, aisle1 - 6, C.white, 2.2, 'stroke-dasharray="14 14" opacity=".55"');
-    var aw = Math.min(W * 0.07, 26), ah = Math.min((aisle1 - aisle0) * 0.34, 46);
-    s += arrowMark(W * 0.74, aisle0 + (aisle1 - aisle0) * 0.33, aw, ah, 1, C.white, 0.6);
-    s += arrowMark(W * 0.26, aisle0 + (aisle1 - aisle0) * 0.67, aw, ah, -1, C.white, 0.6);
-    // 상단 'P' 표기
+    s += line(W * 0.5, aisle0 + 6, W * 0.5, aisle1 - 6, C.white, 2.2, 'stroke-dasharray="14 14" opacity=".5"');
+    var aw = Math.min(W * 0.08, 26), ah = Math.min((aisle1 - aisle0) * 0.44, 52);
+    s += glyph('up', W * 0.74, aisle0 + (aisle1 - aisle0) * 0.34, ah, 0, C.white, .7);
+    s += glyph('up', W * 0.26, aisle0 + (aisle1 - aisle0) * 0.66, ah, 180, C.white, .7);
     var ps = Math.min(top * 0.62, 20);
-    s += '<text x="' + f(W * 0.06) + '" y="' + f(top * 0.5 + ps * 0.36) + '" font-family="Pretendard, sans-serif" font-size="' + f(ps) +
+    s += '<text x="' + f(W * 0.05) + '" y="' + f(top * 0.5 + ps * 0.36) + '" font-family="Pretendard, sans-serif" font-size="' + f(ps) +
       '" font-weight="800" fill="#94A3B8">P</text>';
-    s += '<text x="' + f(W * 0.06 + ps * 0.95) + '" y="' + f(top * 0.5 + ps * 0.36) + '" font-family="Pretendard, sans-serif" font-size="' + f(ps * 0.78) +
+    s += '<text x="' + f(W * 0.05 + ps * 0.95) + '" y="' + f(top * 0.5 + ps * 0.36) + '" font-family="Pretendard, sans-serif" font-size="' + f(ps * 0.78) +
       '" font-weight="700" fill="#94A3B8">주차장</text>';
     return s;
   }
 
-  /* 진행 방향 화살표 (dir 1 = 위, -1 = 아래) */
-  function arrowMark(cx, cy, aw, ah, dir, col, op) {
-    var hw = aw / 2, hh = ah / 2, neck = ah * 0.46, sw = aw * 0.17;
-    var d = 'M' + f(cx) + ' ' + f(cy - dir * hh) +
-      ' L' + f(cx + hw) + ' ' + f(cy - dir * (hh - neck)) +
-      ' L' + f(cx + sw) + ' ' + f(cy - dir * (hh - neck)) +
-      ' L' + f(cx + sw) + ' ' + f(cy + dir * hh) +
-      ' L' + f(cx - sw) + ' ' + f(cy + dir * hh) +
-      ' L' + f(cx - sw) + ' ' + f(cy - dir * (hh - neck)) +
-      ' L' + f(cx - hw) + ' ' + f(cy - dir * (hh - neck)) + ' Z';
-    return '<path d="' + d + '" fill="' + col + '"' + (op != null ? ' opacity="' + op + '"' : '') + '/>';
-  }
-
-  function highway(W, H, variant) {
-    var hw = W * 0.28, cx = W * 0.5;
-    var s = rect(0, 0, W, H, variant % 2 ? '#D9E3CF' : '#E4EAE0');
-    s += rect(cx - hw, 0, hw * 2, H, C.asp);
-    s += rect(cx - 7, 0, 14, H, C.tree);
-    [-1, 1].forEach(function (side) {
-      for (var i = 1; i <= 2; i++) s += line(cx + side * (hw / 3 * i), 0, cx + side * (hw / 3 * i), H, C.white, 2.2, 'stroke-dasharray="18 16"');
-      s += line(cx + side * (hw - 3), 0, cx + side * (hw - 3), H, C.white, 2.6);
-    });
-    return s;
-  }
-
-  function livingRoad(W, H) {
-    var hw = W * 0.20, cx = W * 0.5;
-    var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, cx - hw, cx + hw, 'left') + groundStrip(W, H, cx - hw, cx + hw, 'right');
-    s += rect(cx - hw, 0, hw * 2, H, '#64748B');
-    s += line(cx - hw + 2, 0, cx - hw + 2, H, C.white, 2.4) + line(cx + hw - 2, 0, cx + hw - 2, H, C.white, 2.4);
-    for (var y = H * 0.22; y < H; y += H * 0.3) s += rect(cx - hw + 5, y, hw * 2 - 10, 9, C.white, 'opacity=".45"');
-    return s;
-  }
-
-  function laneReduce(W, H) {
-    var n = 4, hw = W * 0.24, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, laneW = (x1 - x0) / n;
-    var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
-    s += '<path d="M' + f(x0) + ' ' + f(H) + ' L' + f(x0) + ' 0 L' + f(x1 - laneW) + ' 0 L' + f(x1) + ' ' + f(H * 0.55) + ' L' + f(x1) + ' ' + f(H) + ' Z" fill="' + C.asp + '"/>';
-    for (var i = 1; i < n; i++) {
-      var x = x0 + laneW * i;
-      if (i === 2) continue;
-      s += line(x, 0, x, i === n - 1 ? H * 0.52 : H, C.white, 2.2, 'stroke-dasharray="15 14"');
+  function lotAngle(W, H) {
+    var s = rect(0, 0, W, H, C.asp);
+    var top = H * 0.07, bd = H * 0.24, a0 = top + bd, a1 = H - top - bd;
+    s += rect(0, 0, W, top, C.block) + rect(0, H - top, W, top, C.block);
+    s += line(0, top, W, top, C.white, 2.6) + line(0, H - top, W, H - top, C.white, 2.6);
+    s += line(0, a0, W, a0, C.white, 2.6) + line(0, a1, W, a1, C.white, 2.6);
+    var n = 5, bw = W / n, skew = bd * 0.52;
+    for (var i = 0; i <= n; i++) {
+      s += line(i * bw, a0, i * bw + skew, top, C.white, 2.4);
+      s += line(i * bw + skew * 0.62, a1, i * bw + skew * 0.62 + skew, H - top, C.white, 2.4);
     }
-    s += line(cx - 2.4, 0, cx - 2.4, H, C.yel, 2.4) + line(cx + 2.4, 0, cx + 2.4, H, C.yel, 2.4);
+    /* 통로 진행 화살표 (위/아래) */
+    var ah = Math.min((a1 - a0) * 0.5, 56);
+    s += glyph('up', W * 0.66, (a0 + a1) / 2, ah * 0.9, 0, C.white, .75);
+    s += glyph('up', W * 0.32, (a0 + a1) / 2, ah * 0.9, 180, C.white, .75);
+    s += '<text x="' + f(W * 0.05) + '" y="' + f(top * 0.62) + '" font-family="sans-serif" font-size="' + f(Math.min(top * 0.6, 18)) +
+      '" font-weight="800" fill="#94A3B8">사선 주차</text>';
     return s;
   }
 
   function shoulderParking(W, H) {
-    var base = laneRoad(W, H, { lanes: 4, hw: 0.25 });
+    var base = laneRoad(W, H, { lanes: 4, hw: 0.25, arrows: false });
     var cx = W * 0.5, hw = W * 0.25;
-    return base.svg + rect(cx + hw - W * 0.085, 0, W * 0.085, H, '#6B7280');
+    var s = base.svg;
+    s += rect(cx + hw - W * 0.085, 0, W * 0.085, H, '#6B7280');
+    s += line(cx + hw - W * 0.085, 0, cx + hw - W * 0.085, H, C.white, 2.6);
+    for (var y = 12; y < H; y += 64) s += line(cx + hw - W * 0.085, y, cx + hw - 4, y, C.white, 2.2, 'opacity=".8"');
+    return s;
   }
 
+  /* ───────────────────────── 특수 구간 ───────────────────────── */
   function safetyZone(W, H) {
-    var base = laneRoad(W, H, { lanes: 4, hw: 0.26 });
-    var cx = W * 0.5, top = H * 0.14, bot = H * 0.54, w = W * 0.045;
-    var s = base.svg + '<path d="M' + f(cx - w) + ' ' + f(bot) + ' L' + f(cx - w) + ' ' + f(top + 40) + ' Q' + f(cx - w) + ' ' + f(top) + ' ' + f(cx) + ' ' + f(top) + ' Q' + f(cx + w) + ' ' + f(top) + ' ' + f(cx + w) + ' ' + f(top + 40) + ' L' + f(cx + w) + ' ' + f(bot) + ' Z" fill="none" stroke="' + C.white + '" stroke-width="5"/>';
-    for (var y = top + 16; y < bot - 10; y += 18) s += line(cx - w + 4, y, cx + w - 4, y + 12, C.white, 2.2);
+    var base = laneRoad(W, H, { lanes: 4, hw: 0.26, arrows: false });
+    var cx = W * 0.5, top = H * 0.13, bot = H * 0.56, w = W * 0.042;
+    var d = 'M' + f(cx - w) + ' ' + f(bot) + ' L' + f(cx - w) + ' ' + f(top + 46) + ' Q' + f(cx - w) + ' ' + f(top) + ' ' + f(cx) + ' ' + f(top) +
+      ' Q' + f(cx + w) + ' ' + f(top) + ' ' + f(cx + w) + ' ' + f(top + 46) + ' L' + f(cx + w) + ' ' + f(bot) + ' Z';
+    var cid = 'sz' + (++uid);
+    var hatch = '';
+    for (var y = top + 10; y < bot - 4; y += 15) hatch += line(cx - w - 6, y, cx + w + 6, y + 17, C.white, 2);
+    var s = base.svg;
+    /* 기존 중앙 황색선 위에 안전지대를 덮어 그린다 */
+    s += poly(d, C.asp);
+    s += '<g clip-path="url(#' + cid + ')">' + hatch + '</g>';
+    s += '<defs><clipPath id="' + cid + '"><path d="' + d + '"/></clipPath></defs>';
+    s += poly(d, 'none', 'stroke="' + C.yel + '" stroke-width="4.6"');
+    /* 안전지대 양 끝 화살표 표시 */
+    s += poly('M' + f(cx) + ' ' + f(top + 12) + ' L' + f(cx - 9) + ' ' + f(top + 30) + ' L' + f(cx + 9) + ' ' + f(top + 30) + ' Z', C.yel);
     return s;
   }
 
-  /* ────────── 노면 표기·기하 헬퍼 ────────── */
-  /* 세로쓰기 한글 (버스전용차로 등) */
-  function vText(chars, cx, y0, gap, fs, col) {
-    var s = '';
-    for (var i = 0; i < chars.length; i++) {
-      s += '<text x="' + f(cx) + '" y="' + f(y0 + gap * i + fs * 0.34) + '" text-anchor="middle"' +
-        ' font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="' + f(fs) +
-        '" font-weight="800" fill="' + col + '">' + chars[i] + '</text>';
+  function laneReduce(W, H) {
+    var n = 4, hw = W * 0.25, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, laneW = (x1 - x0) / n;
+    var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
+    s += rect(x0, 0, x1 - x0, H, C.asp);
+    s += line(x0 + 3, 0, x0 + 3, H, C.white, 2.6) + line(x1 - 3, 0, x1 - 3, H, C.white, 2.6);
+    var half = n / 2;
+    for (var i = 1; i < n; i++) {
+      var x = x0 + laneW * i;
+      if (Math.abs(i - half) < 0.01) continue;
+      if (i === n - 1) {
+        /* 우측 끝 차로 → 위에서 사라진다: 매끄러운 테이퍼 + 사선 표시 */
+        s += '<path d="M' + f(x) + ' ' + f(H) + ' L' + f(x) + ' ' + f(H * 0.52) + ' Q' + f(x) + ' ' + f(H * 0.30) + ' ' + f(x1 - 4) + ' ' + f(H * 0.16) + '"' +
+          ' fill="none" stroke="' + C.white + '" stroke-width="2.6"/>';
+        var gid = 'gr' + (++uid);
+        var gd = 'M' + f(x) + ' ' + f(H * 0.52) + ' Q' + f(x) + ' ' + f(H * 0.30) + ' ' + f(x1 - 4) + ' ' + f(H * 0.16) +
+          ' L' + f(x1) + ' ' + f(H * 0.16) + ' L' + f(x1) + ' ' + f(H * 0.52) + ' Z';
+        var hatch = '';
+        for (var hy = H * 0.16; hy < H * 0.54; hy += 17) hatch += line(x, hy + 26, x1 + 4, hy - 8, C.white, 2, 'opacity=".55"');
+        s += '<defs><clipPath id="' + gid + '"><path d="' + gd + '"/></clipPath></defs>';
+        s += '<g clip-path="url(#' + gid + ')">' + hatch + '</g>';
+      } else {
+        s += line(x, 0, x, H, C.white, 2.2, 'stroke-dasharray="15 14"');
+      }
     }
-    return s;
-  }
-  /* 방향 삼각형 (기본은 위쪽, ang 로 회전) */
-  function tri(x, y, size, ang, col) {
-    return '<path d="M0 ' + f(-size) + 'L' + f(size * 0.74) + ' ' + f(size * 0.72) + 'L' + f(-size * 0.74) + ' ' + f(size * 0.72) + 'Z"' +
-      ' fill="' + col + '" transform="translate(' + f(x) + ',' + f(y) + ') rotate(' + f(ang) + ')"/>';
-  }
-  /* 임의 방향 횡단보도 띠 */
-  function crosswalkLine(x0, y0, x1, y1, bandW) {
-    var dx = x1 - x0, dy = y1 - y0, L = Math.sqrt(dx * dx + dy * dy);
-    var ang = Math.atan2(dy, dx) * 180 / Math.PI;
-    var n = Math.max(2, Math.round(L / (bandW * 0.95)));
-    var s = '';
-    for (var i = 0; i < n; i++) {
-      var t = (i + 0.5) / n;
-      s += '<rect x="' + f(-bandW * 0.28) + '" y="' + f(-bandW / 2) + '" width="' + f(bandW * 0.56) + '" height="' + f(bandW) +
-        '" fill="' + C.white + '" opacity=".95" transform="translate(' + f(x0 + dx * t) + ',' + f(y0 + dy * t) + ') rotate(' + f(ang) + ')"/>';
-    }
+    s += line(cx - 2.4, 0, cx - 2.4, H, C.yel, 2.4) + line(cx + 2.4, 0, cx + 2.4, H, C.yel, 2.4);
+    /* 감소 예고 화살표 — 사라지는 차로 안쪽 */
+    s += glyph('up', x1 - laneW * 0.5, H * 0.34, Math.min(laneW * 1.5, 52), 0, C.white, .95);
+    s += text(x1 - laneW * 0.5, H * 0.46, '합류', Math.min(laneW * 0.5, 17), C.white);
     return s;
   }
 
-  /* ────────── 일방통행: 실제 노면지시처럼 화살표 1개 + '일방통행' 1개 ────────── */
+  function livingRoad(W, H) {
+    var hw = W * 0.21, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw;
+    var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
+    s += rect(x0, 0, x1 - x0, H, '#6E7681');
+    /* 생활도로 — 차분한 블록 포장 (중앙선 없음) */
+    var bw = 26, bh = 22;
+    for (var y = 0; y < H; y += bh) {
+      for (var x = x0 + ((y / bh) % 2 ? bw / 2 : 0); x < x1; x += bw) {
+        var k = ((x * 7 + y * 13) % 3);
+        s += rect(Math.max(x0, x), y + 1, Math.min(bw - 2, x1 - x), bh - 2, 'rgba(255,255,255,.045)', 'rx="1.5"');
+      }
+    }
+    s += line(x0 + 4, 0, x0 + 4, H, C.white, 2.4) + line(x1 - 4, 0, x1 - 4, H, C.white, 2.4);
+    s += line(x0 + 14, 0, x0 + 14, H, 'rgba(255,255,255,.30)', 1.4) + line(x1 - 14, 0, x1 - 14, H, 'rgba(255,255,255,.30)', 1.4);
+    /* 보행자우선도로 표시 */
+    s += text(cx, H * 0.20, '생활도로', Math.min((x1 - x0 - 20) / 4, 26), C.white, 'opacity=".92"');
+    s += text(cx, H * 0.20 + Math.min((x1 - x0 - 20) / 4, 26) * 1.3, '보행자우선', Math.min((x1 - x0 - 20) / 5, 18), C.white, 'opacity=".72"');
+    s += glyph('up', cx - hw * 0.45, H * 0.36, Math.min(hw * 0.7, 56), 0, C.white, .75);
+    s += glyph('up', cx + hw * 0.45, H * 0.64, Math.min(hw * 0.7, 56), 180, C.white, .75);
+    return s;
+  }
+
   function oneway(W, H) {
     var hw = 0.24 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, roadW = x1 - x0;
-    var s = rect(0, 0, W, H, C.ground);
-    s += groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
+    var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
     s += rect(x0, 0, roadW, H, C.asp);
-    /* 양쪽 흰 실선 테두리만 — 점선으로 글자를 자르지 않는다 */
-    s += line(x0 + 2.8, 0, x0 + 2.8, H, C.white, 3.2);
-    s += line(x1 - 2.8, 0, x1 - 2.8, H, C.white, 3.2);
-    /* 진행 방향 흰 화살표 1개 (상단) */
-    var aw = Math.min(roadW * 0.46, W * 0.24), ah = aw * 1.32;
-    s += arrowMark(cx, H * 0.235, aw, ah, 1, C.white, 0.96);
-    /* 노면 '일방통행' 1개 (중앙~하단) */
+    s += line(x0 + 3.6, 0, x0 + 3.6, H, C.white, 3.2);
+    s += line(x1 - 3.6, 0, x1 - 3.6, H, C.white, 3.2);
+    /* 한쪽 방향 안내 — 차로 점선 + 화살표 + 노면 표기 */
+    s += line(cx, 0, cx, H, C.white, 2.2, 'stroke-dasharray="16 15"');
+    var aw = Math.min(roadW * 0.40, W * 0.22), ah = aw * 1.55;
+    s += upArrow(cx - roadW * 0.24, H * 0.26, ah);
+    s += upArrow(cx + roadW * 0.24, H * 0.62, ah);
     var fs = Math.min(roadW * 0.90 / 4.35, H * 0.075, 46);
     if (fs >= 8) {
-      s += '<text x="' + f(cx) + '" y="' + f(H * 0.635 + fs * 0.36) + '" text-anchor="middle"' +
+      s += '<text x="' + f(cx) + '" y="' + f(H * 0.44 + fs * 0.36) + '" text-anchor="middle"' +
         ' font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif"' +
         ' font-size="' + f(fs) + '" font-weight="800" fill="#FFFFFF"' +
         ' letter-spacing="' + f(fs * 0.06) + '">일방통행</text>';
@@ -418,68 +644,69 @@ window.AS = window.AS || {};
     return s;
   }
 
-  /* ────────── 가로(수평) 도로 — 세로 도로를 90° 회전 ────────── */
-  function laneRoadH(W, H, o) {
-    return '<g transform="translate(' + f(W) + ',0) rotate(90)">' + laneRoad(H, W, o).svg + '</g>';
-  }
-
-  /* ────────── 중앙버스전용(6차로) ────────── */
+  /* ───────────────────────── 버스전용 ───────────────────────── */
   function busCenter(W, H) {
     var hw = 0.30 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, lw = (x1 - x0) / 6;
     var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
     s += rect(x0, 0, x1 - x0, H, C.asp);
-    s += line(x0 + 2.6, 0, x0 + 2.6, H, C.white, 2.8) + line(x1 - 2.6, 0, x1 - 2.6, H, C.white, 2.8);
+    s += line(x0 + 3, 0, x0 + 3, H, C.white, 2.8) + line(x1 - 3, 0, x1 - 3, H, C.white, 2.8);
     s += line(x0 + lw, 0, x0 + lw, H, C.white, 2.2, 'stroke-dasharray="16 15"');
     s += line(x1 - lw, 0, x1 - lw, H, C.white, 2.2, 'stroke-dasharray="16 15"');
-    /* 버스전용차로 경계 — 파란 실선 */
-    s += line(x0 + lw * 2, 0, x0 + lw * 2, H, C.blue, 3.2);
-    s += line(x1 - lw * 2, 0, x1 - lw * 2, H, C.blue, 3.2);
-    /* 중앙분리대 · 정류장 섬 */
-    var mw = Math.max(7, W * 0.022);
+    /* 중앙 버스전용차로 — 파란 실선 + 노면 '버스' */
+    s += line(x0 + lw * 2, 0, x0 + lw * 2, H, C.blue, 3.4);
+    s += line(x1 - lw * 2, 0, x1 - lw * 2, H, C.blue, 3.4);
+    var mw = Math.max(8, W * 0.024);
     s += rect(cx - mw / 2, 0, mw, H, C.walk);
-    s += rect(cx - mw * 1.9, H * 0.30, mw * 3.8, H * 0.15, C.walk, 'stroke="' + C.blockS + '" stroke-width="1.2" rx="3"');
+    s += rect(cx - mw * 2.1, H * 0.28, mw * 4.2, H * 0.16, C.walk, 'stroke="' + C.blockS + '" stroke-width="1.2" rx="3"');
+    s += line(cx - mw * 2.1, H * 0.28, cx - mw * 2.1, H * 0.44, C.curb, 2) + line(cx + mw * 2.1, H * 0.28, cx + mw * 2.1, H * 0.44, C.curb, 2);
+    var fs = Math.min(lw * 0.66, 30);
+    [x0 + lw * 1.5, x1 - lw * 1.5].forEach(function (bx) {
+      for (var i = 0; i < 2; i++) s += text(bx, H * (0.58 + i * 0.09), ['버', '스'][i], fs, C.blue);
+    });
     return s;
   }
 
-  /* ────────── 가로변버스전용(4차로) ────────── */
   function busSide(W, H) {
     var hw = 0.26 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, lw = (x1 - x0) / 4;
     var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
     s += rect(x0, 0, x1 - x0, H, C.asp);
-    s += line(x0 + 2.6, 0, x0 + 2.6, H, C.white, 2.8) + line(x1 - 2.6, 0, x1 - 2.6, H, C.white, 2.8);
+    s += line(x0 + 3, 0, x0 + 3, H, C.white, 2.8) + line(x1 - 3, 0, x1 - 3, H, C.white, 2.8);
     s += line(cx - 2.5, 0, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, H, C.yel, 2.2);
     s += line(x0 + lw, 0, x0 + lw, H, C.white, 2.2, 'stroke-dasharray="16 15"');
     s += line(x0 + lw * 3, 0, x0 + lw * 3, H, C.white, 2.2, 'stroke-dasharray="16 15"');
-    /* 가로변(최우측) 버스전용차로 — 파란 실선 + '버스' 노면 표기 */
     s += line(x1 - lw, 0, x1 - lw, H, C.blue, 3.4);
-    s += line(x1 - 8, 0, x1 - 8, H, C.blue, 2.2);
+    s += line(x1 - 9, 0, x1 - 9, H, C.blue, 2.2);
     var fs = Math.min(lw * 0.62, 30);
-    s += vText(['버', '스'], x1 - lw * 0.5, H * 0.30, fs * 1.22, fs, C.blue);
+    s += text(x1 - lw * 0.5, H * 0.34, '버', fs, C.blue);
+    s += text(x1 - lw * 0.5, H * 0.34 + fs * 1.16, '스', fs, C.blue);
     return s;
   }
 
-  /* ────────── 유턴구역(4차로) ────────── */
+  /* ───────────────────────── 유턴구역 ───────────────────────── */
   function uturnRoad(W, H) {
     var hw = 0.25 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, lw = (x1 - x0) / 4;
     var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
     s += rect(x0, 0, x1 - x0, H, C.asp);
-    s += line(x0 + 2.6, 0, x0 + 2.6, H, C.white, 2.8) + line(x1 - 2.6, 0, x1 - 2.6, H, C.white, 2.8);
+    s += line(x0 + 3, 0, x0 + 3, H, C.white, 2.8) + line(x1 - 3, 0, x1 - 3, H, C.white, 2.8);
     s += line(x0 + lw, 0, x0 + lw, H, C.white, 2.2, 'stroke-dasharray="16 15"');
     s += line(x1 - lw, 0, x1 - lw, H, C.white, 2.2, 'stroke-dasharray="16 15"');
-    /* 중앙선은 유턴 구간에서 열려 있다 */
-    var gy0 = H * 0.44, gy1 = H * 0.72;
-    s += line(cx - 2.5, 0, cx - 2.5, gy0, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, gy0, C.yel, 2.2);
-    s += line(cx - 2.5, gy1, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, gy1, cx + 2.5, H, C.yel, 2.2);
-    /* 유턴 화살표 — 북측(올라가는 쪽) 안쪽 차로 */
-    var ux = cx + lw * 0.5, r = Math.min(lw * 0.44, W * 0.058), cyu = H * 0.55, sw = Math.max(3, lw * 0.15);
-    s += '<path d="M' + f(ux + r) + ' ' + f(cyu + r * 1.5) + 'L' + f(ux + r) + ' ' + f(cyu) +
-      'A' + f(r) + ' ' + f(r) + ' 0 0 0 ' + f(ux - r) + ' ' + f(cyu) + 'L' + f(ux - r) + ' ' + f(cyu + r * 1.5) +
-      '" fill="none" stroke="' + C.white + '" stroke-width="' + f(sw) + '" stroke-linecap="round"/>';
-    s += tri(ux - r, cyu + r * 1.5 + r * 0.42, r * 0.9, 180, C.white);
+    /* 중앙 황색 복선 */
+    s += line(cx - 2.6, 0, cx - 2.6, H, C.yel, 2.4) + line(cx + 2.6, 0, cx + 2.6, H, C.yel, 2.4);
+    /* 유턴구역선 — 중앙선 쪽에 나란한 백색 점선 */
+    var zx = cx + 13;
+    s += line(zx, H * 0.07, zx, H * 0.76, C.white, 2.6, 'stroke-dasharray="20 13"');
+    /* 1차로 노면 유턴 화살표 */
+    var gw = Math.min(lw - 12, W * 0.09), gh = gw * 2.75;
+    var ax = zx + (lw - 13) * 0.5;
+    var ay = H * 0.30;
+    s += uturnArrow(ax, ay, gh, 0, C.white, .96);
+    s += text(ax, ay + gh * 0.5 + 26, '유턴', Math.min(lw * 0.44, 24), C.white);
+    /* 빠져나갈 쪽 차로 화살표 */
+    s += upArrow(x1 - lw * 0.5, H * 0.80, Math.min(lw * 1.4, H * 0.10), 180, C.white, .9);
     return s;
   }
 
-  /* ────────── 자전거겸용도로 ────────── */
+  /* ───────────────────────── 자전거 · 스쿨존 · 방지턱 ───────────────────────── */
   function bikeGlyph(cx, cy, r, col) {
     return '<g fill="none" stroke="' + col + '" stroke-width="' + f(r * 0.24) + '" stroke-linecap="round" stroke-linejoin="round">' +
       '<circle cx="' + f(cx - r) + '" cy="' + f(cy) + '" r="' + f(r * 0.58) + '"/>' +
@@ -494,7 +721,7 @@ window.AS = window.AS || {};
     s += rect(x0, 0, x1 - x0, H, C.asp);
     var bw = Math.min(W * 0.085, lw * 0.55);
     s += rect(x1 - bw, 0, bw, H, '#9A5B43');
-    s += line(x0 + 2.6, 0, x0 + 2.6, H, C.white, 2.8) + line(x1 - 2.6, 0, x1 - 2.6, H, C.white, 2.8);
+    s += line(x0 + 3, 0, x0 + 3, H, C.white, 2.8) + line(x1 - 3, 0, x1 - 3, H, C.white, 2.8);
     s += line(x1 - bw, 0, x1 - bw, H, C.white, 2.6);
     s += line(cx - 2.5, 0, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, H, C.yel, 2.2);
     var gr = Math.min(bw * 0.30, 20);
@@ -502,24 +729,30 @@ window.AS = window.AS || {};
     return s;
   }
 
-  /* ────────── 어린이보호구역(스쿨존) ────────── */
   function schoolZone(W, H) {
     var hw = 0.21 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, roadW = x1 - x0;
     var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
-    s += rect(x0, 0, roadW, H, '#8A4A44');
-    s += line(x0 + 3, 0, x0 + 3, H, C.white, 3) + line(x1 - 3, 0, x1 - 3, H, C.white, 3);
-    s += line(cx - 2.5, 0, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, H, C.yel, 2.2);
-    s += crosswalkBand(H * 0.62, x0, x1);
-    var fs = Math.min(roadW * 0.44, H * 0.13, 76);
-    s += '<text x="' + f(cx) + '" y="' + f(H * 0.30 + fs * 0.36) + '" text-anchor="middle"' +
+    /* 적색 미끄럼방지 포장 */
+    s += rect(x0, 0, roadW, H, '#8E4A44');
+    s += rect(x0 + 6, 0, roadW - 12, H, 'rgba(255,255,255,.05)');
+    s += line(x0 + 4, 0, x0 + 4, H, C.white, 3) + line(x1 - 4, 0, x1 - 4, H, C.white, 3);
+    s += line(cx - 2.6, 0, cx - 2.6, H, C.yel, 2.4) + line(cx + 2.6, 0, cx + 2.6, H, C.yel, 2.4);
+    var cwD = Math.max(14, H * 0.055);
+    s += cwBand(x0, x1, H * 0.62, cwD);
+    s += stopBar(cx + 2, H * 0.62 + cwD + 8, hw - 4);
+    var fs = Math.min(roadW * 0.44, H * 0.16, 76);
+    s += '<text x="' + f(cx) + '" y="' + f(H * 0.26 + fs * 0.36) + '" text-anchor="middle"' +
       ' font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="' + f(fs) +
       '" font-weight="800" fill="#FFFFFF">30</text>';
+    s += '<text x="' + f(cx) + '" y="' + f(H * 0.26 + fs * 1.26) + '" text-anchor="middle"' +
+      ' font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="' + f(Math.min((roadW - 16) / 7, 22)) +
+      '" font-weight="800" fill="#FFFFFF" opacity=".95">어린이보호구역</text>';
+    s += upArrow(cx - hw * 0.45, H * 0.46, Math.min(hw * 0.8, 60), 0, C.white, .9);
     return s;
   }
 
-  /* ────────── 방지턱·과속방지턱 ────────── */
   function speedBump(W, H) {
-    var base = laneRoad(W, H, { lanes: 2, hw: 0.22 });
+    var base = laneRoad(W, H, { lanes: 2, hw: 0.22, arrows: false });
     var s = base.svg, x0 = base.x0, x1 = base.x1, rw = x1 - x0;
     [0.32, 0.66].forEach(function (fy) {
       var y = H * fy, h = Math.max(9, H * 0.03), n = 10;
@@ -530,22 +763,21 @@ window.AS = window.AS || {};
     return s;
   }
 
-  /* ────────── 골목길·이면도로(직선) ────────── */
+  /* ───────────────────────── 골목 · 단지 ───────────────────────── */
   function alley(W, H) {
     var hw = W * 0.15, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw;
     var s = rect(0, 0, W, H, C.ground);
-    s += rect(x0 - 11, 0, 11, H, C.walk) + rect(x1, 0, 11, H, C.walk);
+    s += sidewalk(x0 - 12, 0, 12, H) + sidewalk(x1, 0, 12, H);
+    s += curbV(x0, 0, H) + curbV(x1, 0, H);
     s += rect(x0, 0, x1 - x0, H, '#5A6370');
-    /* 골목: 중앙선·차선 없음, 배수로만 */
-    s += line(x0 + 3.5, 0, x0 + 3.5, H, '#6E7887', 2.2) + line(x1 - 3.5, 0, x1 - 3.5, H, '#6E7887', 2.2);
-    s += urbanBlock(3, 4, x0 - 15, H * 0.44, 51);
-    s += urbanBlock(3, H * 0.48, x0 - 15, H * 0.46, 52);
-    s += urbanBlock(x1 + 13, 4, W - x1 - 16, H * 0.52, 53);
-    s += urbanBlock(x1 + 13, H * 0.56, W - x1 - 16, H * 0.38, 54);
+    s += line(x0 + 4, 0, x0 + 4, H, '#6E7887', 2.2) + line(x1 - 4, 0, x1 - 4, H, '#6E7887', 2.2);
+    s += urbanBlock(3, 4, x0 - 16, H * 0.44, 51);
+    s += urbanBlock(3, H * 0.48, x0 - 16, H * 0.46, 52);
+    s += urbanBlock(x1 + 14, 4, W - x1 - 18, H * 0.52, 53);
+    s += urbanBlock(x1 + 14, H * 0.56, W - x1 - 18, H * 0.38, 54);
     return s;
   }
 
-  /* ────────── 골목길 교차로 ────────── */
   function alleyCross(W, H) {
     var vx = W * 0.47, hy = H * 0.45, rw = Math.min(W, H) * 0.135;
     var s = rect(0, 0, W, H, C.ground);
@@ -559,7 +791,6 @@ window.AS = window.AS || {};
     return s;
   }
 
-  /* ────────── 아파트 단지내 도로 ────────── */
   function aptSlab(x, y, w, h) {
     if (w < 14 || h < 14) return '';
     var s = rect(x, y, w, h, '#DEE4ED', 'stroke="#C2CBD9" stroke-width="1.2" rx="2.5"');
@@ -571,8 +802,8 @@ window.AS = window.AS || {};
     var hw = W * 0.155, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw;
     var s = rect(0, 0, W, H, C.ground);
     s += rect(x0, 0, x1 - x0, H, '#59616D');
-    s += line(x0 + 2.4, 0, x0 + 2.4, H, C.white, 2.2) + line(x1 - 2.4, 0, x1 - 2.4, H, C.white, 2.2);
-    s += line(cx, 0, cx, H, C.white, 1.8, 'stroke-dasharray="12 12" opacity=".65"');
+    s += line(x0 + 2.6, 0, x0 + 2.6, H, C.white, 2.2) + line(x1 - 2.6, 0, x1 - 2.6, H, C.white, 2.2);
+    s += line(cx, 0, cx, H, C.white, 1.8, 'stroke-dasharray="12 12" opacity=".6"');
     var bay = x0 * 0.30;
     [0.10, 0.36, 0.62, 0.88].forEach(function (fy) {
       s += line(x0 - bay, H * fy, x0, H * fy, C.white, 2.2);
@@ -585,56 +816,48 @@ window.AS = window.AS || {};
     return s;
   }
 
-  /* ────────── 좌회전 포켓차로 교차로 ────────── */
+  /* ───────────────────────── 교차로 특수형 ───────────────────────── */
   function xjPocket(W, H) {
     var base = crossRoad(W, H, { lanes: 4, hw: 0.22 });
     var s = base.svg;
     var hw = 0.22 * Math.min(W, H), cx = W * 0.5, cy = H * 0.5;
     var y1 = cy + hw, lw = hw / 2;
-    var py = Math.min(H - 6, y1 + hw * 1.05);
-    /* 포켓 차로(중앙선 옆) 흰 실선 */
-    s += line(cx + lw, y1 + 4, cx + lw, py, C.white, 2.6);
-    /* 좌회전 화살표 */
-    var ax = cx + lw * 0.5, ay = py - 4, sw = Math.max(3, lw * 0.16);
-    s += '<path d="M' + f(ax) + ' ' + f(ay) + 'L' + f(ax) + ' ' + f(ay - lw * 0.72) +
-      'Q' + f(ax) + ' ' + f(ay - lw * 1.12) + ' ' + f(ax - lw * 0.46) + ' ' + f(ay - lw * 1.12) +
-      '" fill="none" stroke="' + C.white + '" stroke-width="' + f(sw) + '" stroke-linecap="round"/>';
-    s += tri(ax - lw * 0.50 - lw * 0.22, ay - lw * 1.12, lw * 0.30, 270, C.white);
+    var py = Math.min(H - 8, y1 + hw * 1.35);
+    s += line(cx + lw, y1 + 12, cx + lw, py, C.white, 2.6);
+    s += line(cx - lw, y1 + 12, cx - lw, py, C.white, 2.6);
+    var ax = cx + lw * 0.5, ay = py - 6;
+    s += leftArrow(ax, ay - lw * 0.55, Math.min(lw * 1.5, 46), 180, C.white, .95);
+    s += line(cx - lw * 0.5, py, cx - lw * 0.5, y1 + 12, C.white, 2.2, 'stroke-dasharray="12 10" opacity=".55"');
     return s;
   }
 
-  /* ────────── 대각선 횡단보도(스크램블) ────────── */
   function xjScramble(W, H) {
     var base = crossRoad(W, H, { lanes: 4, hw: 0.22 });
     var s = base.svg;
-    var hw = 0.22 * Math.min(W, H), cx = W * 0.5, cy = H * 0.5, bw = hw * 0.34;
-    s += crosswalkLine(cx - hw * 0.86, cy - hw * 0.86, cx + hw * 0.86, cy + hw * 0.86, bw);
-    s += crosswalkLine(cx + hw * 0.86, cy - hw * 0.86, cx - hw * 0.86, cy + hw * 0.86, bw);
+    var hw = 0.22 * Math.min(W, H), cx = W * 0.5, cy = H * 0.5;
+    var cid = 'sc' + (++uid);
+    var bw = hw * 0.30;
+    var d = 'M' + f(cx - hw + 6) + ' ' + f(cy - hw + 6) + ' L' + f(cx + hw - 6) + ' ' + f(cy + hw - 6) +
+      ' M' + f(cx + hw - 6) + ' ' + f(cy - hw + 6) + ' L' + f(cx - hw + 6) + ' ' + f(cy + hw - 6);
+    var diag = '';
+    [[cx - hw + 8, cy - hw + 8, cx + hw - 8, cy + hw - 8], [cx + hw - 8, cy - hw + 8, cx - hw + 8, cy + hw - 8]].forEach(function (q) {
+      var dx = q[2] - q[0], dy = q[3] - q[1], L = Math.sqrt(dx * dx + dy * dy);
+      var ang = Math.atan2(dy, dx) * 180 / Math.PI;
+      var n = Math.max(3, Math.round(L / (bw * 1.05)));
+      for (var i = 0; i < n; i++) {
+        var t = (i + 0.5) / n;
+        diag += '<rect x="' + f(-bw * 0.26) + '" y="' + f(-bw / 2) + '" width="' + f(bw * 0.52) + '" height="' + f(bw) +
+          '" fill="' + C.white + '" opacity=".95" transform="translate(' + f(q[0] + dx * t) + ',' + f(q[1] + dy * t) + ') rotate(' + f(ang) + ')"/>';
+      }
+    });
+    s += '<defs><clipPath id="' + cid + '"><rect x="' + f(cx - hw + 7) + '" y="' + f(cy - hw + 7) +
+      '" width="' + f(hw * 2 - 14) + '" height="' + f(hw * 2 - 14) + '"/></clipPath></defs>';
+    s += '<g clip-path="url(#' + cid + ')">' + diag + '</g>';
     return s;
   }
 
-  /* ────────── Y자형 삼거리 ────────── */
-  function yRoad(W, H) {
-    var rw = Math.min(W * 0.30, H * 0.21), cx = W * 0.5, jy = H * 0.46;
-    var s = rect(0, 0, W, H, C.ground);
-    var arms = 'M' + f(cx - rw * 1.52) + ' -10L' + f(cx) + ' ' + f(jy) + 'L' + f(cx + rw * 1.52) + ' -10';
-    var stem = 'M' + f(cx) + ' ' + f(jy) + 'L' + f(cx) + ' ' + f(H + 10);
-    s += '<path d="' + arms + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 26) + '" stroke-linejoin="round" stroke-linecap="round"/>';
-    s += '<path d="' + stem + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 26) + '" stroke-linecap="round"/>';
-    s += '<path d="' + arms + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linejoin="round" stroke-linecap="round"/>';
-    s += '<path d="' + stem + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linecap="round"/>';
-    s += '<path d="' + arms + '" fill="none" stroke="' + C.yel + '" stroke-width="2.4" stroke-dasharray="15 14"/>';
-    s += '<path d="' + stem + '" fill="none" stroke="' + C.yel + '" stroke-width="2.4" stroke-dasharray="15 14"/>';
-    s += urbanBlock(5, 5, cx - rw * 1.52 - rw * 0.9, H * 0.10, 91);
-    s += urbanBlock(cx + rw * 1.52 + rw * 0.4, 5, W - (cx + rw * 1.52 + rw * 0.4) - 6, H * 0.10, 92);
-    s += urbanBlock(5, jy + rw * 1.1, cx - rw * 1.35, H - jy - rw * 1.1, 93);
-    s += urbanBlock(cx + rw * 1.1, jy + rw * 1.1, W - cx - rw * 1.1 - 6, H - jy - rw * 1.1, 94);
-    return s;
-  }
-
-  /* ────────── 오거리 교차로 ────────── */
   function fiveWay(W, H) {
-    var cx = W * 0.5, cy = H * 0.47, rw = Math.min(W, H) * 0.19, L = Math.max(W, H) * 1.2;
+    var cx = W * 0.5, cy = H * 0.47, rw = Math.min(W, H) * 0.17, L = Math.max(W, H) * 1.4;
     var s = rect(0, 0, W, H, C.ground);
     var angs = [90, 18, 162, 234, 306];
     var paths = angs.map(function (a) {
@@ -642,37 +865,108 @@ window.AS = window.AS || {};
       return 'M' + f(cx) + ' ' + f(cy) + 'L' + f(cx + Math.cos(r) * L) + ' ' + f(cy - Math.sin(r) * L);
     });
     paths.forEach(function (d) {
-      s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 24) + '" stroke-linecap="round"/>';
+      s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw * 2 + 26) + '" stroke-linecap="butt"/>';
     });
     paths.forEach(function (d) {
-      s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linecap="round"/>';
+      s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw * 2) + '" stroke-linecap="butt"/>';
     });
-    paths.forEach(function (d) {
-      s += '<path d="' + d + '" fill="none" stroke="' + C.white + '" stroke-width="2.2" stroke-dasharray="15 14"/>';
+    /* 교차부 원형 */
+    s += circ(cx, cy, rw * 1.06, C.asp);
+    /* 진입로마다 중앙선·차로선·횡단보도·정지선 */
+    angs.forEach(function (a) {
+      var rot = 90 - a;
+      var g = '';
+      var dCw = rw * 1.62, cwH = rw * 0.30;
+      /* 횡단보도 */
+      var step = Math.max(9, (rw * 2) / 9), bw = step * 0.52;
+      for (var x = -rw + bw * 0.7; x + bw < rw - 2; x += step) g += rect(x, -dCw - cwH / 2, bw, cwH, C.white, 'opacity=".94"');
+      /* 정지선 — 진입 차로(현지 좌측 반)만 */
+      g += line(-rw + 6, -dCw - cwH / 2 - 10, -4, -dCw - cwH / 2 - 10, C.white, 5.4);
+      /* 중앙 황색 복선 · 차로 점선 · 가장자리 백색선 */
+      g += line(-2.4, -rw * 1.02, -2.4, -L, C.yel, 2.4) + line(2.4, -rw * 1.02, 2.4, -L, C.yel, 2.4);
+      g += line(-rw * 0.5, -rw * 1.02, -rw * 0.5, -L, C.white, 2.2, 'stroke-dasharray="15 14"');
+      g += line(rw * 0.5, -rw * 1.02, rw * 0.5, -L, C.white, 2.2, 'stroke-dasharray="15 14"');
+      g += line(-rw + 4, -rw * 1.02, -rw + 4, -L, C.white, 2.6) + line(rw - 4, -rw * 1.02, rw - 4, -L, C.white, 2.6);
+      /* 진행 화살표 */
+      g += glyph('up', -rw * 0.5, -dCw - cwH / 2 - 48, Math.min(rw * 1.2, 58), 180, C.white, .9);
+      g += glyph('up', rw * 0.5, -dCw - cwH / 2 - 48, Math.min(rw * 1.2, 58), 0, C.white, .9);
+      s += '<g transform="translate(' + f(cx) + ',' + f(cy) + ') rotate(' + f(rot) + ')">' + g + '</g>';
     });
-    s += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(rw * 1.02) + '" fill="' + C.asp + '"/>';
+    /* 중앙 안내 링 */
+    s += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(rw * 0.62) + '" fill="none" stroke="' + C.white + '" stroke-width="2" stroke-dasharray="14 12" opacity=".5"/>';
     return s;
   }
 
-  /* ────────── 지하차도 ────────── */
+  function highway(W, H, variant) {
+    var cx = W * 0.5;
+    /* 1 = 4차로(왕복) · 2 = 6차로 + 중앙분리대 */
+    var lanes = variant === 2 ? 6 : 4;
+    var hw = variant === 2 ? W * 0.34 : W * 0.26;
+    var x0 = cx - hw, x1 = cx + hw, laneW = (x1 - x0) / lanes;
+    var s = rect(0, 0, W, H, variant === 2 ? '#DCE6D1' : '#E4EADF');
+    /* 방음벽·가드레일 */
+    s += rect(x0 - 26, 0, 26, H, '#DDE3EA');
+    s += rect(x1, 0, 26, H, '#DDE3EA');
+    s += line(x0 - 26, 0, x0 - 26, H, '#AEB9C6', 2.4) + line(x1 + 26, 0, x1 + 26, H, '#AEB9C6', 2.4);
+    for (var g = 18; g < H; g += 54) {
+      s += rect(x0 - 22, g, 6, 22, '#9FAAB8', 'rx="2"') + rect(x1 + 16, g, 6, 22, '#9FAAB8', 'rx="2"');
+    }
+    s += rect(x0, 0, x1 - x0, H, C.asp);
+    /* 갓길 */
+    s += rect(x0, 0, 12, H, '#5A626E') + rect(x1 - 12, 0, 12, H, '#5A626E');
+    s += line(x0 + 13, 0, x0 + 13, H, C.white, 2.6) + line(x1 - 13, 0, x1 - 13, H, C.white, 2.6);
+    var half = lanes / 2;
+    for (var i = 1; i < lanes; i++) {
+      var x = x0 + laneW * i;
+      if (Math.abs(i - half) < 0.01 && variant !== 2) continue;
+      s += line(x, 0, x, H, C.white, 2.2, 'stroke-dasharray="18 16"');
+    }
+    if (variant === 2) {
+      /* 중앙분리대 — 잔디 + 가드레일 */
+      var mw = Math.max(16, W * 0.05);
+      s += rect(cx - mw / 2, 0, mw, H, C.grass);
+      s += line(cx - mw / 2, 0, cx - mw / 2, H, '#9DA9B7', 3) + line(cx + mw / 2, 0, cx + mw / 2, H, '#9DA9B7', 3);
+      for (var p2 = 10; p2 < H; p2 += 40) {
+        s += rect(cx - mw / 2 - 3, p2, 3, 14, '#8A96A5') + rect(cx + mw / 2, p2, 3, 14, '#8A96A5');
+      }
+    } else {
+      s += line(cx - 2.6, 0, cx - 2.6, H, C.yel, 2.4) + line(cx + 2.6, 0, cx + 2.6, H, C.yel, 2.4);
+    }
+    return s;
+  }
+
+  /* ───────────────────────── 입체 · 고속 시설 ───────────────────────── */
   function underpass(W, H) {
-    var g = laneRoad(W, H, { lanes: 4, hw: 0.25 });
+    var g = laneRoad(W, H, { lanes: 4, hw: 0.25, arrows: false });
     var s = g.svg, x0 = g.x0, x1 = g.x1, rw = x1 - x0;
-    var deckY = H * 0.56, deckH = Math.max(24, H * 0.085), wallW = Math.max(10, W * 0.032);
-    /* 옹벽 + 지하 구간 어둡게 */
-    s += rect(x0 - wallW, deckY - deckH * 2.0, wallW, deckH * 2.0, '#94A3B8');
-    s += rect(x1, deckY - deckH * 2.0, wallW, deckH * 2.0, '#94A3B8');
-    s += rect(x0, deckY - deckH * 2.0, rw, H - (deckY - deckH * 2.0), 'rgba(15,23,42,.45)');
-    /* 위로 지나는 도로(덱) */
+    var deckY = H * 0.58, deckH = Math.max(26, H * 0.075);
+    var wallW = Math.max(12, W * 0.034);
+    var sunkenTop = deckY - deckH * 1.4;
+    /* 지하 구간: 단단한 색으로 덮는다(겹친 반투명 제거) */
+    s += rect(x0 - wallW, sunkenTop, wallW, deckY - sunkenTop + deckH, C.wall);
+    s += rect(x1, sunkenTop, wallW, deckY - sunkenTop + deckH, C.wall);
+    s += rect(x0 - wallW, sunkenTop, wallW, 3.4, C.wallD) + rect(x1, sunkenTop, wallW, 3.4, C.wallD);
+    s += rect(x0, sunkenTop, rw, H - sunkenTop, '#3B424E');
+    /* 지하 구간 차로선 다시 */
+    s += line(x0 + 3, sunkenTop, x0 + 3, H, C.white, 2.6, 'opacity=".85"');
+    s += line(x1 - 3, sunkenTop, x1 - 3, H, C.white, 2.6, 'opacity=".85"');
+    s += line(g.cx - 2.4, sunkenTop, g.cx - 2.4, H, C.yel, 2.4, 'opacity=".85"');
+    s += line(g.cx + 2.4, sunkenTop, g.cx + 2.4, H, C.yel, 2.4, 'opacity=".85"');
+    [0.25, 0.75].forEach(function (q) {
+      s += line(x0 + rw * q, sunkenTop, x0 + rw * q, H, C.white, 2.2, 'stroke-dasharray="15 14" opacity=".7"');
+    });
+    /* 위로 지나는 덱 */
     s += rect(-2, deckY, W + 4, deckH, '#8E9BAB');
-    s += rect(-2, deckY + deckH * 0.26, W + 4, deckH * 0.48, '#6B7787');
-    s += line(0, deckY + deckH * 0.26, W, deckY + deckH * 0.26, C.white, 2.2);
-    s += line(0, deckY + deckH * 0.74, W, deckY + deckH * 0.74, C.white, 2.2);
-    s += line(0, deckY + deckH * 0.5, W, deckY + deckH * 0.5, C.white, 2, 'stroke-dasharray="14 13" opacity=".8"');
+    s += rect(-2, deckY + deckH * 0.24, W + 4, deckH * 0.52, '#6E7A8A');
+    s += line(0, deckY + deckH * 0.24, W, deckY + deckH * 0.24, C.white, 2.2);
+    s += line(0, deckY + deckH * 0.76, W, deckY + deckH * 0.76, C.white, 2.2);
+    s += line(0, deckY + deckH * 0.5, W, deckY + deckH * 0.5, C.white, 2, 'stroke-dasharray="14 13" opacity=".75"');
+    /* 덱 아래 그늘 */
+    s += rect(x0, deckY + deckH, rw, 8, '#2E3540');
+    s += rect(x0 - wallW, deckY + deckH, wallW, 8, C.wallD) + rect(x1, deckY + deckH, wallW, 8, C.wallD);
     return s;
   }
 
-  /* ────────── 고가도로 ────────── */
   function overpass(W, H) {
     var s = rect(0, 0, W, H, C.ground);
     var cy = H * 0.74, gh = Math.min(H * 0.17, W * 0.21);
@@ -683,81 +977,90 @@ window.AS = window.AS || {};
     s += urbanBlock(W * 0.66, 6, W * 0.32, cy - gh / 2 - 14, 72);
     s += urbanBlock(6, cy + gh / 2 + 12, W * 0.40, H - cy - gh / 2 - 18, 73);
     s += urbanBlock(W * 0.62, cy + gh / 2 + 12, W * 0.36, H - cy - gh / 2 - 18, 74);
-    /* 고가도로 — 그림자 + 덱 + 난간 */
     var hw = W * 0.255, cx = W * 0.5;
-    s += rect(cx - hw + 10, 0, hw * 2, H, 'rgba(15,23,42,.16)');
-    s += rect(cx - hw - 5, 0, hw * 2 + 10, H, '#C7D0DB');
+    s += rect(cx - hw + 10, 0, hw * 2, H, 'rgba(15,23,42,.14)');
+    s += rect(cx - hw - 6, 0, hw * 2 + 12, H, '#C7D0DB');
     s += rect(cx - hw, 0, hw * 2, H, C.asp);
     s += line(cx - hw + 2.6, 0, cx - hw + 2.6, H, C.white, 2.6) + line(cx + hw - 2.6, 0, cx + hw - 2.6, H, C.white, 2.6);
     s += line(cx - 2.5, 0, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, H, C.yel, 2.2);
     return s;
   }
 
-  /* ────────── 교량(다리) ────────── */
   function bridge(W, H) {
-    var s = rect(0, 0, W, H, '#BFD8EE');
-    s += rect(0, 0, W, H * 0.16, C.ground) + rect(0, H * 0.84, W, H * 0.16, C.ground);
-    for (var yy = H * 0.22; yy < H * 0.82; yy += H * 0.11) {
-      s += line(W * 0.03, yy, W * 0.28, yy, '#A8C7E4', 2) + line(W * 0.74, yy, W * 0.97, yy, '#A8C7E4', 2);
+    var s = rect(0, 0, W, H, C.water);
+    for (var yy = H * 0.18; yy < H * 0.86; yy += H * 0.09) {
+      s += line(W * 0.03, yy, W * 0.26, yy, '#BBD6EC', 2.2) + line(W * 0.74, yy, W * 0.97, yy, '#BBD6EC', 2.2);
     }
+    s += rect(0, 0, W, H * 0.14, C.ground) + rect(0, H * 0.86, W, H * 0.14, C.ground);
     var hw = W * 0.24, cx = W * 0.5;
-    s += rect(cx - hw - 7, 0, hw * 2 + 14, H, '#C8D2DE');
+    s += rect(cx - hw - 8, 0, hw * 2 + 16, H, '#C8D2DE');
+    s += rect(cx - hw - 8, 0, 4, H, '#AFBCCB') + rect(cx + hw + 4, 0, 4, H, '#AFBCCB');
     s += rect(cx - hw, 0, hw * 2, H, C.asp);
     s += line(cx - hw + 3, 0, cx - hw + 3, H, C.white, 2.6) + line(cx + hw - 3, 0, cx + hw - 3, H, C.white, 2.6);
     s += line(cx - 2.5, 0, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, H, C.yel, 2.2);
     [0.30, 0.50, 0.70].forEach(function (fy) {
-      s += rect(cx - hw - 11, H * fy, 11, H * 0.06, '#9FB0C2') + rect(cx + hw, H * fy, 11, H * 0.06, '#9FB0C2');
+      s += rect(cx - hw - 13, H * fy, 13, H * 0.055, '#9FB0C2') + rect(cx + hw, H * fy, 13, H * 0.055, '#9FB0C2');
     });
     return s;
   }
 
-  /* ────────── IC·JC 진출입 램프 ────────── */
+  function tunnelRoad(W, H, lanes) {
+    var hw = (lanes === 2 ? 0.24 : 0.30) * W;
+    var cx = W * 0.5, x0 = cx - hw, x1 = cx + hw;
+    var s = rect(0, 0, W, H, C.concrete);
+    /* 터널 벽 — 단단한 면 + 상단 코핑 */
+    s += rect(x0 - 18, 0, 18, H, C.wall);
+    s += rect(x1, 0, 18, H, C.wall);
+    s += line(x0 - 18, 0, x0 - 18, H, C.wallD, 2.4) + line(x1 + 18, 0, x1 + 18, H, C.wallD, 2.4);
+    s += rect(x0, 0, x1 - x0, H, '#2A323E');
+    s += line(x0 + 4, 0, x0 + 4, H, C.white, 2.6) + line(x1 - 4, 0, x1 - 4, H, C.white, 2.6);
+    if (lanes === 4) {
+      var lw = (x1 - x0) / 4;
+      s += line(x0 + lw, 0, x0 + lw, H, C.white, 2.2, 'stroke-dasharray="16 14"');
+      s += line(x0 + lw * 3, 0, x0 + lw * 3, H, C.white, 2.2, 'stroke-dasharray="16 14"');
+      s += line(cx - 2.4, 0, cx - 2.4, H, C.yel, 2.4) + line(cx + 2.4, 0, cx + 2.4, H, C.yel, 2.4);
+    } else {
+      s += line(cx, 0, cx, H, C.white, 2.2, 'stroke-dasharray="16 14"');
+    }
+    /* 벽면 유도등 */
+    for (var y = 30; y < H; y += 66) {
+      s += rect(x0 - 12, y, 6, 16, '#F59E0B', 'rx="2"') + rect(x1 + 6, y, 6, 16, '#F59E0B', 'rx="2"');
+    }
+    /* 입구 포털 */
+    s += rect(0, 0, W, 16, C.wallD);
+    s += '<path d="M' + f(x0 - 20) + ' 26 Q' + f(cx) + ' 2 ' + f(x1 + 20) + ' 26" fill="none" stroke="' + C.wallD + '" stroke-width="5" stroke-linecap="round"/>';
+    s += rect(0, H - 16, W, 16, C.wallD);
+    s += '<path d="M' + f(x0 - 20) + ' ' + f(H - 26) + ' Q' + f(cx) + ' ' + f(H - 2) + ' ' + f(x1 + 20) + ' ' + f(H - 26) + '" fill="none" stroke="' + C.wallD + '" stroke-width="5" stroke-linecap="round"/>';
+    return s;
+  }
+
   function icRamp(W, H) {
     var hw = W * 0.235, cx = W * 0.40, rw = W * 0.115;
     var s = rect(0, 0, W, H, C.ground);
-    /* 진출 램프를 먼저 그리고 본선을 그 위에 그려 진출부가 도로 경계에서 갈라지게 한다 */
     var d = 'M' + f(cx + hw - 24) + ' ' + f(H * 0.15) +
       'C' + f(cx + hw + W * 0.16) + ' ' + f(H * 0.26) + ' ' + f(W * 0.86) + ' ' + f(H * 0.38) + ' ' + f(W * 0.93) + ' ' + f(H * 0.74);
-    s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 16) + '" stroke-linecap="round"/>';
-    s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linecap="round"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 18) + '" stroke-linecap="butt"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.white + '" stroke-width="' + f(rw) + '" stroke-linecap="butt"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw - 8) + '" stroke-linecap="butt"/>';
     s += '<path d="' + d + '" fill="none" stroke="' + C.white + '" stroke-width="2.2" stroke-dasharray="14 13"/>';
-    /* 본선 */
-    s += rect(cx - hw - 16, 0, 16, H, C.walk) + rect(cx + hw, 0, 16, H, C.walk);
+    s += rect(cx - hw - 18, 0, 18, H, C.walk) + rect(cx + hw, 0, 18, H, C.walk);
     s += rect(cx - hw, 0, hw * 2, H, C.asp);
-    s += line(cx - hw + 3, 0, cx - hw + 3, H, C.white, 2.6) + line(cx + hw - 3, 0, cx + hw - 3, H, C.white, 2.6);
+    s += line(cx - hw + 3.4, 0, cx - hw + 3.4, H, C.white, 2.6) + line(cx + hw - 3.4, 0, cx + hw - 3.4, H, C.white, 2.6);
     [-1, 1].forEach(function (sd) {
       s += line(cx + sd * hw / 2, 0, cx + sd * hw / 2, H, C.white, 2.2, 'stroke-dasharray="18 16"');
-      s += line(cx + sd * (hw - 4), 0, cx + sd * (hw - 4), H, C.white, 2.4);
+      s += line(cx + sd * (hw - 6), 0, cx + sd * (hw - 6), H, C.white, 2.4);
     });
     return s;
   }
 
-  /* ────────── S자 급커브 ────────── */
-  function sCurve(W, H) {
-    var rw = Math.min(W * 0.40, H * 0.24);
-    var s = rect(0, 0, W, H, C.ground);
-    s += urbanBlock(6, 6, W * 0.30, H * 0.26, 81);
-    s += urbanBlock(W * 0.52, H * 0.52, W * 0.42, H * 0.34, 82);
-    var d = 'M' + f(W * 0.30) + ' -20' +
-      'C' + f(W * 0.30) + ' ' + f(H * 0.20) + ' ' + f(W * 0.72) + ' ' + f(H * 0.20) + ' ' + f(W * 0.72) + ' ' + f(H * 0.45) +
-      'C' + f(W * 0.72) + ' ' + f(H * 0.70) + ' ' + f(W * 0.30) + ' ' + f(H * 0.72) + ' ' + f(W * 0.30) + ' ' + f(H + 20);
-    s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 22) + '" stroke-linecap="round"/>';
-    s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linecap="round"/>';
-    s += '<path d="' + d + '" fill="none" stroke="' + C.yel + '" stroke-width="3" stroke-dasharray="16 14"/>';
-    return s;
-  }
-
-  /* ────────── 고속도로 톨게이트 ────────── */
   function tollgate(W, H) {
     var cx = W * 0.5, s = rect(0, 0, W, H, C.ground);
     var nw = W * 0.21, pw = W * 0.40, y0 = H * 0.30, y1 = H * 0.64, sp = H * 0.07;
-    /* 본선 → 광장 → 본선 */
     s += rect(cx - nw, 0, nw * 2, y0 + 2, C.asp);
     s += '<path d="M' + f(cx - nw) + ' 0L' + f(cx + nw) + ' 0L' + f(cx + pw) + ' ' + f(y0 + sp) + 'L' + f(cx - pw) + ' ' + f(y0 + sp) + 'Z" fill="' + C.asp + '"/>';
     s += rect(cx - pw, y0 + sp, pw * 2, y1 - y0 - sp, C.asp);
     s += '<path d="M' + f(cx - pw) + ' ' + f(y1) + 'L' + f(cx + pw) + ' ' + f(y1) + 'L' + f(cx + nw) + ' ' + f(y1 + sp) + 'L' + f(cx - nw) + ' ' + f(y1 + sp) + 'Z" fill="' + C.asp + '"/>';
     s += rect(cx - nw, y1 + sp, nw * 2, H - y1 - sp, C.asp);
-    /* 본선 차로선 */
     [0, 1].forEach(function (k) {
       var yy0 = k ? y1 + sp : 0, yy1 = k ? H : y0;
       s += line(cx - nw + 3, yy0, cx - nw + 3, yy1, C.white, 2.6) + line(cx + nw - 3, yy0, cx + nw - 3, yy1, C.white, 2.6);
@@ -768,7 +1071,6 @@ window.AS = window.AS || {};
       var xa = cx - pw + (pw * 2) * i / lanes;
       s += line(xa, y0 + sp + 5, xa, y1 - 5, C.white, 2.2, 'stroke-dasharray="12 11" opacity=".9"');
     }
-    /* 톨게이트 부스 섬 */
     for (var j = 0; j < lanes - 1; j++) {
       var xb = cx - pw + (pw * 2) * (j + 1) / lanes;
       s += rect(xb - isl / 2, y0 + sp + (y1 - y0 - sp) * 0.14, isl, (y1 - y0 - sp) * 0.66, '#E6EBF2', 'stroke="#AEB9C7" stroke-width="1.2" rx="2"');
@@ -777,9 +1079,8 @@ window.AS = window.AS || {};
     return s;
   }
 
-  /* ────────── 철길 건널목 ────────── */
   function railCross(W, H) {
-    var g = laneRoad(W, H, { lanes: 2, hw: 0.22 });
+    var g = laneRoad(W, H, { lanes: 2, hw: 0.22, arrows: false });
     var s = g.svg, x0 = g.x0, x1 = g.x1;
     var y0 = H * 0.40, bh = H * 0.14;
     s += rect(0, y0, W, bh, '#4B4553');
@@ -787,29 +1088,14 @@ window.AS = window.AS || {};
     for (var x = 5; x < W; x += step) s += rect(x, y0 + 4, Math.max(4, W * 0.010), bh - 8, '#6B6472');
     s += line(0, y0 + bh * 0.32, W, y0 + bh * 0.32, '#D9E0EA', 4.5);
     s += line(0, y0 + bh * 0.68, W, y0 + bh * 0.68, '#D9E0EA', 4.5);
-    s += rect(x0, y0 - 5, x1 - x0, 3, '#E2564E') + rect(x0, y0 + bh + 2, x1 - x0, 3, '#E2564E');
-    s += rect(x0, y0 - 15, x1 - x0, 6, C.white);
+    s += rect(x0, y0 - 6, x1 - x0, 3, '#E2564E') + rect(x0, y0 + bh + 3, x1 - x0, 3, '#E2564E');
+    s += rect(x0, y0 - 16, x1 - x0, 6, C.white);
     return s;
   }
 
-  /* ────────── 사선(빗각) 주차장 ────────── */
-  function lotAngle(W, H) {
-    var s = rect(0, 0, W, H, C.asp);
-    var top = H * 0.06, bd = H * 0.26, a0 = top + bd, a1 = H - top - bd;
-    s += rect(0, 0, W, top, C.block) + rect(0, H - top, W, top, C.block);
-    s += line(0, top, W, top, C.white, 2.6) + line(0, H - top, W, H - top, C.white, 2.6);
-    s += line(0, a0, W, a0, C.white, 2.6) + line(0, a1, W, a1, C.white, 2.6);
-    var n = 6, bw = W / n, skew = bd * 0.55;
-    for (var i = 0; i <= n; i++) {
-      s += line(i * bw, a0, i * bw + skew, top, C.white, 2.4);
-      s += line(i * bw, a1, i * bw + skew, H - top, C.white, 2.4);
-    }
-    s += line(W * 0.5, a0 + 8, W * 0.5, a1 - 8, C.white, 2.2, 'stroke-dasharray="14 14" opacity=".6"');
-    return s;
-  }
-
+  /* ───────────────────────── 목록 ───────────────────────── */
   var LIST = [
-    { id: 'blank', label: '초기화면(격자)', g: 1, tags: '격자 그리드 도면 빈빠지 빈화면 초기화' },
+    { id: 'blank', label: '격자(빈 화면)', g: 1, tags: '격자 그리드 도면 빈빠지 빈화면 초기화' },
 
     /* ── 일반 ── */
     { id: 'lane2', label: '일반(2차로)', g: 1, tags: '2차로 세로 2차선 양방향 편도' },
@@ -817,7 +1103,6 @@ window.AS = window.AS || {};
     { id: 'lane4', label: '일반(4차로)', g: 1, tags: '4차로 세로 4차선 왕복' },
     { id: 'lane6', label: '일반(6차로)', g: 1, tags: '6차로 6차선 대로 대형로' },
     { id: 'lane8', label: '일반(8차로)', g: 1, tags: '8차로 8차선 대로' },
-    { id: 'lane10', label: '일반(10차로)', g: 1, tags: '10차로 10차선 대형 대로' },
     { id: 'lane2H', label: '가로(2차로)', g: 1, tags: '가로 2차로 수평 좌우 왕복 이면도로' },
     { id: 'lane4H', label: '가로(4차로)', g: 1, tags: '가로 4차로 수평 좌우 왕복 대로' },
     { id: 'busCenter', label: '중앙버스전용(6차로)', g: 1, tags: '버스전용 버스 중앙버스 중앙차로 버스정류장 6차로 노선버스' },
@@ -827,7 +1112,7 @@ window.AS = window.AS || {};
     { id: 'schoolZone', label: '어린이보호구역(스쿨존)', g: 1, tags: '스쿨존 어린이보호구역 어린이 학교 등하교 30 과속' },
     { id: 'speedBump', label: '방지턱·과속방지', g: 1, tags: '방지턱 과속방지턱 과속 방지팍 속도 줄임턱 과속방지' },
     { id: 'oneway', label: '일방통행', g: 1, tags: '일방통행 한쪽통행 편도 화살표' },
-    { id: 'living', label: '생활도로', g: 1, tags: '생활도로 주택가 이면도로 소통' },
+    { id: 'living', label: '생활도로', g: 1, tags: '생활도로 주택가 이면도로 소통 보행자우선' },
     { id: 'safety', label: '안전지대', g: 1, tags: '안전지대 안전섬 보행섬' },
     { id: 'reduce', label: '우측차로감소', g: 1, tags: '차로감소 차선감소 합류 우측감소' },
     { id: 'cross4', label: '횡단보도(4차로)', g: 1, tags: '횡단보도 건널목 4차로 보행자' },
@@ -867,8 +1152,8 @@ window.AS = window.AS || {};
     { id: 'split', label: '분할로', g: 4, tags: '분할 분기 길어짐' },
     { id: 'merge4', label: '우합류(4차로)', g: 4, tags: '합류 우합류 4차로 진입가속' },
     { id: 'mergeL', label: '좌합류(4차로)', g: 4, tags: '합류 좌합류 4차로 진입좌측' },
-    { id: 'hw1', label: '고속/전용도로1', g: 4, tags: '고속도로 전용도로 자동차전용 지방도' },
-    { id: 'hw2', label: '고속/전용도로2', g: 4, tags: '고속도로 전용도로 자동차전용 중앙분리대' },
+    { id: 'hw1', label: '고속도로 4차로', g: 4, tags: '고속도로 전용도로 자동차전용 지방도 4차로' },
+    { id: 'hw2', label: '고속도로 6차로(중앙분리대)', g: 4, tags: '고속도로 전용도로 자동차전용 중앙분리대 6차로' },
     { id: 'underpass', label: '지하차도', g: 4, tags: '지하차도 지하 지하차로 터널 지하도' },
     { id: 'overpass', label: '고가도로', g: 4, tags: '고가 고가도로 입체 교량 위 램프' },
     { id: 'bridge', label: '교량(다리)', g: 4, tags: '교량 다리 브리지 강 물 하천' },
@@ -914,10 +1199,10 @@ window.AS = window.AS || {};
       case 'lane4': return laneRoad(W, H, { lanes: 4, hw: 0.25 }).svg;
       case 'lane6': return laneRoad(W, H, { lanes: 6, hw: 0.29 }).svg;
       case 'lane8': return laneRoad(W, H, { lanes: 8, hw: 0.34 }).svg;
-      case 'lane10': return laneRoad(W, H, { lanes: 10, hw: 0.38 }).svg;
       case 'cross4': {
         var b = laneRoad(W, H, { lanes: 4, hw: 0.25 });
-        return b.svg + crosswalkBand(H * 0.44, b.x0, b.x1) + rect(b.x0 + 2, H * 0.44 - 6, (b.x1 - b.x0) / 2 - 4, 5, C.white);
+        var cwD = Math.max(13, (b.x1 - b.x0) * 0.10);
+        return b.svg + cwBand(b.x0, b.x1, H * 0.52, cwD) + stopBar(b.cx + 2, H * 0.52 + cwD + 8, (b.x1 - b.x0) / 2 - 4);
       }
       case 'tunnel2': return tunnelRoad(W, H, 2);
       case 'tunnel4': return tunnelRoad(W, H, 4);
@@ -962,7 +1247,6 @@ window.AS = window.AS || {};
     var a = rot * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
     return { x: cx + lx * c - ly * sn, y: cy + lx * sn + ly * c };
   }
-  function carHalf(kind) { return CARB[kind] || CARB.sedan; }
 
   function gLane4(W, H) {
     var hw = 0.25 * W, cx = 0.5 * W, x0 = cx - hw, x1 = cx + hw, lw = (x1 - x0) / 4;
@@ -1001,11 +1285,8 @@ window.AS = window.AS || {};
     return { cx: cx, mainW: mainW, up: cx + mainW / 4, down: cx - mainW / 4, ramp: at, rampInfo: info };
   }
   function gLot(W, H) {
-    var n = 5, bw = W / n, top = H * 0.06, bd = H * 0.26;
-    return {
-      n: n, bw: bw, top: top, aisle0: top + bd, aisle1: H - top - bd,
-      bayX: function (i) { return (i + 0.5) * bw; }
-    };
+    var n = 5, bw = W / n, top = H * 0.07, bd = H * 0.24;
+    return { n: n, bw: bw, top: top, aisle0: top + bd, aisle1: H - top - bd, bayX: function (i) { return (i + 0.5) * bw; } };
   }
 
   var PRESETS = [

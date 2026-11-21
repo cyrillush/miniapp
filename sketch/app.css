@@ -19,6 +19,12 @@ button { border: 0; background: none; cursor: pointer; -webkit-tap-highlight-col
 svg { display: block; }
 button svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
+/* 요소 조작 버튼 크기 (S/M/L) — 핸들 지름과 하단 버튼 크기를 한 번에 바꾼다 */
+body { --hnd: 34px; --sb: 32px; }
+body[data-btnsz="sm"] { --hnd: 26px; --sb: 28px; }
+body[data-btnsz="md"] { --hnd: 34px; --sb: 32px; }
+body[data-btnsz="lg"] { --hnd: 44px; --sb: 40px; }
+
 /* ───────────────────────────────── 토큰 */
 body[data-theme="A"] {
   --bg: #EEF2F8; --ink: #0F1B2E; --ink2: #5A6C86; --ink3: #8A9AB2;
@@ -144,12 +150,13 @@ body[data-theme="D"] {
 #sel { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 #sel.on .selbox { position: absolute; border: 1.6px dashed var(--acc); border-radius: 4px; transform-origin: 50% 50%; box-shadow: 0 0 0 1px rgba(255,255,255,.35) inset; }
 .hnd {
-  position: absolute; width: 42px; height: 42px; margin: -21px 0 0 -21px; border-radius: 50%;
+  position: absolute; width: var(--hnd); height: var(--hnd);
+  margin: calc(var(--hnd) / -2) 0 0 calc(var(--hnd) / -2); border-radius: 50%;
   display: grid; place-items: center; pointer-events: auto; color: var(--acc);
   background: var(--panel-solid); border: 1.6px solid var(--acc);
   box-shadow: var(--shadow-s);
 }
-.hnd svg { width: 20px; height: 20px; stroke-width: 1.9; }
+.hnd svg { width: calc(var(--hnd) * 0.48); height: calc(var(--hnd) * 0.48); stroke-width: 1.9; }
 .hnd:active { transform: scale(.94); }
 #sel .angle {
   position: absolute; transform: translate(-50%, -50%); padding: 4px 9px; border-radius: 9px;
@@ -246,6 +253,19 @@ body[data-theme="D"] #bgChips button { border: 1.5px solid #2B2724; box-shadow: 
 }
 #toolChip:active { transform: scale(.99); }
 
+/* 캡처 배경 — 사진 교체 버튼 */
+#capSwap {
+  position: absolute; right: 10px; top: 8px; z-index: 8;
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
+  border-radius: 11px; background: rgba(12,22,38,.86); color: #FFFFFF; font-size: 11.5px; font-weight: 800;
+  border: 1.4px solid rgba(255,255,255,.34); box-shadow: 0 4px 14px rgba(6,14,26,.30);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+#capSwap svg { width: 15px; height: 15px; stroke-width: 1.8; }
+#capSwap:active { transform: scale(.97); }
+body[data-drawing="1"] #capSwap { display: none; }
+#selBar .sb.szbtn:active { transform: scale(.94); }
+
 /* 도로 시트 내 검색 */
 #sheetBody .rsearch { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 7px; padding: 0 1px 4px; }
 #sheetBody .rsearch .rin {
@@ -272,6 +292,8 @@ body[data-theme="D"] #bgChips button { border: 1.5px solid #2B2724; box-shadow: 
   align-items: center; justify-content: center; gap: 2px; color: var(--ink2); font-size: 9.5px; font-weight: 650;
 }
 .dk svg { width: 19px; height: 19px; }
+.dk span { white-space: nowrap; }
+#btnClear { flex: 1.05 1 0; }
 .dk.on { background: var(--acc-soft); color: var(--acc); }
 .dk.act { flex: .72 1 0; }
 .dk.act:disabled { opacity: .3; }
@@ -289,10 +311,14 @@ body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
   border-radius: 12px; background: var(--panel-2); border: var(--hard);
 }
 #selBar .sb {
-  width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+  width: var(--sb); height: var(--sb); border-radius: 9px; display: grid; place-items: center;
   background: var(--panel-solid); color: var(--ink); font-size: 16px; font-weight: 700; flex: none;
 }
-#selBar .sb svg { width: 17px; height: 17px; }
+#selBar .sb svg { width: calc(var(--sb) * 0.5); height: calc(var(--sb) * 0.5); }
+#selBar .sb.szbtn {
+  width: auto; min-width: var(--sb); padding: 0 7px; font-size: 10px; font-weight: 800;
+  letter-spacing: -.2px; white-space: nowrap; color: var(--ink2);
+}
 #selBar .sb.danger { color: var(--red); }
 #selBar .sb:active { transform: scale(.93); }
 #selBar .sb.arrowbtn { width: auto; padding: 0 9px; font-size: 11px; font-weight: 700; white-space: nowrap; }
@@ -329,6 +355,8 @@ body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
 .sheetwrap.tall { max-height: 88vh; }
 .grip { width: 38px; height: 4px; border-radius: 99px; background: var(--line); margin: 4px auto 6px; }
 .sheetwrap header { display: flex; align-items: flex-start; justify-content: space-between; padding: 2px 4px 10px; }
+.sheetwrap header.bare { justify-content: flex-end; padding: 0 2px 6px; }
+.sheetwrap header.bare > div { display: none; }
 .sheetwrap header h2 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
 .sheetwrap header p { margin: 3px 0 0; font-size: 11.5px; color: var(--ink3); }
 .xbtn { width: 32px; height: 32px; border-radius: 50%; background: var(--panel-2); color: var(--ink2); font-size: 14px; }

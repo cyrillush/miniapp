@@ -51,7 +51,7 @@ window.AS = window.AS || {};
     applyTilt();
     applyLock();
 
-    map.on('move zoom viewreset resize', function () { AS.objs.layout(); layoutGps(); });
+    map.on('move zoom viewreset resize', function () { AS.objs.layout(); layoutCap(); layoutGps(); });
     var savet = null;
     map.on('moveend zoomend', function () {
       var c = map.getCenter();
@@ -61,7 +61,7 @@ window.AS = window.AS || {};
       };
       clearTimeout(savet); savet = setTimeout(function () { AS.core.save(); }, 500);
     });
-    setTimeout(function () { map.invalidateSize(); renderRoadLayer(); AS.objs.layout(); layoutGps(); }, 120);
+    setTimeout(function () { map.invalidateSize(); renderRoadLayer(); AS.objs.layout(); layoutCap(); layoutGps(); }, 120);
     return map;
   }
 
@@ -200,10 +200,12 @@ window.AS = window.AS || {};
     }
     layoutGps();
     renderRoadLayer();
+    layoutCap();
     var cap = $('#capLayer');
     if (cap) cap.hidden = name !== 'capture' || !S.cap.src;
     if (name === 'capture' && !S.cap.src) { AS.toast('캡처 배경 사진을 먼저 선택하세요'); }
     AS.ui.bgchips();
+    if (AS.ui && AS.ui.syncCapture) AS.ui.syncCapture();
     AS.core.save();
   }
 
@@ -273,6 +275,7 @@ window.AS = window.AS || {};
     S.view.bearing = b;
     applyBearing();
     AS.objs.layout();
+    layoutCap();
     clearTimeout(bearSaveT);
     bearSaveT = setTimeout(function () { AS.core.save(); }, 350);
   }
@@ -343,6 +346,7 @@ window.AS = window.AS || {};
     }
     applyCompassUI(b);
     AS.objs.layout();
+    layoutCap();
   }
 
   function endPinch() {
@@ -358,6 +362,7 @@ window.AS = window.AS || {};
     applyTilt();
     map.setView(target, newZ, { animate: false });
     AS.objs.layout();
+    layoutCap();
     AS.core.save();
   }
 
@@ -404,6 +409,29 @@ window.AS = window.AS || {};
     if (!map) return 1;
     var m = meters(100);
     return m > 0 ? m / 100 : 1;
+  }
+
+  /* ────────── 캡처 배경 — 지도 확대/이동/회전에 맞춰 사진도 같이 움직인다 ────────── */
+  function capBaseOf() {
+    if (!S.cap.base && map) {
+      var c = map.getCenter();
+      S.cap.base = { lat: c.lat, lng: c.lng, z: map.getZoom() };
+    }
+    return S.cap.base;
+  }
+  function layoutCap() {
+    var cp = $('#capLayer');
+    if (!cp) return;
+    if (S.bg !== 'capture' || !S.cap.src || !map) { cp.style.transform = ''; return; }
+    var b = capBaseOf();
+    var sc = Math.pow(2, map.getZoom() - b.z);
+    var pt = map.latLngToContainerPoint([b.lat, b.lng]);
+    var ms = map.getSize();
+    /* 지도 컨테이너(155vmax) 중심 → 스테이지 중심 좌표계로 */
+    var dx = pt.x - ms.x / 2, dy = pt.y - ms.y / 2;
+    cp.style.transformOrigin = '50% 50%';
+    cp.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) rotate(' +
+      (S.view.bearing || 0).toFixed(2) + 'deg) scale(' + sc.toFixed(4) + ')';
   }
 
   function layoutGps() {
@@ -570,7 +598,7 @@ window.AS = window.AS || {};
     setBg: setBg, setRoad: setRoad, renderRoadLayer: renderRoadLayer,
     setLabels: setLabels, syncLabelChip: syncLabelChip,
     setLock: setLock, applyLock: applyLock,
-    setBearing: setBearing, applyBearing: applyBearing,
+    setBearing: setBearing, applyBearing: applyBearing, layoutCap: layoutCap,
     setTilt: setTilt, applyTilt: applyTilt,
     screenToPlane: screenToPlane, planeToScreen: planeToScreen,
     panScreen: panScreen,

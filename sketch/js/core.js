@@ -37,33 +37,34 @@ window.AS = window.AS || {};
   ];
 
   var SYM = [
-    // 파손부위 8종 (전부 투명 배경)
-    { k: 'damage', n: '손상부위', g: 'dmg', w: 52 },
-    { k: 'damage_dash', n: '손상부위(점선)', g: 'dmg', w: 52 },
-    { k: 'nodamage', n: '손상없음', g: 'dmg', w: 52 },
-    { k: 'nodamage_dash', n: '손상없음(점선)', g: 'dmg', w: 52 },
-    { k: 'existing', n: '기존손상', g: 'dmg', w: 52 },
-    { k: 'existing_dash', n: '기존손상(점선)', g: 'dmg', w: 52 },
-    { k: 'damage_legend', n: '파손부위 설명', g: 'dmg', w: 120 },
-    { k: 'impact', n: '충격지점', g: 'dmg', w: 52 },
+    // 파손부위 8종 (전부 투명 배경 · 링/점 + 외곽선 글씨)
+    { k: 'damage', n: '손상부위', g: 'dmg', w: 64 },
+    { k: 'damage_dash', n: '손상부위(점선)', g: 'dmg', w: 64 },
+    { k: 'nodamage', n: '손상없음', g: 'dmg', w: 64 },
+    { k: 'nodamage_dash', n: '손상없음(점선)', g: 'dmg', w: 64 },
+    { k: 'existing', n: '기존손상', g: 'dmg', w: 64 },
+    { k: 'existing_dash', n: '기존손상(점선)', g: 'dmg', w: 64 },
+    { k: 'damage_legend', n: '파손부위 설명', g: 'dmg', w: 152 },
+    { k: 'impact', n: '충격지점', g: 'dmg', w: 60 },
 
-    // 경로 화살표
+    // 경로 화살표 — 순수 흰색 노면 도색
     { k: 'arrow', n: '직진 화살표', g: 'acc', w: 44 },
-    { k: 'turn', n: '좌회전 화살표', g: 'acc', w: 48, flip: false },
-    { k: 'turn', n: '우회전 화살표', g: 'acc', w: 48, flip: true },
-    { k: 'uturn', n: '유턴 화살표', g: 'acc', w: 52 },
+    { k: 'turn', n: '좌회전 화살표', g: 'acc', w: 52, flip: false },
+    { k: 'turn', n: '우회전 화살표', g: 'acc', w: 52, flip: true },
+    { k: 'uturn', n: '유턴 화살표', g: 'acc', w: 40 },
 
-    // 기타: 신호등 10종
-    { k: 'signal_01', n: '신호등_01', g: 'sig', w: 68 },
-    { k: 'signal_02', n: '신호등_02', g: 'sig', w: 68 },
-    { k: 'signal_03', n: '신호등_03', g: 'sig', w: 68 },
-    { k: 'signal_04', n: '신호등_04', g: 'sig', w: 68 },
-    { k: 'signal_05', n: '신호등_05', g: 'sig', w: 54 },
-    { k: 'signal_06', n: '신호등_06', g: 'sig', w: 54 },
-    { k: 'signal_07', n: '신호등_07', g: 'sig', w: 54 },
-    { k: 'signal_08', n: '신호등_08', g: 'sig', w: 54 },
-    { k: 'ped_g', n: '녹색점등', g: 'sig', w: 32 },
-    { k: 'ped_r', n: '적색점등', g: 'sig', w: 32 },
+    // 기타: 신호등 11종 — 실제 한국 교차로 신호 이름
+    { k: 's4_go', n: '4구 직진(녹색)', g: 'sig', w: 88 },
+    { k: 's4_left', n: '4구 좌회전(◀ 녹색)', g: 'sig', w: 88 },
+    { k: 's4_go_left', n: '4구 직진+좌회전', g: 'sig', w: 88 },
+    { k: 's4_red_left', n: '4구 적색+좌회전', g: 'sig', w: 88 },
+    { k: 'sr_go', n: '우회전 신호(▶ 녹색)', g: 'sig', w: 76 },
+    { k: 'sr_stop', n: '우회전 정지(▶ 적색)', g: 'sig', w: 76 },
+    { k: 's3_red', n: '3구 적색', g: 'sig', w: 76 },
+    { k: 's3_amber', n: '3구 황색', g: 'sig', w: 76 },
+    { k: 's3_green', n: '3구 녹색', g: 'sig', w: 76 },
+    { k: 'ped_g', n: '보행등(녹색)', g: 'sig', w: 34 },
+    { k: 'ped_r', n: '보행등(적색)', g: 'sig', w: 34 },
 
     // 기타: 건물 · 횡단보도 · 차선 (전부 배경판 없음)
     { k: 'building', n: '건물', g: 'fac', w: 84 },
@@ -169,6 +170,7 @@ window.AS = window.AS || {};
     labels: true,
     roadId: 'lane4',
     lock: false,
+    btnSize: 'md',
     objs: [],
     sel: null,
     view: { lat: 37.49794, lng: 127.02758, z: 19, bearing: 0, tilt: 0 },
@@ -178,7 +180,7 @@ window.AS = window.AS || {};
     newRole: 'self',
     carMode: 'real',
     snap: true,
-    cap: { src: '', opacity: .92, scale: 1 },
+    cap: { src: '', opacity: .92, scale: 1, base: null },
     gps: null,
     stage: { w: 390, h: 640 }
   };
@@ -222,8 +224,8 @@ window.AS = window.AS || {};
     saveTimer = setTimeout(function () {
       try {
         localStorage.setItem(KEY, JSON.stringify({
-          v: 6, theme: S.theme, bg: S.bg === 'capture' ? 'sat' : S.bg, labels: S.labels !== false, roadId: S.roadId, view: S.view,
-          info: S.info, objs: S.objs, newRole: S.newRole, carMode: S.carMode, snap: S.snap,
+          v: 7, theme: S.theme, bg: S.bg === 'capture' ? 'sat' : S.bg, labels: S.labels !== false, roadId: S.roadId, view: S.view,
+          info: S.info, objs: S.objs, newRole: S.newRole, carMode: S.carMode, snap: S.snap, btnSize: S.btnSize,
           cap: S.cap.src && S.cap.src.length < 700000 ? S.cap : { src: '', opacity: S.cap.opacity, scale: S.cap.scale }
         }));
       } catch (e) {}
@@ -251,6 +253,7 @@ window.AS = window.AS || {};
       S.newRole = normRole(d.newRole || 'self');
       S.carMode = d.carMode === 'vector' ? 'vector' : 'real';
       S.snap = d.snap !== false;
+      S.btnSize = ['sm', 'md', 'lg'].indexOf(d.btnSize) >= 0 ? d.btnSize : 'md';
       if (d.cap) S.cap = d.cap;
       return true;
     } catch (e) { return false; }
@@ -260,6 +263,16 @@ window.AS = window.AS || {};
     S.objs = []; S.sel = null; clearUndo(); committed = snapObjects();
     S.info = { when: '', place: '', note: '' };
     AS.objs.render(); AS.ui.selbar(); save();
+  }
+
+  /* 화면 위에 놓은 요소·그림만 비운다 (배경·지도·캡처·도로는 그대로 · 실행취소 가능) */
+  function clearElements() {
+    pushUndo();
+    S.objs = [];
+    S.sel = null;
+    AS.objs.render();
+    AS.ui.selbar();
+    save();
   }
 
   function nsMarkup(markup, ns) {
@@ -310,7 +323,7 @@ window.AS = window.AS || {};
     normRole: normRole, roleNum: roleNum, roleMeta: roleMeta, roleList: roleList, nextCarRole: nextCarRole,
     itemDef: itemDef, makeObj: makeObj, applySize: applySize,
     pushUndo: pushUndo, undo: undo, clearUndo: clearUndo, syncUndo: syncUndo, baseline: baseline,
-    save: save, load: load, reset: reset, nsMarkup: nsMarkup, snapObjects: snapObjects,
+    save: save, load: load, reset: reset, clearElements: clearElements, nsMarkup: nsMarkup, snapObjects: snapObjects,
     KEY: KEY
   };
 })(window.AS);

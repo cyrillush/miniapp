@@ -1,16 +1,17 @@
 /* ==========================================================================
-   elements.js — 참고 어플(삼성화재 사고약도) 100% 전체 요소 라이브러리
+   elements.js — 참고 어플(삼성화재 사고약도) 100% 전체 요소 라이브러리  (v3.7)
    - 보행자 8종 전원 흰색(#FFFFFF) + 얇은 외곽선(배경판 없음)
-   - 파손부위 8종(실선/점선/범례/충격지점) 전부 투명 배경
-   - 신호등 10종(01~08 + 보행등 2종) + 건물(대/소)
-   - 횡단보도(대/소) · 차선(점선/실선/중앙선/버스차선) 배경 없이 알맹이만
-   - 지시·규제 표지 14종 + 경로 화살표 4종
+   - 파손부위: 배경판 없는 투명 링·점 + 외곽선 글씨 / 충격지점: 6각 스파크 + 점
+   - 신호등: 뒷면 기둥 + 앞면 굵은 방향 화살표 (좌회전·우회전·직진을 실제 신호로 구분)
+   - 노면 화살표 4종: 순수 흰색 + 얇은 어두운 외곽선의 실제 한국 노면 도색 형태
+   - 횡단보도(대/소) · 차선 · 지시·규제 표지
    ========================================================================== */
 (function () {
   'use strict';
   if (!window.ART3) return;
   var baseCar = window.ART3.car;
   var baseSym = window.ART3.sym;
+  var FONT = 'Pretendard,Apple SD Gothic Neo,Noto Sans KR,sans-serif';
 
   var f = function (n) { return Math.round(n * 100) / 100; };
   var r = function (x, y, w, h, rx, fill, ex) {
@@ -26,8 +27,34 @@
     return '<line x1="' + f(x1) + '" y1="' + f(y1) + '" x2="' + f(x2) + '" y2="' + f(y2) + '" stroke="' + col + '" stroke-width="' + f(w) + '" stroke-linecap="round"' + (ex ? ' ' + ex : '') + '/>';
   };
   var tx = function (x, y, s, size, fill, weight, ex) {
-    return '<text x="' + f(x) + '" y="' + f(y) + '" font-size="' + size + '" font-weight="' + (weight || 800) + '" fill="' + fill + '" text-anchor="middle" font-family="Pretendard,Apple SD Gothic Neo,Noto Sans KR,sans-serif"' + (ex ? ' ' + ex : '') + '>' + s + '</text>';
+    return '<text x="' + f(x) + '" y="' + f(y) + '" font-size="' + size + '" font-weight="' + (weight || 800) + '" fill="' + fill + '" text-anchor="middle" font-family="' + FONT + '"' + (ex ? ' ' + ex : '') + '>' + s + '</text>';
   };
+  /* 배경판 없이 어두운 외곽선만 두른 흰 글씨 — 어떤 배경 위에서도 읽힌다 */
+  var OL = '#0B1524';
+  var label = function (x, y, s, size, weight, swf) {
+    return tx(x, y, s, size, '#FFFFFF', weight || 900,
+      'paint-order="stroke" stroke="' + OL + '" stroke-width="' + f(size * (swf || 0.24)) + '" stroke-linejoin="round"');
+  };
+
+  /* ────────── 공통 도형 ────────── */
+  function starPath(cx, cy, R, ri, n) {
+    var pts = [];
+    for (var i = 0; i < n * 2; i++) {
+      var a = (Math.PI / n) * i - Math.PI / 2;
+      var rad = (i % 2) ? ri : R;
+      pts.push(f(cx + Math.cos(a) * rad) + ' ' + f(cy + Math.sin(a) * rad));
+    }
+    return 'M' + pts.join(' L') + ' Z';
+  }
+  /* 램프 안 화살표 글리프 (dir: left / right / straight) */
+  function gArrow(cx, cy, rad, dir, fill) {
+    var pts;
+    if (dir === 'left') pts = [[-0.66, 0], [-0.16, -0.54], [-0.16, -0.22], [0.64, -0.22], [0.64, 0.22], [-0.16, 0.22], [-0.16, 0.54]];
+    else if (dir === 'right') pts = [[0.66, 0], [0.16, -0.54], [0.16, -0.22], [-0.64, -0.22], [-0.64, 0.22], [0.16, 0.22], [0.16, 0.54]];
+    else pts = [[0, -0.66], [0.56, -0.12], [0.22, -0.12], [0.22, 0.62], [-0.22, 0.62], [-0.22, -0.12], [-0.56, -0.12]];
+    var d = 'M' + pts.map(function (q) { return f(cx + q[0] * rad) + ' ' + f(cy + q[1] * rad); }).join(' L') + ' Z';
+    return p(d, fill, 'stroke-linejoin="round"');
+  }
 
   /* ────────── 1. 보행자 8종 전원 흰색(#FFFFFF) + 킥보드 (viewBox 0 0 100 100) ────────── */
   var PEOPLE_SPEC = {
@@ -57,18 +84,11 @@
     var st = 'stroke="#1E293B" stroke-width="' + f(2.3 / sc) + '" stroke-linejoin="round"';
     var W = '#FFFFFF';
     var inner = '';
-    // 그림자
     inner += '<ellipse cx="0" cy="40" rx="18" ry="4.5" fill="rgba(15,23,42,.26)"/>';
-    // 다리
     inner += r(-10, 12, 8.5, 27, 4, W, st);
     inner += r(1.5, 12, 8.5, 27, 4, W, st);
-    // 치마 (여성)
-    if (o.female) {
-      inner += p('M-13 -4 H13 L18 18 Q0 23 -18 18 Z', W, st);
-    }
-    // 몸통
+    if (o.female) inner += p('M-13 -4 H13 L18 18 Q0 23 -18 18 Z', W, st);
     inner += p('M-13 -20 Q0 -26 13 -20 L11 10 Q0 14 -11 10 Z', W, st);
-    // 팔
     inner += r(-20, -18, 6.5, 24, 3.2, W, st);
     if (!o.cane) inner += r(13.5, -18, 6.5, 24, 3.2, W, st);
     else {
@@ -76,93 +96,172 @@
       inner += ln(19, -2, 24, 38, '#D97706', 3.4);
       inner += ln(24, 38, 28, 38, '#D97706', 3.2);
     }
-    // 가방
-    if (o.bag) {
-      inner += r(-11, -17, 22, 18, 4, '#E2E8F0', st);
-    }
-    // 머리
-    if (o.pigtails) {
-      inner += c(-14, -33, 4.5, W, st) + c(14, -33, 4.5, W, st);
-    }
+    if (o.bag) inner += r(-11, -17, 22, 18, 4, '#E2E8F0', st);
+    if (o.pigtails) inner += c(-14, -33, 4.5, W, st) + c(14, -33, 4.5, W, st);
     inner += c(0, -33, 9.5, W, st);
-    if (o.female && !o.pigtails) {
-      inner += p('M-10 -34 A10 10 0 0 1 10 -34 L10 -26 Q0 -23 -10 -26 Z', '#E2E8F0', 'stroke="#1E293B" stroke-width="1.6"');
-    }
+    if (o.female && !o.pigtails) inner += p('M-10 -34 A10 10 0 0 1 10 -34 L10 -26 Q0 -23 -10 -26 Z', '#E2E8F0', 'stroke="#1E293B" stroke-width="1.6"');
     return '<g transform="translate(50,' + f(cy) + ') scale(' + sc + ')">' + inner + '</g>';
   }
 
-  /* ────────── 2. 파손부위 8종 (전부 투명 배경 — 검은 사각 박스 제거) ────────── */
-  function damageRing(color, t1, t2, dashed, small) {
-    var rad = small ? 28 : 38;
-    var dash = dashed ? ' stroke-dasharray="6.5 4.8"' : '';
-    var fs = small ? 11.5 : 14.5;
+  /* ────────── 2. 파손부위 — 배경판 없는 투명 링/점 + 외곽선 글씨 ────────── */
+  function damageMark(color, text, style, small) {
+    var vb = '0 0 112 108';
+    var cx = 56, cy = 42, rad = small ? 20 : 26;
     var s = '';
-    s += c(50, 50, rad, 'none', 'stroke="#FFFFFF" stroke-width="' + (small ? 7 : 8) + '"' + dash + ' stroke-opacity="0.92"');
-    s += c(50, 50, rad, 'none', 'stroke="' + color + '" stroke-width="' + (small ? 4.4 : 5.4) + '"' + dash);
-    s += tx(50, 50 - fs * 0.16, t1, fs, '#FFFFFF', 900, 'paint-order="stroke" stroke="#0F172A" stroke-width="4.2" stroke-linejoin="round"');
-    s += tx(50, 50 + fs * 0.92, t2, fs, '#FFFFFF', 900, 'paint-order="stroke" stroke="#0F172A" stroke-width="4.2" stroke-linejoin="round"');
-    return { v: '4 4 92 92', s: s };
+    if (style === 'dot' || style === 'dotdash') {
+      /* 손상부위 — 빨간 점 + 흰 링 (점선형은 링을 점선으로) */
+      var dotR = style === 'dotdash' ? rad * 0.78 : rad;
+      s += c(cx, cy, dotR * 1.34, 'none', 'stroke="#FFFFFF" stroke-width="' + f(dotR * 0.26) + '"' +
+        (style === 'dotdash' ? ' stroke-dasharray="' + f(dotR * 0.5) + ' ' + f(dotR * 0.34) + '"' : ''));
+      s += c(cx, cy, dotR, '#EF4444');
+      s += c(cx - dotR * 0.28, cy - dotR * 0.30, dotR * 0.26, 'rgba(255,255,255,.55)');
+    } else if (style === 'ringdash') {
+      s += c(cx, cy, rad, 'none', 'stroke="rgba(255,255,255,.92)" stroke-width="' + f(rad * 0.40) + '" stroke-dasharray="' + f(rad * 0.5) + ' ' + f(rad * 0.34) + '"');
+      s += c(cx, cy, rad, 'none', 'stroke="' + color + '" stroke-width="' + f(rad * 0.22) + '" stroke-dasharray="' + f(rad * 0.5) + ' ' + f(rad * 0.34) + '"');
+    } else if (style === 'dash') {
+      /* 기존손상 — 초록 점선 링 (흰 밑선으로 대비 확보) */
+      s += c(cx, cy, rad, 'none', 'stroke="rgba(255,255,255,.92)" stroke-width="' + f(rad * 0.42) + '" stroke-dasharray="' + f(rad * 0.52) + ' ' + f(rad * 0.40) + '"');
+      s += c(cx, cy, rad, 'none', 'stroke="' + color + '" stroke-width="' + f(rad * 0.24) + '" stroke-dasharray="' + f(rad * 0.52) + ' ' + f(rad * 0.40) + '"');
+    } else {
+      /* 손상없음 — 파란 링 */
+      s += c(cx, cy, rad, 'none', 'stroke="rgba(255,255,255,.92)" stroke-width="' + f(rad * 0.40) + '"');
+      s += c(cx, cy, rad, 'none', 'stroke="' + color + '" stroke-width="' + f(rad * 0.22) + '"');
+    }
+    s += label(cx, 100, text, small ? 17 : 21);
+    return { v: vb, s: s };
   }
 
   function damageLegend() {
     var items = [
-      { x: 26, col: '#EF4444', l1: '손상', l2: '부위' },
-      { x: 74, col: '#22C55E', l1: '기존', l2: '손상' },
-      { x: 122, col: '#3B82F6', l1: '손상', l2: '없음' }
+      { x: 34, col: '#EF4444', style: 'dot', t: '손상부위' },
+      { x: 110, col: '#22C55E', style: 'dash', t: '기존손상' },
+      { x: 186, col: '#3B82F6', style: 'ring', t: '손상없음' }
     ];
     var s = '';
     items.forEach(function (it) {
-      s += c(it.x, 26, 20, 'none', 'stroke="#FFFFFF" stroke-width="5.6"');
-      s += c(it.x, 26, 20, 'none', 'stroke="' + it.col + '" stroke-width="3.6"');
-      s += tx(it.x, 24, it.l1, 9.5, '#FFFFFF', 900, 'paint-order="stroke" stroke="#0F172A" stroke-width="3.2" stroke-linejoin="round"');
-      s += tx(it.x, 35, it.l2, 9.5, '#FFFFFF', 900, 'paint-order="stroke" stroke="#0F172A" stroke-width="3.2" stroke-linejoin="round"');
+      if (it.style === 'dot') s += c(it.x, 30, 15, it.col, 'stroke="#FFFFFF" stroke-width="4.5"');
+      else if (it.style === 'dash') {
+        s += c(it.x, 30, 15, 'none', 'stroke="rgba(255,255,255,.92)" stroke-width="6" stroke-dasharray="8 6"');
+        s += c(it.x, 30, 15, 'none', 'stroke="' + it.col + '" stroke-width="3.4" stroke-dasharray="8 6"');
+      } else {
+        s += c(it.x, 30, 15, 'none', 'stroke="rgba(255,255,255,.92)" stroke-width="5.6"');
+        s += c(it.x, 30, 15, 'none', 'stroke="' + it.col + '" stroke-width="3"');
+      }
+      s += label(it.x, 64, it.t, 15);
     });
-    return { v: '0 0 148 52', s: s };
+    return { v: '0 0 220 76', s: s };
   }
 
-  /* ────────── 3. 신호등 10종 (01~08 + 보행등 2종) ────────── */
-  var LAMP = { off: '#334155', red: '#EF4444', yellow: '#FBBF24', green: '#22C55E' };
-  function signalLamp(cx, cy, rad, col, leftArrow) {
-    var s = c(cx, cy, rad, col === 'off' ? LAMP.off : col);
-    if (col !== 'off') s += c(cx, cy, rad * 0.5, 'rgba(255,255,255,.35)');
-    if (leftArrow) {
-      s += p('M' + f(cx + rad * 0.42) + ' ' + f(cy) + ' L' + f(cx - rad * 0.25) + ' ' + f(cy - rad * 0.42) + ' L' + f(cx - rad * 0.25) + ' ' + f(cy + rad * 0.42) + ' Z', '#052E16');
+  /* ────────── 3. 충격지점 — 6각 스파크 + 심플 점 + '충격' ────────── */
+  function impactMark() {
+    var cx = 60, cy = 50, s = '';
+    s += p(starPath(cx, cy, 47, 22, 6), '#F4511E',
+      'stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round" paint-order="stroke"');
+    s += p(starPath(cx, cy, 24, 11, 6), 'rgba(255,255,255,.20)');
+    s += c(cx, cy, 12, '#FDE68A', 'stroke="#B33A0E" stroke-width="2.6"');
+    s += label(cx, 124, '충격', 24);
+    return { v: '0 0 120 132', s: s };
+  }
+
+  /* ────────── 4. 신호등 — 뒷면 기둥 + 앞면 굵은 방향 화살표 ────────── */
+  var LAMP_ON = { red: '#EF4444', yellow: '#FBBF24', green: '#22C55E' };
+  var LAMP_OFF = '#2C3A4C';
+  var SIG_BODY = '#16233A';
+
+  function lampMark(cx, cy, rad, colKey, arrow) {
+    var s;
+    if (colKey === 'off') s = c(cx, cy, rad, LAMP_OFF);
+    else {
+      s = c(cx, cy, rad, LAMP_ON[colKey]);
+      s += c(cx - rad * 0.26, cy - rad * 0.30, rad * 0.30, 'rgba(255,255,255,.34)');
     }
+    if (arrow) s += gArrow(cx, cy, rad * 0.88, arrow, colKey === 'off' ? '#57677C' : '#FFFFFF');
     return s;
   }
 
+  /* cfg: { n:4, lamps:[{c:'red',a:''},…], ped:'green'|'red'|null } */
+  var SIGS = {
+    s4_go:       { lamps: [{ c: 'off' }, { c: 'off' }, { c: 'off' }, { c: 'green' }] },
+    s4_left:     { lamps: [{ c: 'off' }, { c: 'off' }, { c: 'green', a: 'left' }, { c: 'off' }] },
+    s4_go_left:  { lamps: [{ c: 'off' }, { c: 'off' }, { c: 'green', a: 'left' }, { c: 'green' }] },
+    s4_red_left: { lamps: [{ c: 'red' }, { c: 'off' }, { c: 'green', a: 'left' }, { c: 'off' }] },
+    sr_go:       { lamps: [{ c: 'off' }, { c: 'off' }, { c: 'green', a: 'right' }] },
+    sr_stop:     { lamps: [{ c: 'red', a: 'right' }, { c: 'off' }, { c: 'off' }] },
+    s3_red:      { lamps: [{ c: 'red' }, { c: 'off' }, { c: 'off' }] },
+    s3_amber:    { lamps: [{ c: 'off' }, { c: 'yellow' }, { c: 'off' }] },
+    s3_green:    { lamps: [{ c: 'off' }, { c: 'off' }, { c: 'green' }] }
+  };
+  /* 옛 이름(signal_01~08) → 새 이름 (저장된 작업·프리셋 호환) */
+  var LEGACY_SIG = {
+    signal: 's4_go', signal_01: 's4_go', signal_02: 's4_go_left', signal_03: 's4_red_left',
+    signal_04: 's4_go', signal_05: 's3_green', signal_06: 's3_red', signal_07: 's3_green', signal_08: 's3_amber'
+  };
+
   function trafficSignal(code) {
-    var cfg = {
-      signal_01: { n: 4, st: ['off', 'off', 'off', 'green'] },
-      signal_02: { n: 4, st: ['off', 'green', 'off', 'green'], arr: 1 },
-      signal_03: { n: 4, st: ['red', 'off', 'green', 'off'], arr: 2 },
-      signal_04: { n: 4, st: ['red', 'off', 'off', 'green'] },
-      signal_05: { n: 3, st: ['off', 'off', 'green'] },
-      signal_06: { n: 3, st: ['red', 'off', 'off'] },
-      signal_07: { n: 3, st: ['off', 'off', 'off'] },
-      signal_08: { n: 3, st: ['off', 'yellow', 'off'] }
-    }[code] || { n: 3, st: ['off', 'off', 'green'] };
-    var rad = 11, gap = 5, pad = 7;
-    var W = cfg.n * (rad * 2) + (cfg.n - 1) * gap + pad * 2;
-    var H = rad * 2 + pad * 2;
-    var s = r(0, 0, W, H, 7, '#1E293B', 'stroke="#FFFFFF" stroke-width="1.8" stroke-opacity=".85"');
-    cfg.st.forEach(function (col, i) {
-      var cx = pad + rad + i * (rad * 2 + gap);
-      s += signalLamp(cx, H / 2, rad, col, cfg.arr === i);
+    var cfg = SIGS[code] || SIGS.s4_go;
+    var n = cfg.lamps.length;
+    var R = 13, GAP = 5, PAD = 8, POLE = 20, ARRH = 34, MG = 5;
+    var HW = n * R * 2 + (n - 1) * GAP + PAD * 2;
+    var HH = R * 2 + PAD * 2;
+    var W = HW + MG * 2;
+    var H = POLE + HH + ARRH + MG * 2;
+    var hx = MG, hy = POLE;
+    var s = '';
+    /* 뒷면 기둥 (신호판 뒤에서 위로 솟은 기둥) */
+    s += r(W / 2 - 4.5, 0, 9, POLE + 10, 4.5, '#7C8CA1', 'stroke="rgba(11,21,36,.35)" stroke-width="1"');
+    /* 신호판 (앞면) */
+    s += r(hx, hy, HW, HH, 11, SIG_BODY, 'stroke="#FFFFFF" stroke-width="2.6" stroke-opacity=".92"');
+    s += r(hx + 3, hy + 3, HW - 6, HH - 6, 8.5, 'none', 'stroke="rgba(255,255,255,.10)" stroke-width="1.2"');
+    cfg.lamps.forEach(function (L, i) {
+      var cx = hx + PAD + R + i * (R * 2 + GAP);
+      s += lampMark(cx, hy + HH / 2, R, L.c, L.a);
     });
-    return { v: '-2 -2 ' + (W + 4) + ' ' + (H + 4), s: s };
+    /* 앞면 굵은 방향 화살표 — 이 신호가 어느 방향을 보는지 */
+    var ax = W / 2, ay = hy + HH - 6;
+    s += p('M' + f(ax - 5.5) + ' ' + f(ay) + ' L' + f(ax + 5.5) + ' ' + f(ay) + ' L' + f(ax + 5.5) + ' ' + f(ay + 17) +
+      ' L' + f(ax + 15) + ' ' + f(ay + 17) + ' L' + f(ax) + ' ' + f(ay + 34) + ' L' + f(ax - 15) + ' ' + f(ay + 17) +
+      ' L' + f(ax - 5.5) + ' ' + f(ay + 17) + ' Z', '#FBBF24',
+      'stroke="rgba(11,21,36,.55)" stroke-width="1.6" stroke-linejoin="round"');
+    return { v: '0 0 ' + W + ' ' + H, s: s };
   }
 
   function pedSignal(green) {
-    var s = r(4, 4, 44, 86, 8, '#1E293B', 'stroke="#FFFFFF" stroke-width="1.8"');
-    s += c(26, 26, 13, green ? LAMP.off : LAMP.red);
-    s += c(26, 68, 13, green ? LAMP.green : LAMP.off);
-    s += p('M26 17 a3 3 0 1 1 0 6 a3 3 0 0 1 0 -6 z M21 24 h10 l-1 8 h-8 z', green ? '#1E293B' : '#450A0A');
-    s += p('M26 59 a3 3 0 1 1 0 6 a3 3 0 0 1 0 -6 z M23 66 h6 l3 9 h-3.5 l-2.5 -5 l-2.5 5 h-3.5 z', green ? '#052E16' : '#1E293B');
-    return { v: '0 0 52 94', s: s };
+    var W = 62, H = 122;
+    var s = r(31 - 4.5, 0, 9, 16, 4.5, '#7C8CA1', 'stroke="rgba(11,21,36,.35)" stroke-width="1"');
+    s += r(7, 10, 48, 78, 11, SIG_BODY, 'stroke="#FFFFFF" stroke-width="2.6" stroke-opacity=".92"');
+    s += lampMark(31, 33, 14, green ? 'off' : 'red');
+    s += lampMark(31, 65, 14, green ? 'green' : 'off');
+    s += p('M31 ' + 118 + ' L17 ' + 98 + ' L45 ' + 98 + ' Z', green ? '#22C55E' : '#EF4444',
+      'stroke="rgba(11,21,36,.5)" stroke-width="1.6" stroke-linejoin="round"');
+    return { v: '0 0 ' + W + ' ' + H, s: s };
   }
 
-  /* ────────── 4. 건물 · 배경없는 횡단보도 · 배경없는 차선 · 표지 ────────── */
+  /* ────────── 5. 노면 도색 화살표 — 순수 흰색 + 얇은 어두운 외곽선 ────────── */
+  var ROAD_POLY = {
+    straight: 'M37 160 L37 64 L10 64 L50 8 L90 64 L63 64 L63 160 Z',
+    left: 'M104 160 L104 40 Q104 31 95 31 L46 31 L46 8 L6 44 L46 80 L46 57 L67 57 Q76 57 76 66 L76 160 Z',
+    right: 'M22 160 L22 40 Q22 31 31 31 L80 31 L80 8 L120 44 L80 80 L80 57 L59 57 Q50 57 50 66 L50 160 Z',
+    uturn: 'M68 210 L68 40 A28 28 0 0 0 12 40 L12 170 L0 170 L22 214 L44 170 L32 170 L32 50 A8 8 0 0 1 48 50 L48 210 Z'
+  };
+
+  function roadPaint(kind) {
+    var key = ROAD_POLY[kind] ? kind : 'straight';
+    var vb = key === 'uturn' ? '0 0 80 220' : (key === 'left' || key === 'right') ? '0 0 126 168' : '0 0 100 168';
+    return {
+      v: vb,
+      s: p(ROAD_POLY[key], '#FFFFFF',
+        'stroke="#22303F" stroke-width="2.6" stroke-opacity=".55" stroke-linejoin="round" paint-order="stroke"')
+    };
+  }
+
+  function stopBar() {
+    var s = '';
+    s += r(6, 6, 128, 15, 3, '#FFFFFF', 'stroke="#22303F" stroke-width="2.2" stroke-opacity=".45"');
+    s += label(70, 56, '정지선', 28, 800, 0.11);
+    return { v: '0 0 140 70', s: s };
+  }
+
+  /* ────────── 6. 건물 · 배경없는 횡단보도 · 차선 · 표지 ────────── */
   function building(small) {
     var W = small ? 72 : 112, H = small ? 72 : 112;
     var s = r(2, 2, W - 4, H - 4, 6, '#FFFFFF', 'stroke="#475569" stroke-width="2.6"');
@@ -173,7 +272,6 @@
   }
 
   function zebraCrosswalk(small) {
-    // 배경 아스팔트 판 없이 순수 흰 줄무늬만!
     var n = small ? 6 : 8, W = small ? 78 : 116, H = small ? 52 : 68;
     var step = W / n, bw = step * 0.56;
     var s = '';
@@ -184,7 +282,6 @@
   }
 
   function pureLine(kind) {
-    // 배경판 전혀 없이 순수 차선만!
     if (kind === 'lane_dash') {
       return { v: '0 0 28 240', s: ln(14, 6, 14, 234, '#FFFFFF', 5.5, 'stroke-dasharray="22 16" filter="drop-shadow(0 0 1px rgba(15,23,42,.8))"') };
     }
@@ -229,14 +326,14 @@
     return { v: '4 4 92 92', s: s };
   }
 
-  function textChip(label, accent) {
-    var w = Math.max(76, label.length * 18 + 26);
+  function textChip(labelTxt, accent) {
+    var w = Math.max(76, labelTxt.length * 18 + 26);
     var s = r(2, 4, w - 4, 34, 17, '#FFFFFF', 'stroke="' + (accent || '#1E293B') + '" stroke-width="2.6"');
-    s += tx(w / 2, 26, label, 15, '#0F172A', 800);
+    s += tx(w / 2, 26, labelTxt, 15, '#0F172A', 800);
     return { v: '0 0 ' + w + ' 42', s: s };
   }
 
-  /* ────────── 5. ART3 확장 연결 ────────── */
+  /* ────────── 7. ART3 확장 연결 ────────── */
   window.ART3.car = function (style, kind, role) {
     var mapped = kind === 'minibus' ? 'bus' : (kind === 'special' || kind === 'dump') ? 'truck' : kind;
     return baseCar(style, mapped, role);
@@ -247,22 +344,29 @@
   };
 
   window.ART3.sym = function (style, name) {
-    // 파손 8종 (배경판 없음)
-    if (name === 'damage') return damageRing('#EF4444', '손상', '부위', false, false);
-    if (name === 'damage_dash') return damageRing('#EF4444', '손상', '부위', true, false);
-    if (name === 'nodamage') return damageRing('#3B82F6', '손상', '없음', false, false);
-    if (name === 'nodamage_dash') return damageRing('#3B82F6', '손상', '없음', true, false);
-    if (name === 'existing') return damageRing('#22C55E', '기존', '손상', false, false);
-    if (name === 'existing_dash') return damageRing('#22C55E', '기존', '손상', true, false);
+    /* 파손 · 충격 */
+    if (name === 'damage') return damageMark('#EF4444', '손상부위', 'dot');
+    if (name === 'damage_dash') return damageMark('#EF4444', '손상부위', 'dotdash');
+    if (name === 'nodamage') return damageMark('#3B82F6', '손상없음', 'ring');
+    if (name === 'nodamage_dash') return damageMark('#3B82F6', '손상없음', 'ringdash');
+    if (name === 'existing') return damageMark('#22C55E', '기존손상', 'dash');
+    if (name === 'existing_dash') return damageMark('#22C55E', '기존손상', 'dash');
     if (name === 'damage_legend') return damageLegend();
+    if (name === 'impact') return impactMark();
 
-    // 신호등 10종
-    if (name.indexOf('signal_') === 0) return trafficSignal(name);
-    if (name === 'signal') return trafficSignal('signal_01');
+    /* 노면 화살표 4종 */
+    if (name === 'arrow') return roadPaint('straight');
+    if (name === 'turn') return roadPaint('left');
+    if (name === 'uturn') return roadPaint('uturn');
+    if (name === 'chip_stop') return stopBar();
+
+    /* 신호등 */
+    if (SIGS[name]) return trafficSignal(name);
+    if (LEGACY_SIG[name]) return trafficSignal(LEGACY_SIG[name]);
     if (name === 'pedsignal' || name === 'ped_g') return pedSignal(true);
     if (name === 'ped_r') return pedSignal(false);
 
-    // 건물 & 배경없는 횡단보도/차선
+    /* 건물 & 배경없는 횡단보도/차선 */
     if (name === 'building') return building(false);
     if (name === 'building_s') return building(true);
     if (name === 'crosswalk') return zebraCrosswalk(false);
@@ -270,7 +374,7 @@
     var pl = pureLine(name);
     if (pl) return pl;
 
-    // 표지판 & 금지 X
+    /* 표지판 & 금지 X */
     if (name === 'sign_x') {
       return {
         v: '6 6 88 88',

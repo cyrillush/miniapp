@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="js/leaflet.css" />
 <link rel="stylesheet" href="app.css" />
 </head>
-<body data-theme="A" data-lock="0">
+<body data-theme="A" data-lock="0" data-btnsz="md">
 
 <div id="appShell">
   <!-- 상단 편집 영역 (약도 캔버스와 완전 분리) -->
@@ -90,6 +90,10 @@
       </div>
     </div>
     <div id="chipRot" hidden>0°</div>
+    <button id="capSwap" class="capswap" type="button" hidden>
+      <svg viewBox="0 0 24 24"><rect x="3.4" y="5.4" width="17.2" height="13.2" rx="2.4"/><path d="M3.4 9.4h17.2M8 5.4v-2h8v2"/></svg>
+      사진 교체
+    </button>
     <button id="toolChip" type="button" hidden aria-live="polite"></button>
   </main>
 
@@ -108,6 +112,7 @@
       <button class="sb danger" data-act="del" type="button" aria-label="삭제">
         <svg viewBox="0 0 24 24"><path d="M4.8 6.8h14.4M9.4 6.8V4.4h5.2v2.4M6.6 6.8l.9 12.4h9l.9-12.4"/><path d="M10.2 10.4v5.4M13.8 10.4v5.4"/></svg>
       </button>
+      <button class="sb szbtn" id="btnSize" type="button" aria-label="요소 조작 버튼 크기">버튼 보통</button>
       <div class="selinfo" id="selInfo"></div>
     </div>
 
@@ -137,6 +142,10 @@
         <span>그리기</span>
       </button>
       <div class="dksep"></div>
+      <button class="dk act" type="button" id="btnClear" aria-label="화면 요소 전체 초기화">
+        <svg viewBox="0 0 24 24"><path d="M4.4 15.4 12 7.8l5.2 5.2-7.6 7.6H8z"/><path d="M9.4 10.8 14.8 16.2"/><path d="M13.6 20.8h6.2"/></svg>
+        <span>초기화</span>
+      </button>
       <button class="dk act" type="button" id="btnUndo" aria-label="실행취소">
         <svg viewBox="0 0 24 24"><path d="M9.2 14.6 4.4 9.8l4.8-4.8"/><path d="M4.4 9.8h9.2a5.9 5.9 0 0 1 0 11.8H9.6"/></svg>
       </button>

@@ -238,7 +238,22 @@ window.AS = window.AS || {};
 
       var capImg = $('#capImg');
       if (S.bg === 'capture' && S.cap.src && capImg && capImg.complete && capImg.naturalWidth) {
-        drawCover(fctx, capImg, 0, 0, W, H);
+        /* 화면과 같은 배율·이동·회전으로 사진을 그린다 */
+        var cb = S.cap.base, cm = AS.mapx.map;
+        if (cb && cm) {
+          var k2 = Math.pow(2, cm.getZoom() - cb.z);
+          var pt2 = cm.latLngToContainerPoint([cb.lat, cb.lng]);
+          var ms2 = cm.getSize();
+          fctx.save();
+          fctx.translate(W / 2 + (pt2.x - ms2.x / 2) * sc, H / 2 + (pt2.y - ms2.y / 2) * sc);
+          var rad2 = (S.view.bearing || 0) * Math.PI / 180;
+          if (rad2) fctx.rotate(rad2);
+          fctx.scale(k2, k2);
+          drawCover(fctx, capImg, -W / 2, -H / 2, W, H);
+          fctx.restore();
+        } else {
+          drawCover(fctx, capImg, 0, 0, W, H);
+        }
       } else if (S.bg === 'road' && S.roadId === 'blank') {
         var step = 28 * sc;
         fctx.strokeStyle = 'rgba(30,64,120,0.08)';

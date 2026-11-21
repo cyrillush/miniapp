@@ -142,6 +142,41 @@ window.AS = window.AS || {};
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
 
+  /* ────────── 요소 이름표 (오토바이·자전거·보행자) — 배경판 없는 흰 글씨 + 어두운 외곽선 ────────── */
+  function nameOf(o) {
+    if (!o) return '';
+    if (o.type === 'person') { var pd = C.itemDef(o.kind, 'person'); return pd ? pd.n : ''; }
+    if (o.type === 'car' && (o.kind === 'moto' || o.kind === 'bike')) {
+      var cd = C.itemDef(o.kind, 'car');
+      return cd ? cd.n : '';
+    }
+    return '';
+  }
+
+  function nameMarkup(o) {
+    var nm = nameOf(o);
+    if (!nm || !isFine(o)) return '';
+    var vb = o.vb || { x: 0, y: 0, w: 100, h: 100 };
+    var W = o.w * o.sc, H = o.w * (vb.h / vb.w) * o.sc;
+    var a = dispRot(o) * Math.PI / 180;
+    var hw = Math.abs(W / 2 * Math.cos(a)) + Math.abs(H / 2 * Math.sin(a));
+    var fs = C.clamp(Math.max(W, H) * 0.27, 10, 15);
+    var tw = nm.length * fs + 6;
+    var stageW = (S.stage && S.stage.w) || 390;
+    var right = o._cx + hw + 5;
+    var flip = right + tw > stageW - 4;
+    var x = flip ? (o._cx - hw - 5) : right;
+    return '<text x="' + fmt(x) + '" y="' + fmt(o._cy) + '" font-size="' + fs.toFixed(1) + '" font-weight="900" fill="#FFFFFF"' +
+      ' text-anchor="' + (flip ? 'end' : 'start') + '" dominant-baseline="middle"' +
+      ' font-family="Pretendard,Apple SD Gothic Neo,Noto Sans KR,sans-serif"' +
+      ' paint-order="stroke" stroke="#0B1524" stroke-width="' + (fs * 0.34).toFixed(1) + '" stroke-linejoin="round">' +
+      esc(nm) + '</text>';
+  }
+
+  function marks() {
+    return S.objs.map(badgeMarkup).join('') + S.objs.map(nameMarkup).join('');
+  }
+
   function badgeMarkup(o) {
     if (o.type !== 'car' || !o.role || o.role === 'none') return '';
     var t = S.theme, rm = C.roleMeta(o.role), acc = rm.color, L = rm.short;
@@ -170,8 +205,8 @@ window.AS = window.AS || {};
       else top.push(objMarkup(o));
     }
     var out = roads.concat(top);
-    var badges = S.objs.map(badgeMarkup).join('');
-    layer.innerHTML = out.join('') + (badges ? '<g class="badges">' + badges + '</g>' : '');
+    var bm = marks();
+    layer.innerHTML = out.join('') + (bm ? '<g class="badges">' + bm + '</g>' : '');
     nodeOf = {};
     Array.prototype.forEach.call(layer.querySelectorAll('.ob'), function (g) { nodeOf[g.getAttribute('data-id')] = g; });
     chrome();
@@ -211,7 +246,7 @@ window.AS = window.AS || {};
       }
     }
     var bg = layer.querySelector('.badges');
-    if (bg) bg.innerHTML = S.objs.map(badgeMarkup).join('');
+    if (bg) bg.innerHTML = marks();
     chrome();
     if (AS.mapx && AS.mapx.layoutGps) AS.mapx.layoutGps();
   }
@@ -243,15 +278,23 @@ window.AS = window.AS || {};
     boxEl.style.width = W + 'px'; boxEl.style.height = H + 'px';
     boxEl.style.borderRadius = (S.theme === 'C' ? 2 : 4) + 'px';
     boxEl.style.transform = 'translate(' + fmt(o._cx - W / 2) + 'px,' + fmt(o._cy - H / 2) + 'px) rotate(' + fmt(dr) + 'deg)';
-    var rp = rotPt(o._cx, o._cy, 0, -(H / 2 + 30), dr);
-    var sp = rotPt(o._cx, o._cy, W / 2 + 7, H / 2 + 7, dr);
+    var gr = handPx() / 2 + 4;
+    var rp = rotPt(o._cx, o._cy, 0, -(H / 2 + gr + 4), dr);
+    var sp = rotPt(o._cx, o._cy, W / 2 + gr * 0.72, H / 2 + gr * 0.72, dr);
     rotH.hidden = false; sizeH.hidden = false;
     rotH.style.left = rp[0] + 'px'; rotH.style.top = rp[1] + 'px';
     sizeH.style.left = sp[0] + 'px'; sizeH.style.top = sp[1] + 'px';
     if (!angleEl.hidden) {
-      var ap = rotPt(o._cx, o._cy, 0, -(H / 2 + 62), dr);
+      var ap = rotPt(o._cx, o._cy, 0, -(H / 2 + gr + 34), dr);
       angleEl.style.left = ap[0] + 'px'; angleEl.style.top = ap[1] + 'px';
     }
+  }
+
+  /* 버튼 크기(작게·보통·크게) 핸들 지름을 CSS 변수에서 읽는다 */
+  function handPx() {
+    var v = 0;
+    try { v = parseFloat(getComputedStyle(document.body).getPropertyValue('--hnd')); } catch (e) {}
+    return v > 8 ? v : 34;
   }
 
   function hideHandles() { rotH.hidden = true; sizeH.hidden = true; angleEl.hidden = true; if (chipRot) chipRot.hidden = true; }
@@ -515,7 +558,7 @@ window.AS = window.AS || {};
   function layoutBadge(o) {
     var bg = layer && layer.querySelector('.badges');
     if (!bg) return;
-    bg.innerHTML = S.objs.map(badgeMarkup).join('');
+    bg.innerHTML = marks();
   }
 
   function onUp(e) {

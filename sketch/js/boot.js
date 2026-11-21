@@ -18,6 +18,7 @@
     AS.mapx.init();
     AS.objs.init();
     AS.ui.bind();
+    AS.ui.applyBtnSize(S.btnSize || 'md', true);
 
     if (S.cap && S.cap.src) {
       var ci = document.getElementById('capImg');
@@ -26,6 +27,7 @@
     AS.mapx.setBg(S.bg || 'sat');
     AS.ui.bgchips();
     AS.ui.syncTool();
+    AS.ui.syncCapture();
     AS.mapx.applyBearing();
     AS.mapx.applyTilt();
     AS.mapx.applyLock();
