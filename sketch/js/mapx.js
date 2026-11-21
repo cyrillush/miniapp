@@ -440,9 +440,12 @@ window.AS = window.AS || {};
   /* ArcGIS World Geocoder — 대한민국 도로명(~로·~길·~대로)·읍면동·교차로·건물명 */
   function arcgis(q) {
     var url = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates';
-    url += '?f=json&outSR=4326&outFields=*&countryCode=KOR&langCode=ko&maxLocations=6&SingleLine=' + encodeURIComponent(q);
+    url += '?f=json&outSR=4326&outFields=*&countryCode=KOR&langCode=ko&maxLocations=8&SingleLine=' + encodeURIComponent(q);
+    var qn = q.toLowerCase().replace(/\s+/g, '');
+    var last = q.trim().split(/\s+/).pop() || '';
+    var roadish = /(로|길|대로|가)$/.test(last);
     return fetch(url, { headers: { 'Accept': 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) {
-      return ((j && j.candidates) || []).map(function (c) {
+      var list = ((j && j.candidates) || []).map(function (c) {
         var a = c.attributes || {}, loc = c.location || {};
         var nm = a.StName || a.ShortLabel || a.Match_addr || c.address || '';
         var parts = [a.Region, a.City || a.District, a.Nbrhd].filter(function (v) { return !!v; });
@@ -452,7 +455,15 @@ window.AS = window.AS || {};
           name: nm || addr || '이름 없는 곳', addr: addr === nm ? '' : addr,
           lat: +loc.y, lng: +loc.x, kind: (a.Addr_type || ''), score: c.score || 0
         };
-      }).sort(function (x, y) { return (y.score || 0) - (x.score || 0); });
+      }).filter(function (it) {
+        var isStreet = /Street|Address|Int/.test(it.kind || '');
+        if (roadish) return isStreet;   /* “~로·~길·~대로” 검색이면 도로만 */
+        var nl = it.name.toLowerCase().replace(/\s+/g, '');
+        if (!nl) return true;
+        return qn.indexOf(nl) >= 0 || nl.indexOf(qn) >= 0 || isStreet;
+      });
+      if (!list.length) return [];
+      return list.sort(function (x, y) { return (y.score || 0) - (x.score || 0); });
     }).catch(function () { return []; });
   }
 
@@ -464,7 +475,7 @@ window.AS = window.AS || {};
         if (!isFinite(it.lat) || !isFinite(it.lng)) return;
         for (var i = 0; i < out.length; i++) if (dist(out[i], it) < 45) return;
         var key = String(it.name || '').replace(/\s+/g, '').toLowerCase();
-        if (key && (nameCount[key] || 0) >= 2) return;
+        if (key && (nameCount[key] || 0) >= 3) return;
         if (key) nameCount[key] = (nameCount[key] || 0) + 1;
         it.src = src;
         out.push(it);
