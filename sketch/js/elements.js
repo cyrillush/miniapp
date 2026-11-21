@@ -155,15 +155,33 @@
     return { v: '0 0 220 76', s: s };
   }
 
-  /* ────────── 3. 충격지점 — 6각 스파크 + 심플 점 + '충격' ────────── */
+  /* ────────── 3. 충격지점 — 방사형 균열(도로 위 파손 크랙) + '충격' ──────────
+     v3.8.2: 6각 스파크 → 시안 (a) 방사형 균열. 충격점에서 갈라지는 검은 균열선에
+     흰 후광을 둘러 어떤 배경(도로·사진)에서도 읽히게 하고, 중심은 주황 점 + 노란 하이라이트.
+     배경판 없음(투명). */
+  var IMPACT_RAYS = [[18, 46], [52, 34], [86, 42], [120, 30], [150, 40], [205, 34], [245, 44], [288, 33], [320, 44]];
   function impactMark() {
-    var cx = 60, cy = 50, s = '';
-    s += p(starPath(cx, cy, 47, 22, 6), '#F4511E',
-      'stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round" paint-order="stroke"');
-    s += p(starPath(cx, cy, 24, 11, 6), 'rgba(255,255,255,.20)');
-    s += c(cx, cy, 12, '#FDE68A', 'stroke="#B33A0E" stroke-width="2.6"');
-    s += label(cx, 124, '충격', 24);
-    return { v: '0 0 120 132', s: s };
+    var cx = 60, cy = 58, s = '', cracks = '';
+    IMPACT_RAYS.forEach(function (ray, i) {
+      var a = ray[0] * Math.PI / 180, L = ray[1];
+      var x1 = cx + Math.cos(a) * 11, y1 = cy + Math.sin(a) * 11;
+      var x2 = cx + Math.cos(a) * (11 + L * 0.55) + Math.cos(a + 1.4) * 5;
+      var y2 = cy + Math.sin(a) * (11 + L * 0.55) + Math.sin(a + 1.4) * 5;
+      var x3 = cx + Math.cos(a) * (11 + L) + Math.cos(a + 1.9) * 9;
+      var y3 = cy + Math.sin(a) * (11 + L) + Math.sin(a + 1.9) * 9;
+      cracks += 'M' + f(x1) + ' ' + f(y1) + ' L' + f(x2) + ' ' + f(y2) + ' L' + f(x3) + ' ' + f(y3);
+      if (i % 2 === 0) {
+        var bx = cx + Math.cos(a - 0.5) * (11 + L * 0.7), by = cy + Math.sin(a - 0.5) * (11 + L * 0.7);
+        cracks += ' M' + f(x2) + ' ' + f(y2) + ' L' + f(bx) + ' ' + f(by);
+      }
+    });
+    s += c(cx, cy, 15, 'rgba(255,255,255,.92)');
+    s += p(cracks, 'none', 'stroke="#FFFFFF" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"');
+    s += p(cracks, 'none', 'stroke="#10161F" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"');
+    s += c(cx, cy, 10.5, '#F4511E', 'stroke="#FFFFFF" stroke-width="3"');
+    s += c(cx - 3, cy - 3.4, 3.6, '#FFE8B0');
+    s += label(cx, 128, '충격', 24);
+    return { v: '0 0 120 140', s: s };
   }
 
   /* ────────── 4. 신호등 — 뒷면 기둥 + 앞면 굵은 방향 화살표 ────────── */
