@@ -504,7 +504,7 @@ window.AS = window.AS || {};
         S.info.place = it.name;
         $('#placeTxt').textContent = it.name;
         $('#searchPill').classList.add('has');
-        if (S.bg === 'road') AS.mapx.setBg('sat');
+        if (S.bg === 'road') AS.mapx.setBg('dark');
         AS.mapx.fly(it.lat, it.lng, 19);
         AS.mapx.setLock(false);
         toast(it.name + ' (으)로 이동');
@@ -570,7 +570,7 @@ window.AS = window.AS || {};
   function setTheme(k) {
     var prev = S.theme; S.theme = k;
     if (k === 'B' && (S.bg === 'map' || S.bg === 'sat')) { S._prevBg = S.bg; AS.mapx.setBg('dark'); }
-    else if (prev === 'B' && k !== 'B' && S.bg === 'dark' && S.autoDark) AS.mapx.setBg(S._prevBg || 'sat');
+    else if (prev === 'B' && k !== 'B' && S.bg === 'dark' && S.autoDark) AS.mapx.setBg(S._prevBg || 'road');
     S.autoDark = (k === 'B');
     document.body.setAttribute('data-theme', k);
     var meta = document.getElementById('metaTheme');
@@ -627,7 +627,10 @@ window.AS = window.AS || {};
 
     $$('#bgChips button[data-bg]').forEach(function (b) {
       b.addEventListener('click', function () {
-        if (b.dataset.bg === 'capture' && (!S.cap.src || S.bg === 'capture')) { $('#fileInput').click(); return; }
+        if (b.dataset.bg === 'capture') {
+          if (S.bg === 'capture' && S.cap.src) { $('#fileInput').click(); return; }
+          openPhotoHelp(); return;
+        }
         if (b.dataset.bg === 'road' && S.bg !== 'road') { AS.mapx.setRoad(S.roadId || 'lane4'); openSheet('road'); return; }
         if (b.dataset.bg === 'road' && S.bg === 'road') { openSheet('road'); return; }
         AS.mapx.setBg(b.dataset.bg);
@@ -638,7 +641,7 @@ window.AS = window.AS || {};
       var fr = new FileReader();
       fr.onload = function () {
         S.cap.src = fr.result; S.cap.base = null; $('#capImg').src = fr.result;
-        AS.mapx.setBg('capture'); toast('캡처 배경으로 사용합니다 — 두 손가락으로 확대·이동'); C.save();
+        AS.mapx.setBg('capture'); toast('배경 사진으로 사용합니다 — 두 손가락으로 확대·이동'); C.save();
         e.target.value = '';
       };
       fr.readAsDataURL(f);
@@ -649,7 +652,7 @@ window.AS = window.AS || {};
       toast('현위치 확인 중…');
       AS.mapx.geolocate().then(function (p) {
         AS.mapx.setGps(p);
-        if (S.bg === 'road' || S.bg === 'capture') AS.mapx.setBg('sat');
+        if (S.bg === 'road' || S.bg === 'capture') AS.mapx.setBg('dark');
         AS.mapx.fly(p.lat, p.lng, 19); AS.mapx.setLock(false);
         AS.mapx.layoutGps();
         toast('현위치로 이동했습니다');
@@ -814,6 +817,21 @@ window.AS = window.AS || {};
       closeModal();
       toast('화면 요소를 모두 지웠어요 — ↶로 되돌릴 수 있어요', 2400);
     });
+  }
+
+  /* 배경 사진 안내 — 카카오맵 스카이뷰 캡처를 공유로 넘기는 방법 + 갤러리 선택 */
+  function openPhotoHelp() {
+    var body = $('#modalBody');
+    delete body.dataset.lab;
+    body.innerHTML =
+      '<button class="mclose" data-close="1" aria-label="닫기">✕</button>' +
+      '<h3>배경 사진</h3>' +
+      '<p class="mhint">카카오맵에서 <b>스카이뷰</b>를 켜고 캡처한 뒤 <b>공유 → 사고약도</b>를 고르면 그 사진이 바로 배경이 됩니다.<br>' +
+      '갤러리에 있는 캡처 사진을 직접 골라도 됩니다.</p>' +
+      '<div class="mrow"><button class="btn ghost" data-close="1">닫기</button>' +
+      '<button class="btn primary" id="btnPickPhoto">갤러리에서 고르기</button></div>';
+    $('#modal').hidden = false;
+    $('#btnPickPhoto').addEventListener('click', function () { closeModal(); $('#fileInput').click(); });
   }
 
   /* 캡처 배경일 때만 '사진 교체' 버튼 노출 */

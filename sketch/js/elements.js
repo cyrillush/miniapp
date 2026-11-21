@@ -1,9 +1,9 @@
 /* ==========================================================================
-   elements.js — 참고 어플(삼성화재 사고약도) 100% 전체 요소 라이브러리  (v3.7)
+   elements.js — 참고 어플(삼성화재 사고약도) 100% 전체 요소 라이브러리  (v3.8)
    - 보행자 8종 전원 흰색(#FFFFFF) + 얇은 외곽선(배경판 없음)
-   - 파손부위: 배경판 없는 투명 링·점 + 외곽선 글씨 / 충격지점: 6각 스파크 + 점
-   - 신호등: 뒷면 기둥 + 앞면 굵은 방향 화살표 (좌회전·우회전·직진을 실제 신호로 구분)
-   - 노면 화살표 4종: 순수 흰색 + 얇은 어두운 외곽선의 실제 한국 노면 도색 형태
+   - 파손부위: 배경판 없이 속이 빈 링(손상부위=빨간 테두리·기존손상=초록 점선·손상없음=파랑) + 외곽선 글씨
+   - 신호등: 뒷면 기둥 + 램프 안 방향 화살표 (하우징 아래 설치방향 화살표는 v3.8에서 제거)
+   - 노면 화살표 4종: 순수 흰색 + 얇은 어두운 외곽선의 실제 한국 노면 도색 형태 (유턴은 납작하게 보정)
    - 횡단보도(대/소) · 차선 · 지시·규제 표지
    ========================================================================== */
 (function () {
@@ -109,12 +109,12 @@
     var cx = 56, cy = 42, rad = small ? 20 : 26;
     var s = '';
     if (style === 'dot' || style === 'dotdash') {
-      /* 손상부위 — 빨간 점 + 흰 링 (점선형은 링을 점선으로) */
-      var dotR = style === 'dotdash' ? rad * 0.78 : rad;
-      s += c(cx, cy, dotR * 1.34, 'none', 'stroke="#FFFFFF" stroke-width="' + f(dotR * 0.26) + '"' +
-        (style === 'dotdash' ? ' stroke-dasharray="' + f(dotR * 0.5) + ' ' + f(dotR * 0.34) + '"' : ''));
-      s += c(cx, cy, dotR, '#EF4444');
-      s += c(cx - dotR * 0.28, cy - dotR * 0.30, dotR * 0.26, 'rgba(255,255,255,.55)');
+      /* 손상부위 — 속이 빈 빨간 테두리 링 (원 안의 차량 손상 부위를 가리지 않는다) */
+      var dotR = style === 'dotdash' ? rad * 0.94 : rad;
+      s += c(cx, cy, dotR, 'none', 'stroke="#FFFFFF" stroke-width="' + f(dotR * 0.50) + '"' +
+        (style === 'dotdash' ? ' stroke-dasharray="' + f(dotR * 0.52) + ' ' + f(dotR * 0.36) + '"' : ''));
+      s += c(cx, cy, dotR, 'none', 'stroke="#EF4444" stroke-width="' + f(dotR * 0.30) + '"' +
+        (style === 'dotdash' ? ' stroke-dasharray="' + f(dotR * 0.52) + ' ' + f(dotR * 0.36) + '"' : ''));
     } else if (style === 'ringdash') {
       s += c(cx, cy, rad, 'none', 'stroke="rgba(255,255,255,.92)" stroke-width="' + f(rad * 0.40) + '" stroke-dasharray="' + f(rad * 0.5) + ' ' + f(rad * 0.34) + '"');
       s += c(cx, cy, rad, 'none', 'stroke="' + color + '" stroke-width="' + f(rad * 0.22) + '" stroke-dasharray="' + f(rad * 0.5) + ' ' + f(rad * 0.34) + '"');
@@ -139,7 +139,10 @@
     ];
     var s = '';
     items.forEach(function (it) {
-      if (it.style === 'dot') s += c(it.x, 30, 15, it.col, 'stroke="#FFFFFF" stroke-width="4.5"');
+      if (it.style === 'dot') {
+        s += c(it.x, 30, 15, 'none', 'stroke="rgba(255,255,255,.92)" stroke-width="7.2"');
+        s += c(it.x, 30, 15, 'none', 'stroke="' + it.col + '" stroke-width="4.4"');
+      }
       else if (it.style === 'dash') {
         s += c(it.x, 30, 15, 'none', 'stroke="rgba(255,255,255,.92)" stroke-width="6" stroke-dasharray="8 6"');
         s += c(it.x, 30, 15, 'none', 'stroke="' + it.col + '" stroke-width="3.4" stroke-dasharray="8 6"');
@@ -200,11 +203,11 @@
   function trafficSignal(code) {
     var cfg = SIGS[code] || SIGS.s4_go;
     var n = cfg.lamps.length;
-    var R = 13, GAP = 5, PAD = 8, POLE = 20, ARRH = 34, MG = 5;
+    var R = 13, GAP = 5, PAD = 8, POLE = 20, MG = 5;
     var HW = n * R * 2 + (n - 1) * GAP + PAD * 2;
     var HH = R * 2 + PAD * 2;
     var W = HW + MG * 2;
-    var H = POLE + HH + ARRH + MG * 2;
+    var H = POLE + HH + MG * 2;
     var hx = MG, hy = POLE;
     var s = '';
     /* 뒷면 기둥 (신호판 뒤에서 위로 솟은 기둥) */
@@ -216,12 +219,7 @@
       var cx = hx + PAD + R + i * (R * 2 + GAP);
       s += lampMark(cx, hy + HH / 2, R, L.c, L.a);
     });
-    /* 앞면 굵은 방향 화살표 — 이 신호가 어느 방향을 보는지 */
-    var ax = W / 2, ay = hy + HH - 6;
-    s += p('M' + f(ax - 5.5) + ' ' + f(ay) + ' L' + f(ax + 5.5) + ' ' + f(ay) + ' L' + f(ax + 5.5) + ' ' + f(ay + 17) +
-      ' L' + f(ax + 15) + ' ' + f(ay + 17) + ' L' + f(ax) + ' ' + f(ay + 34) + ' L' + f(ax - 15) + ' ' + f(ay + 17) +
-      ' L' + f(ax - 5.5) + ' ' + f(ay + 17) + ' Z', '#FBBF24',
-      'stroke="rgba(11,21,36,.55)" stroke-width="1.6" stroke-linejoin="round"');
+    /* 하우징 아래 설치방향 표시 화살표는 넣지 않는다 (v3.8) — 신호판·기둥·램프 안 방향 화살표만 */
     return { v: '0 0 ' + W + ' ' + H, s: s };
   }
 
@@ -241,12 +239,12 @@
     straight: 'M37 160 L37 64 L10 64 L50 8 L90 64 L63 64 L63 160 Z',
     left: 'M104 160 L104 40 Q104 31 95 31 L46 31 L46 8 L6 44 L46 80 L46 57 L67 57 Q76 57 76 66 L76 160 Z',
     right: 'M22 160 L22 40 Q22 31 31 31 L80 31 L80 8 L120 44 L80 80 L80 57 L59 57 Q50 57 50 66 L50 160 Z',
-    uturn: 'M68 210 L68 40 A28 28 0 0 0 12 40 L12 170 L0 170 L22 214 L44 170 L32 170 L32 50 A8 8 0 0 1 48 50 L48 210 Z'
+    uturn: 'M72 160 L72 42 A20 20 0 0 0 32 42 L32 108 L2 108 L22 160 L42 108 L12 108 L12 42 A40 40 0 0 1 92 42 L92 160 Z'
   };
 
   function roadPaint(kind) {
     var key = ROAD_POLY[kind] ? kind : 'straight';
-    var vb = key === 'uturn' ? '0 0 80 220' : (key === 'left' || key === 'right') ? '0 0 126 168' : '0 0 100 168';
+    var vb = key === 'uturn' ? '0 0 104 168' : (key === 'left' || key === 'right') ? '0 0 126 168' : '0 0 100 168';
     return {
       v: vb,
       s: p(ROAD_POLY[key], '#FFFFFF',

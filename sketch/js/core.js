@@ -166,7 +166,7 @@ window.AS = window.AS || {};
   /* ────────── 상태 ────────── */
   var S = AS.S = {
     theme: 'A',
-    bg: 'sat',
+    bg: 'road',
     labels: true,
     roadId: 'lane4',
     lock: false,
@@ -224,7 +224,7 @@ window.AS = window.AS || {};
     saveTimer = setTimeout(function () {
       try {
         localStorage.setItem(KEY, JSON.stringify({
-          v: 7, theme: S.theme, bg: S.bg === 'capture' ? 'sat' : S.bg, labels: S.labels !== false, roadId: S.roadId, view: S.view,
+          v: 8, theme: S.theme, bg: S.bg === 'capture' ? 'map' : S.bg, labels: S.labels !== false, roadId: S.roadId, view: S.view,
           info: S.info, objs: S.objs, newRole: S.newRole, carMode: S.carMode, snap: S.snap, btnSize: S.btnSize,
           cap: S.cap.src && S.cap.src.length < 700000 ? S.cap : { src: '', opacity: S.cap.opacity, scale: S.cap.scale }
         }));
@@ -238,12 +238,14 @@ window.AS = window.AS || {};
       if (!raw) return false;
       var d = JSON.parse(raw);
       if (!d || !d.objs) return false;
+      S.theme = ['A', 'B', 'C', 'D'].indexOf(d.theme) >= 0 ? d.theme : 'A';
       S.objs = d.objs.map(function (o) {
         if (o.type === 'car' && o.role) o.role = normRole(o.role);
+        if (o.type === 'sym') refreshVb(o);
         return o;
       });
-      S.theme = ['A', 'B', 'C', 'D'].indexOf(d.theme) >= 0 ? d.theme : 'A';
-      S.bg = (d.v >= 4 && d.bg) ? d.bg : 'sat';
+      S.bg = (d.v >= 4 && d.bg) ? d.bg : 'map';
+      if (S.bg === 'sat' || S.bg === 'map') S.bg = 'road';   /* v3.8 — 스카이·지도 탭 제거 */
       S.labels = d.labels !== false;
       S.roadId = d.roadId || 'lane4';
       S.view = d.view || S.view;
@@ -310,6 +312,21 @@ window.AS = window.AS || {};
     }
     applySize(o);
     return o;
+  }
+
+  /* 저장된 기호 요소의 vb(비율)를 지금 그림과 맞춘다 — v3.7 신호등(아래 화살표 포함)·유턴 화살표
+     등 모양이 바뀐 요소도 이전 저장본을 열었을 때 새 모양·새 크기로 보이게 하는 호환 처리 */
+  function refreshVb(o) {
+    if (!window.ART3 || !window.ART3.sym || !o.kind) return;
+    try {
+      var sym = window.ART3.sym(S.theme, o.kind);
+      if (!sym || !sym.v) return;
+      var nv = vbox(sym), ov = o.vb || nv;
+      if (Math.abs(nv.w / ov.w - 1) > 0.002 || Math.abs(nv.h / ov.h - 1) > 0.002) {
+        o.vb = nv;
+        applySize(o);
+      }
+    } catch (e) {}
   }
 
   function applySize(o) {

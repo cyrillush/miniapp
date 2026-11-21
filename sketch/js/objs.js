@@ -160,10 +160,11 @@ window.AS = window.AS || {};
     var W = o.w * o.sc, H = o.w * (vb.h / vb.w) * o.sc;
     var a = dispRot(o) * Math.PI / 180;
     var hw = Math.abs(W / 2 * Math.cos(a)) + Math.abs(H / 2 * Math.sin(a));
-    var fs = C.clamp(Math.max(W, H) * 0.27, 10, 15);
+    /* v3.8 — 글씨 한 단계 작게 + 확대해도 이름표가 요소보다 과하게 커지지 않게 상한을 낮춘다 */
+    var fs = C.clamp(Math.max(W, H) * 0.215, 9, 13);
     var tw = nm.length * fs + 6;
     var stageW = (S.stage && S.stage.w) || 390;
-    var right = o._cx + hw + 5;
+    var right = o._cx + hw + 4;
     var flip = right + tw > stageW - 4;
     var x = flip ? (o._cx - hw - 5) : right;
     return '<text x="' + fmt(x) + '" y="' + fmt(o._cy) + '" font-size="' + fs.toFixed(1) + '" font-weight="900" fill="#FFFFFF"' +
@@ -510,8 +511,7 @@ window.AS = window.AS || {};
       var md = Math.hypot(rt[0].x - rt[1].x, rt[0].y - rt[1].y) || 1;
       var ma = Math.atan2(rt[1].y - rt[0].y, rt[1].x - rt[0].x) * 180 / Math.PI;
       var mid = { x: (rt[0].x + rt[1].x) / 2, y: (rt[0].y + rt[1].y) / 2 };
-      var dTilt = -(mid.y - drag.rawMid0.y) * 0.25;
-      AS.mapx.movePinch(mid.x, mid.y, md / drag.d0, ma - drag.a0, dTilt);
+      AS.mapx.movePinch(mid.x, mid.y, md / drag.d0, ma - drag.a0);
       drag.moved = true;
       return;
     }

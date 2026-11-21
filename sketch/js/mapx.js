@@ -203,7 +203,7 @@ window.AS = window.AS || {};
     layoutCap();
     var cap = $('#capLayer');
     if (cap) cap.hidden = name !== 'capture' || !S.cap.src;
-    if (name === 'capture' && !S.cap.src) { AS.toast('캡처 배경 사진을 먼저 선택하세요'); }
+    if (name === 'capture' && !S.cap.src) { AS.toast('갤러리에서 지도 캡처 사진을 먼저 골라 주세요'); }
     AS.ui.bgchips();
     if (AS.ui && AS.ui.syncCapture) AS.ui.syncCapture();
     AS.core.save();
@@ -316,29 +316,41 @@ window.AS = window.AS || {};
   function startPinch(px, py) {
     if (!map) return;
     pinch = {
-      active: true, px: px, py: py, mx: px, my: py,
+      active: true, px: px, py: py, mx: px, my: py, axis: null,
       s: 1, db: 0, b0: S.view.bearing || 0, z0: map.getZoom(), t0: S.view.tilt || 0
     };
   }
 
-  function movePinch(mx, my, scale, dBearing, dTilt) {
+  /* 두 손가락 제스처 (v3.8)
+     - 세로 움직임 = 3D 각도만 바뀌고 지도는 제자리에 그대로 둔다 (팬 없음)
+     - 가로 움직임 = 회전만
+     - 처음 8px 안에서 우세한 축을 잠그고, 그 프레임에서는 나머지 축을 무시한다
+     - 두 손가락 벌리기는 어느 축에서든 확대·축소 (처음 손가락 중간점을 중심으로) */
+  function movePinch(mx, my, scale, dBearing) {
     if (!pinch || !map) return;
-    if (typeof dTilt === 'number') {
-      S.view.tilt = AS.core.clamp(pinch.t0 + dTilt, 0, 55);
+    var dxm = mx - pinch.px, dym = my - pinch.py;
+    if (!pinch.axis && Math.max(Math.abs(dxm), Math.abs(dym)) > 8) {
+      pinch.axis = Math.abs(dym) >= Math.abs(dxm) ? 'tilt' : 'rot';
+    }
+    if (pinch.axis === 'tilt') {
+      S.view.tilt = AS.core.clamp(pinch.t0 - dym * 0.25, 0, 55);
       applyTilt();
+      dBearing = 0;                     /* 세로 드래그 중에는 회전을 잠근다 */
+    } else if (pinch.axis === 'rot') {
+      dBearing += dxm * 0.30;           /* 좌우로 밀면 그만큼 회전 */
     }
     var minS = Math.pow(2, 3 - pinch.z0), maxS = Math.pow(2, 22 - pinch.z0);
     var s = AS.core.clamp(scale, minS, maxS);
-    pinch.mx = mx; pinch.my = my; pinch.s = s; pinch.db = dBearing;
+    pinch.s = s; pinch.db = dBearing;
     var b = ((pinch.b0 + dBearing) % 360 + 360) % 360;
     S.view.bearing = b;
     var ox = S.stage.w / 2, oy = S.stage.h / 2;
     var rx0 = pinch.px - ox, ry0 = pinch.py - oy;
-    var dx = mx - pinch.px, dy = my - pinch.py;
+    /* 손가락이 움직인 만큼 지도를 끌지 않는다 — 처음 중간점을 중심으로 확대·회전·각도만 */
     var rad = dBearing * Math.PI / 180;
     var c = Math.cos(rad), sn = Math.sin(rad);
-    var tx = (rx0 + dx) - s * (rx0 * c - ry0 * sn);
-    var ty = (ry0 + dy) - s * (rx0 * sn + ry0 * c);
+    var tx = rx0 - s * (rx0 * c - ry0 * sn);
+    var ty = ry0 - s * (rx0 * sn + ry0 * c);
     var mr = $('#mapRot');
     if (mr) {
       mr.style.transform = 'translate(-50%,-50%) translate(' + tx.toFixed(2) + 'px,' + ty.toFixed(2) +

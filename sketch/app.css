@@ -93,6 +93,7 @@ body[data-theme="D"] {
 }
 
 #bottomWrap {
+  position: relative;
   flex: none; z-index: 15;
   background: var(--panel);
   border-top: 1px solid var(--line);
@@ -305,10 +306,16 @@ body[data-drawing="1"] #capSwap { display: none; }
 body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
 .dk:active { transform: scale(.95); }
 
-/* 선택 미니바 (하단바 내부 — 약도를 가리지 않음) */
+/* 선택 미니바 — 캔버스 위에 떠 있는 오버레이 (v3.8)
+   v3.7까지는 하단바 안에서 자리를 차지해, 요소를 고르거나 버튼 크기를 바꿀 때마다
+   캔버스 높이가 달라져 화면 요소가 위아래로 움직였다. 이제 바는 항상 같은 위치·같은
+   높이(52px)로 떠 있고, 안쪽 버튼만 --sb 만큼 커지고 작아진다. */
 #selBar {
-  min-height: 44px; display: flex; align-items: center; gap: 4px; padding: 4px 5px;
+  position: absolute; left: 8px; right: 8px; bottom: calc(100% + 6px); z-index: 16;
+  height: 52px; min-height: 52px; padding: 6px 5px;
+  display: flex; align-items: center; gap: 4px;
   border-radius: 12px; background: var(--panel-2); border: var(--hard);
+  box-shadow: 0 6px 18px rgba(6,14,26,.16);
 }
 #selBar .sb {
   width: var(--sb); height: var(--sb); border-radius: 9px; display: grid; place-items: center;
@@ -316,7 +323,7 @@ body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
 }
 #selBar .sb svg { width: calc(var(--sb) * 0.5); height: calc(var(--sb) * 0.5); }
 #selBar .sb.szbtn {
-  width: auto; min-width: var(--sb); padding: 0 7px; font-size: 10px; font-weight: 800;
+  width: 62px; min-width: var(--sb); padding: 0 7px; font-size: 10px; font-weight: 800;
   letter-spacing: -.2px; white-space: nowrap; color: var(--ink2);
 }
 #selBar .sb.danger { color: var(--red); }
@@ -337,6 +344,9 @@ body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
 .roles.big { margin: 0 2px 10px; padding: 4px; border-radius: 14px; background: var(--panel-2); flex: none; }
 .roles.big button { flex: 1 0 auto; min-width: 58px; height: 38px; font-size: 12.5px; border-radius: 10px; }
 #selInfo { margin-left: auto; padding-right: 4px; font-size: 10px; font-weight: 650; color: var(--ink3); white-space: nowrap; }
+/* 버튼 크게에서는 자리 확보를 위해 각도·배율 표기를 잠긐 숨긴다 (역할 버튼이 밀러나지 않게) */
+body[data-btnsz="lg"] #selInfo { display: none; }
+.roles { min-width: 56px; }
 
 /* ───────────────────────────────── 시트 */
 #sheet, #search {
