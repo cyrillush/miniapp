@@ -83,13 +83,7 @@
   }
 
   function apply(dataUrl) {
-    var S = AS.S;
-    S.cap.src = dataUrl;
-    S.cap.base = null;
-    var ci = document.getElementById('capImg');
-    if (ci) ci.src = dataUrl;
-    AS.mapx.setBg('capture');
-    AS.ui.syncCapture();
+    AS.view.setPhoto(dataUrl);
     AS.core.save();
     AS.ui.toast('공유한 사진을 배경으로 넣었습니다 — 사진 교체로 바꿀 수 있어요', 3200);
   }
@@ -99,11 +93,11 @@
     if (q.indexOf('shared=') < 0) return;
     try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
     if (q.indexOf('shared=0') >= 0) {
-      AS.ui.toast('공유한 사진을 받지 못했어요 — 배경 사진에서 갤러리로 골라 주세요', 3000);
+      AS.ui.toast('공유한 사진을 받지 못했어요 — [사진]에서 갤러리로 골라 주세요', 3000);
       return;
     }
     takePending().then(function (v) {
-      if (!v || !v.blob) { AS.ui.toast('공유한 사진이 없습니다 — 배경 사진에서 골라 주세요', 2600); return; }
+      if (!v || !v.blob) { AS.ui.toast('공유한 사진이 없습니다 — [사진]에서 갤러리로 골라 주세요', 2600); return; }
       return fitForSave(v.blob).then(function (d) {
         if (d) apply(d);
         else AS.ui.toast('공유한 사진을 읽지 못했어요', 2600);

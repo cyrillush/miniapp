@@ -86,11 +86,7 @@ body[data-theme="D"] {
   flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden;
   background: var(--bg); touch-action: none;
 }
-#stage3d {
-  position: absolute; inset: 0;
-  transform-origin: 50% 58%;
-  will-change: transform;
-}
+
 
 #bottomWrap {
   position: relative;
@@ -102,48 +98,31 @@ body[data-theme="D"] {
 }
 
 /* ───────────────────────────────── 무대 내부 */
-#mapRot { position: absolute; left: 50%; top: 50%; width: 155vmax; height: 155vmax; transform: translate(-50%, -50%) rotate(0deg); transform-origin: 50% 50%; z-index: 0; will-change: transform; }
-/* 155vmax — 어느 회전 각도든 화면 대각선을 덮으면서 모바일 GPU 텍스처 메모리·타일 요청은 줄인다 */
-#map { position: absolute; inset: 0; background: var(--bg); }
-#mapRot.blank #map {
-  background-color: #F4F7FB;
-  background-image:
-    linear-gradient(to right, rgba(30,64,120,.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(30,64,120,.08) 1px, transparent 1px);
-  background-size: 28px 28px;
-}
+/* 약도 캔버스 — 단색 배경 위에 도로 도면 또는 갤러리 사진 한 장만 깔린다 (지도 없음) */
+#board { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+#photoImg { pointer-events: none; }
+#artLayer { pointer-events: none; }
 #roadLayer { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 #roadLayer svg { width: 100%; height: 100%; display: block; }
-#capLayer { position: absolute; inset: 0; overflow: hidden; background: #0b0f14; z-index: 1; }
-#capLayer img { width: 100%; height: 100%; object-fit: cover; opacity: .94; }
-#layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 2; }
-/* 내 위치 — 파란 점 + 흰 테두리 + 반투명 정확도 원 + 펄스 링 (화면 표시 전용, PNG 미포함) */
-#gpsLayer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
-#gpsLayer .acc {
-  position: absolute; transform: translate(-50%, -50%); border-radius: 50%;
-  background: rgba(47,107,255,.15); border: 1.5px solid rgba(47,107,255,.42);
+#stage.blankroad { background-color: #F4F7FB; background-image: linear-gradient(to right, rgba(30,64,120,.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(30,64,120,.08) 1px, transparent 1px); background-size: 28px 28px; }
+#stage.photobg { background-color: #0E1319; }
+
+/* 사진이 없을 때 캔버스 중앙 안내 — 탭하면 바로 갤러리 */
+#emptyPhoto { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; padding: 24px; }
+#emptyPhoto .pickcta {
+  display: flex; flex-direction: column; align-items: center; gap: 9px; max-width: 300px;
+  padding: 26px 22px; border-radius: 18px; text-align: center;
+  background: var(--panel); color: var(--ink); border: 2px dashed var(--acc); box-shadow: var(--shadow);
 }
-#gpsLayer .pulse {
-  position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
-  background: rgba(47,107,255,.30); border: 2px solid rgba(47,107,255,.55);
-  animation: gpsPulse 2.1s ease-out infinite;
-}
-#gpsLayer .dot {
-  position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
-  background: #2F6BFF; border: 3px solid #FFFFFF;
-  box-shadow: 0 1px 6px rgba(15,27,46,.45), 0 0 0 1.5px rgba(47,107,255,.55);
-}
-#gpsLayer .lb {
-  position: absolute; transform: translate(-50%, 0); padding: 2px 7px; border-radius: 999px;
-  background: rgba(255,255,255,.92); color: #1E4FD8; font-size: 9.5px; font-weight: 800;
-  letter-spacing: -.2px; white-space: nowrap; box-shadow: 0 1px 4px rgba(15,27,46,.25);
-}
-@keyframes gpsPulse { 0% { transform: scale(.55); opacity: .85; } 70% { opacity: 0; } 100% { transform: scale(2.5); opacity: 0; } }
+#emptyPhoto .pickcta svg { width: 34px; height: 34px; color: var(--acc); stroke-width: 1.7; }
+#emptyPhoto .pickcta b { font-size: 14.5px; font-weight: 800; letter-spacing: -.3px; }
+#emptyPhoto .pickcta span { font-size: 11.5px; font-weight: 600; color: var(--ink2); line-height: 1.45; }
+#emptyPhoto .pickcta:active { transform: scale(.98); }
 
 /* 충격지점 — 빨간 점은 고정, 얇은 링 1겹이 바깥으로 퍼지며 옅어지는 펄스 (화면 전용 움직임)
    PNG 저장은 이 CSS가 닿지 않는 SVG로 래스터되므로 링의 기본 반지름(중간 크기·불투명)이
    그대로 한 프레임으로 찍힌다 — 저장 이미지에서 링이 사라지지 않는다. */
-#layer .impact-pulse {
+#artLayer .impact-pulse {
   transform-box: fill-box;
   transform-origin: 50% 50%;
   will-change: transform, opacity;
@@ -155,15 +134,13 @@ body[data-theme="D"] {
   100% { transform: scale(1.78); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  #layer .impact-pulse { animation: none; }
+  #artLayer .impact-pulse { animation: none; }
 }
 #holdRing { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; pointer-events: none; z-index: 7; transform: rotate(-90deg); }
 #holdRing circle { fill: none; stroke-width: 4.5; }
 #holdRing circle.bg { stroke: rgba(255,255,255,.45); }
 #holdRing circle.fg { stroke: var(--acc); stroke-linecap: round; stroke-dasharray: 138.23; stroke-dashoffset: 138.23; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
 
-.leaflet-container { background: var(--bg); font: inherit; }
-.leaflet-control-attribution { display: none !important; }
 
 /* 선택 크롬 */
 #sel { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
@@ -211,45 +188,43 @@ body[data-theme="D"] {
 .gl svg { width: 17px; height: 17px; }
 .gl.icon { width: 38px; padding: 0; justify-content: center; }
 .gl em { font-style: normal; }
-#btnLock[aria-pressed="true"] { background: var(--acc); color: var(--acc-ink); border-color: transparent; }
-#btnLock .ic-lock { display: none; }
-#btnLock[aria-pressed="true"] .ic-lock { display: block; }
-#btnLock[aria-pressed="true"] .ic-unlock { display: none; }
+#btnPhotoLock[aria-pressed="false"] { background: var(--acc); color: var(--acc-ink); border-color: transparent; }
+#btnPhotoLock .ic-lock { display: none; }
+#btnPhotoLock[aria-pressed="true"] .ic-lock { display: block; }
+#btnPhotoLock[aria-pressed="true"] .ic-unlock { display: none; }
 .gl:active, .brand:active { transform: scale(.97); }
 
-#searchPill {
-  width: 100%; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
-  border-radius: var(--r); background: var(--panel-2); border: var(--hard);
-  color: var(--ink3); font-size: 13px; text-align: left;
+/* 두 가지 배경만 — 도로 / 사진 */
+#modeSeg {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px;
+  background: var(--panel-2); border: var(--hard); border-radius: 13px;
 }
-#searchPill svg { width: 16px; height: 16px; color: var(--ink2); flex: none; }
-#searchPill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#searchPill.has span { color: var(--ink); font-weight: 600; }
+#modeSeg button {
+  height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border-radius: 10px; font-size: 13px; font-weight: 800; letter-spacing: -.3px;
+  color: var(--ink2); background: transparent; transition: background .14s ease, color .14s ease;
+}
+#modeSeg button svg { width: 17px; height: 17px; }
+body[data-theme="D"] #modeSeg { border: 2px solid #2B2724; }
+#modeSeg button.on { background: var(--acc); color: var(--acc-ink); box-shadow: var(--shadow-s); }
 
-#bgChips {
-  display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; align-items: center;
+/* 사진 모드 전용 — 사진 조정/고정 · 맞춤 · 교체 */
+#photoBar { display: flex; align-items: center; gap: 5px; overflow-x: auto; scrollbar-width: none; }
+#photoBar::-webkit-scrollbar { display: none; }
+.pchip {
+  flex: none; height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px;
+  border-radius: 9px; font-size: 11.5px; font-weight: 750; color: var(--ink);
+  background: var(--panel-2); border: var(--hard);
 }
-#bgChips::-webkit-scrollbar { display: none; }
-#bgChips button {
-  flex: none; height: 28px; padding: 0 9px; border-radius: 9px; font-size: 11px; font-weight: 650;
-  color: var(--ink2); background: var(--panel-2); border: var(--hard);
-}
-body[data-theme="D"] #bgChips button { border: 1.5px solid #2B2724; box-shadow: 0 1.5px 0 #2B2724; }
-#bgChips button.on { background: var(--acc); color: var(--acc-ink); border-color: transparent; }
-#bgChips button.compass {
-  display: inline-flex; align-items: center; gap: 3px; padding: 0 8px;
-  color: var(--ink); touch-action: none;
-}
-#bgChips #tiltBtn { margin-left: auto; }
-#bgChips button.compass svg { width: 13px; height: 13px; transition: transform .08s linear; color: var(--acc); }
-#bgChips button.compass em { font-style: normal; font-size: 10.5px; font-weight: 750; }
-#bgChips button.compass.rot { background: var(--panel-solid); box-shadow: 0 0 0 1.5px var(--acc); }
+.pchip em { font-style: normal; }
+.pchip svg { width: 14px; height: 14px; stroke-width: 1.9; }
+.pchip:active { transform: scale(.97); }
+#btnPhotoFit { margin-right: auto; }
 
 #btnPen[aria-pressed="true"] {
   background: var(--acc); color: var(--acc-ink); border-color: transparent;
   box-shadow: 0 0 0 3px var(--acc-soft);
 }
-#chipLabel.off { color: var(--ink3); opacity: .7; text-decoration: line-through; }
 
 /* 그리기 중 고대비 플로팅 배너 */
 #toolChip {
@@ -272,14 +247,7 @@ body[data-theme="D"] #bgChips button { border: 1.5px solid #2B2724; box-shadow: 
 }
 #toolChip:active { transform: scale(.99); }
 
-/* 캡처 배경 — 사진 교체 버튼 */
-#capSwap {
-  position: absolute; right: 10px; top: 8px; z-index: 8;
-  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
-  border-radius: 11px; background: rgba(12,22,38,.86); color: #FFFFFF; font-size: 11.5px; font-weight: 800;
-  border: 1.4px solid rgba(255,255,255,.34); box-shadow: 0 4px 14px rgba(6,14,26,.30);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-}
+/* 사진 교체 칩은 #photoBar 안에서 흐름으로 놓인다 */
 #capSwap svg { width: 15px; height: 15px; stroke-width: 1.8; }
 #capSwap:active { transform: scale(.97); }
 body[data-drawing="1"] #capSwap { display: none; }
@@ -517,7 +485,7 @@ body[data-drawing="1"] #toast { top: 214px; }
 }
 
 @media (min-width: 720px) {
-  #topbar, #searchPill, #bgChips, #dock, #selBar { max-width: 660px; margin-left: auto; margin-right: auto; width: 100%; }
+  #topbar, #modeSeg, #photoBar, #dock, #selBar { max-width: 660px; margin-left: auto; margin-right: auto; width: 100%; }
   #sheetBody { grid-template-columns: repeat(5, 1fr); }
   .card.wide, .card.preset { grid-column: span 5; }
 }

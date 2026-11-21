@@ -1,7 +1,7 @@
 {
-  "name": "사고약도 — 지도 위 사고 정리",
+  "name": "사고약도 — 손가락으로 그리는 현장 사고약도",
   "short_name": "사고약도",
-  "description": "지도 위에 차량·충돌·진행방향을 손가락으로 배치하고 PNG·A4로 저장하는 현장 사고약도 도구",
+  "description": "갤러리 사진 또는 도로 도면 위에 차량·충돌·진행방향을 손가락으로 배치하고 PNG·A4로 저장하는 현장 사고약도 도구",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

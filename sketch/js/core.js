@@ -166,26 +166,24 @@ window.AS = window.AS || {};
   /* ────────── 상태 ────────── */
   var S = AS.S = {
     theme: 'A',
-    bg: 'road',
-    labels: true,
+    mode: 'road',                 /* 'road' 도로 도면 | 'photo' 갤러리 사진 — 딱 두 가지 */
     roadId: 'lane4',
-    lock: false,
     btnSize: 'md',
     objs: [],
     sel: null,
-    view: { lat: 37.49794, lng: 127.02758, z: 19, bearing: 0, tilt: 0 },
     info: { when: '', place: '', note: '' },
     pen: { color: '#E9413B', mode: 'idle' },
     tool: 'idle',
     newRole: 'self',
     carMode: 'real',
     snap: true,
-    cap: { src: '', opacity: .92, scale: 1, base: null },
-    gps: null,
+    /* 사진 배경 — 사진은 캔버스(월드) 좌표계에 꽉 차게 깔리고,
+       그 위에 놓은 요소도 같은 월드 좌표계에 있어 사진과 함께 움직인다 */
+    photo: { src: '', k: 1, rot: 0, tx: 0, ty: 0, locked: false },
     stage: { w: 390, h: 640 }
   };
 
-  var KEY = 'accident-sketch-v3';
+  var KEY = 'accident-sketch-v4';
   var saveTimer = null;
   var undoStack = [];
   var redoGuard = false;
@@ -223,10 +221,14 @@ window.AS = window.AS || {};
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
       try {
+        var ph = S.photo || {};
         localStorage.setItem(KEY, JSON.stringify({
-          v: 8, theme: S.theme, bg: S.bg === 'capture' ? 'map' : S.bg, labels: S.labels !== false, roadId: S.roadId, view: S.view,
-          info: S.info, objs: S.objs, newRole: S.newRole, carMode: S.carMode, snap: S.snap, btnSize: S.btnSize,
-          cap: S.cap.src && S.cap.src.length < 700000 ? S.cap : { src: '', opacity: S.cap.opacity, scale: S.cap.scale }
+          v: 9, theme: S.theme, mode: S.mode, roadId: S.roadId, info: S.info, objs: S.objs,
+          newRole: S.newRole, carMode: S.carMode, snap: S.snap, btnSize: S.btnSize,
+          photo: {
+            src: ph.src && ph.src.length < 700000 ? ph.src : '',
+            k: ph.k, rot: ph.rot, tx: ph.tx, ty: ph.ty, locked: !!ph.locked
+          }
         }));
       } catch (e) {}
     }, 350);
@@ -239,24 +241,30 @@ window.AS = window.AS || {};
       var d = JSON.parse(raw);
       if (!d || !d.objs) return false;
       S.theme = ['A', 'B', 'C', 'D'].indexOf(d.theme) >= 0 ? d.theme : 'A';
-      S.objs = d.objs.map(function (o) {
+      S.objs = d.objs.filter(function (o) {
+        return o && isFinite(o.x) && isFinite(o.y);    /* v4 이전 지도 좌표 저장본은 버린다 */
+      }).map(function (o) {
         if (o.type === 'car' && o.role) o.role = normRole(o.role);
         if (o.type === 'sym') refreshVb(o);
         return o;
       });
-      S.bg = (d.v >= 4 && d.bg) ? d.bg : 'map';
-      if (S.bg === 'sat' || S.bg === 'map') S.bg = 'road';   /* v3.8 — 스카이·지도 탭 제거 */
-      S.labels = d.labels !== false;
+      S.mode = d.mode === 'photo' ? 'photo' : 'road';
       S.roadId = d.roadId || 'lane4';
-      S.view = d.view || S.view;
-      if (typeof S.view.bearing !== 'number') S.view.bearing = 0;
-      if (typeof S.view.tilt !== 'number') S.view.tilt = 0;
       S.info = d.info || S.info;
       S.newRole = normRole(d.newRole || 'self');
       S.carMode = d.carMode === 'vector' ? 'vector' : 'real';
       S.snap = d.snap !== false;
       S.btnSize = ['sm', 'md', 'lg'].indexOf(d.btnSize) >= 0 ? d.btnSize : 'md';
-      if (d.cap) S.cap = d.cap;
+      if (d.photo) {
+        S.photo = {
+          src: d.photo.src || '',
+          k: isFinite(d.photo.k) ? d.photo.k : 1,
+          rot: isFinite(d.photo.rot) ? d.photo.rot : 0,
+          tx: isFinite(d.photo.tx) ? d.photo.tx : 0,
+          ty: isFinite(d.photo.ty) ? d.photo.ty : 0,
+          locked: !!d.photo.locked
+        };
+      }
       return true;
     } catch (e) { return false; }
   }
@@ -294,9 +302,9 @@ window.AS = window.AS || {};
     return null;
   }
 
-  function makeObj(spec, lat, lng) {
+  function makeObj(spec, x, y) {
     var def = itemDef(spec.kind, spec.type) || {};
-    var o = { id: uid(), type: spec.type, kind: spec.kind, lat: lat, lng: lng, rot: 0, sc: 1 };
+    var o = { id: uid(), type: spec.type, kind: spec.kind, x: x, y: y, rot: 0, sc: 1 };
     if (spec.type === 'car') {
       o.role = normRole(spec.role || S.newRole);
       o.vb = { x: 0, y: 0, w: 120, h: 200 };

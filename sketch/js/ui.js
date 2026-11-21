@@ -68,9 +68,7 @@ window.AS = window.AS || {};
     C.pushUndo();
     S.objs = [];
     S.sel = null;
-    AS.mapx.setBearing(0, false);
-    AS.mapx.setTilt(0);
-    AS.mapx.setRoad(pr.bg);
+    AS.view.setRoad(pr.bg);
     var w = S.stage.w || 390, h = S.stage.h || 600;
     var geo = AS.roads.presetGeo ? AS.roads.presetGeo(pr, w, h) : null;
     /* 고정 비율(px) → 도로 함수와 동일한 차로 좌표로 배치 */
@@ -80,30 +78,24 @@ window.AS = window.AS || {};
       impact: pr.impact ? { x: pr.impact.x * w, y: pr.impact.y * h } : null
     };
     (data.cars || []).forEach(function (c) {
-      var ll = AS.mapx.unproject(c.x, c.y);
-      var o = C.makeObj({ type: 'car', kind: c.kind, role: c.role }, ll.lat, ll.lng);
+      var o = C.makeObj({ type: 'car', kind: c.kind, role: c.role }, c.x, c.y);
       o.rot = c.rot || 0;
       S.objs.push(o);
     });
     (data.arrows || []).forEach(function (a) {
       if (!a.pts || a.pts.length < 2) return;
-      var pts = a.pts.map(function (q) {
-        var ll = AS.mapx.unproject(q[0], q[1]);
-        return [ll.lat, ll.lng];
-      });
+      var pts = a.pts.slice();
       S.objs.push({
-        id: C.uid(), type: 'pen', lat: pts[0][0], lng: pts[0][1], rot: 0, sc: 1,
+        id: C.uid(), type: 'pen', x: pts[0][0], y: pts[0][1], rot: 0, sc: 1,
         w: 1, h: 1, color: a.color || '#E9413B', lw: 3.8, arrowEnd: true, pts: pts
       });
     });
     if (data.impact) {
-      var ill = AS.mapx.unproject(data.impact.x, data.impact.y);
-      var imp = C.makeObj({ type: 'sym', kind: 'impact', w: 50 }, ill.lat, ill.lng);
+      var imp = C.makeObj({ type: 'sym', kind: 'impact', w: 50 }, data.impact.x, data.impact.y);
       S.objs.push(imp);
     }
     if (pr.summary) S.info.note = pr.summary;
     S.newRole = C.nextCarRole();
-    AS.mapx.setLock(true, true);
     AS.objs.render(); selbar(); C.save();
     closeSheet();
     toast('[' + pr.no + '] ' + pr.label + ' 적용');
@@ -156,12 +148,12 @@ window.AS = window.AS || {};
         AS.roads.LIST.filter(function (r) { return r.g === g; }).forEach(function (r) {
           var b = document.createElement('button');
           b.type = 'button';
-          b.className = 'card roadthumb' + (S.bg === 'road' && S.roadId === r.id ? ' on' : '');
+          b.className = 'card roadthumb' + (S.mode === 'road' && S.roadId === r.id ? ' on' : '');
           b.innerHTML = '<div class="rbox">' + AS.roads.thumb(r.id) + '</div><b>' + r.label + '</b>';
           b.addEventListener('click', function () {
-            AS.mapx.setRoad(r.id);
+            AS.view.setRoad(r.id);
             closeSheet();
-            toast(r.label + ' 전체화면 적용');
+            toast(r.label + ' 도로 배경 적용');
           });
           rs.add(b, r.label + ' ' + r.id + ' ' + (r.tags || '') + ' 도로배경 배경');
         });
@@ -230,7 +222,7 @@ window.AS = window.AS || {};
     return g;
   }
 
-  /* 도로 시트 맨 위 검색 — 도로 템플릿·과실도표 전용(지도 검색 아님) */
+  /* 도로 시트 맨 위 검색 — 도로 템플릿·과실도표 카드 필터 */
   function roadSearchUI(body) {
     var wrap = document.createElement('div');
     wrap.className = 'rsearch';
@@ -464,10 +456,13 @@ window.AS = window.AS || {};
     document.body.setAttribute('data-drawing', drawing ? '1' : '0');
     if (!c) return;
     if (!S.tool || S.tool === 'idle') { c.hidden = true; c.innerHTML = ''; return; }
+    var pinchHint = (S.mode === 'photo' && !(S.photo && S.photo.locked))
+      ? '한 손가락 긋기 · 두 손가락 사진 조정'
+      : '한 손가락으로 긋기 · 짧은 획은 취소';
     var t = S.tool === 'pen'
-      ? { ic: '✏️', title: '그리기 중 — 선 긋기', sub: '한 손가락 긋기 · 두 손가락 확대·이동' }
+      ? { ic: '✏️', title: '그리기 중 — 선 긋기', sub: pinchHint }
       : S.tool === 'vec'
-        ? { ic: '↗️', title: '화살표 긋는 중', sub: '한 손가락 화살표 · 두 손가락 확대·이동' }
+        ? { ic: '↗️', title: '화살표 긋는 중', sub: pinchHint }
         : { ic: '💬', title: '메모 위치 선택', sub: '약도에서 메모할 곳을 톡 누르세요' };
     c.innerHTML = '<span class="tp-ic">' + t.ic + '</span>' +
       '<span class="tp-tx"><b>' + t.title + '</b><i>' + t.sub + '</i></span>' +
@@ -476,47 +471,48 @@ window.AS = window.AS || {};
   }
 
   function bgchips() {
-    $$('#bgChips button[data-bg]').forEach(function (b) { b.classList.toggle('on', b.dataset.bg === S.bg); });
-    if (AS.mapx.syncLabelChip) AS.mapx.syncLabelChip();
+    /* 배경 선택은 상단 [도로] / [사진] 두 칸이 전부다 */
+    AS.view.syncMode();
   }
 
-  /* ────────── 검색 ────────── */
-  function openSearch() { $('#search').classList.add('open'); setTimeout(function () { $('#q').focus(); }, 220); }
-  function openSearchWith(q) {
-    openSearch();
-    var inp = $('#q');
-    inp.value = q || '';
-    $('#qList').innerHTML = '<p class="qempty">찾는 중…</p>';
-    setTimeout(doSearch, 160);
+  /* ────────── 갤러리 사진 ────────── */
+  function pickPhoto() {
+    var inp = $('#fileInput');
+    if (inp) inp.click();
   }
-  function closeSearch() { $('#search').classList.remove('open'); $('#q').blur(); }
-  function renderResults(list) {
-    var box = $('#qList');
-    if (!list.length) { box.innerHTML = '<p class="qempty">결과가 없어요. 도로명이나 건물명으로 다시 입력해 보세요.</p>'; return; }
-    box.innerHTML = '';
-    list.forEach(function (it) {
-      var b = document.createElement('button');
-      b.type = 'button'; b.className = 'qitem';
-      b.innerHTML = '<i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 21s6.2-6.3 6.2-11A6.2 6.2 0 0 0 5.8 10c0 4.7 6.2 11 6.2 11Z"/><circle cx="12" cy="10" r="2.3"/></svg></i>' +
-        '<span style="flex:1"><b>' + AS.objs.esc(it.name) + '</b><span>' + AS.objs.esc(it.addr || '') + '</span></span>';
-      b.addEventListener('click', function () {
-        closeSearch();
-        S.info.place = it.name;
-        $('#placeTxt').textContent = it.name;
-        $('#searchPill').classList.add('has');
-        if (S.bg === 'road') AS.mapx.setBg('dark');
-        AS.mapx.fly(it.lat, it.lng, 19);
-        AS.mapx.setLock(false);
-        toast(it.name + ' (으)로 이동');
-        C.save();
-      });
-      box.appendChild(b);
-    });
+
+  function applyPhotoFile(file) {
+    if (!file) return;
+    if (AS.share && AS.share.fitForSave) {
+      AS.share.fitForSave(file).then(function (d) { if (d) putPhoto(d); else toast('사진을 읽지 못했어요'); });
+      return;
+    }
+    var fr = new FileReader();
+    fr.onload = function () { putPhoto(fr.result); };
+    fr.onerror = function () { toast('사진을 읽지 못했어요'); };
+    fr.readAsDataURL(file);
   }
-  function doSearch() {
-    var q = $('#q').value.trim(); if (!q) return;
-    $('#qList').innerHTML = '<p class="qempty">찾는 중…</p>';
-    AS.mapx.search(q).then(function (list) { renderResults(list); });
+
+  function putPhoto(dataUrl) {
+    closeModal();
+    AS.view.setPhoto(dataUrl);
+    toast('사진을 배경으로 넣었습니다 — 두 손가락으로 맞추고 바로 그리세요', 3000);
+    C.save();
+  }
+
+  /* 사진이 없을 때 안내 — 카카오맵 스카이뷰 캡처를 공유로 넘기는 방법 + 갤러리 선택 */
+  function openPhotoHelp() {
+    var body = $('#modalBody');
+    delete body.dataset.lab;
+    body.innerHTML =
+      '<button class="mclose" data-close="1" aria-label="닫기">✕</button>' +
+      '<h3>갤러리 사진</h3>' +
+      '<p class="mhint">카카오맵에서 <b>스카이뷰</b>를 켜고 캡처한 사진을 쓰면 현장 모습 그대로 약도를 그릴 수 있습니다.<br>' +
+      '공유 → 사고약도로 넘기면 바로 배경이 되고, 갤러리에서 직접 골라도 됩니다.</p>' +
+      '<div class="mrow"><button class="btn ghost" data-close="1">닫기</button>' +
+      '<button class="btn primary" id="btnPickPhoto">갤러리에서 고르기</button></div>';
+    $('#modal').hidden = false;
+    $('#btnPickPhoto').addEventListener('click', function () { closeModal(); pickPhoto(); });
   }
 
   /* ────────── 비밀 테마 연구실 ────────── */
@@ -533,7 +529,7 @@ window.AS = window.AS || {};
     body.dataset.lab = '1';
     body.innerHTML = '<button class="mclose" data-close="1" aria-label="닫기">✕</button>' +
       '<h3>🎨 디자인 연구실</h3>' +
-      '<p class="mhint">앱 UI와 지도 위 차량 색감 테마를 바꿉니다.</p>' +
+      '<p class="mhint">앱 UI와 약도 위 차량 색감 테마를 바꿉니다.</p>' +
       '<div class="labgrid">' + THEMES.map(function (t) {
         return '<button class="labcard' + (S.theme === t.k ? ' on' : '') + '" data-theme="' + t.k + '" type="button">' +
           '<span class="sw">' + t.sw.map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('') + '</span>' +
@@ -568,10 +564,7 @@ window.AS = window.AS || {};
   }
 
   function setTheme(k) {
-    var prev = S.theme; S.theme = k;
-    if (k === 'B' && (S.bg === 'map' || S.bg === 'sat')) { S._prevBg = S.bg; AS.mapx.setBg('dark'); }
-    else if (prev === 'B' && k !== 'B' && S.bg === 'dark' && S.autoDark) AS.mapx.setBg(S._prevBg || 'road');
-    S.autoDark = (k === 'B');
+    S.theme = k;
     document.body.setAttribute('data-theme', k);
     var meta = document.getElementById('metaTheme');
     var map = { A: '#EEF2F8', B: '#05090D', C: '#0C1A2B', D: '#FBF3E4' };
@@ -608,13 +601,43 @@ window.AS = window.AS || {};
       if (S.tool === 'pen' || S.tool === 'vec') { S.tool = 'idle'; syncTool(); toast('그리기를 끝냈어요'); }
       else {
         S.tool = 'pen'; syncTool();
-        toast('그리기 켜짐 — 한 손가락으로 긋고, 두 손가락으로 지도를 확대·이동');
+        toast('그리기 켜짐 — 한 손가락으로 긋고, 두 손가락으로 맞춰요');
       }
     });
-    var cl = $('#chipLabel');
-    if (cl) cl.addEventListener('click', function () {
-      AS.mapx.setLabels(S.labels === false);
+
+    /* 배경은 딱 두 가지 — 도로 / 사진 */
+    $$('#modeSeg button[data-mode]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var m = b.dataset.mode;
+        if (m === S.mode) {
+          if (m === 'road') openSheet('road');
+          else pickPhoto();
+          return;
+        }
+        if (m === 'road') { AS.view.setMode('road'); toast('도로 도면 — 아래 [도로]에서 종류를 고르세요'); }
+        else {
+          AS.view.setMode('photo');
+          if (!AS.view.hasPhoto()) toast('갤러리에서 사진을 골라 주세요');
+        }
+      });
     });
+
+    var cs = $('#capSwap');
+    if (cs) cs.addEventListener('click', pickPhoto);
+    var cta = $('#btnPickPhoto');
+    if (cta) cta.addEventListener('click', function (e) { e.stopPropagation(); pickPhoto(); });
+    var lp = $('#btnPhotoLock');
+    if (lp) lp.addEventListener('click', function () {
+      AS.view.setLock(!(S.photo && S.photo.locked));
+    });
+    var ft = $('#btnPhotoFit');
+    if (ft) ft.addEventListener('click', function () { AS.view.fitPhoto(); toast('사진을 화면에 꽉 맞췄어요'); });
+    $('#fileInput').addEventListener('change', function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (f) applyPhotoFile(f);
+      e.target.value = '';
+    });
+
     $('#sheet').addEventListener('click', function (e) { if (e.target === $('#sheet')) closeSheet(); });
     $('#btnUndo').addEventListener('click', function () { C.undo(); });
     $('#btnSave').addEventListener('click', function () { AS.exportx.openSave(); });
@@ -622,104 +645,6 @@ window.AS = window.AS || {};
     if (rb) rb.addEventListener('click', openReset);
     var szb = $('#btnSize');
     if (szb) szb.addEventListener('click', cycleBtnSize);
-    var cs = $('#capSwap');
-    if (cs) cs.addEventListener('click', function () { $('#fileInput').click(); });
-
-    $$('#bgChips button[data-bg]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        if (b.dataset.bg === 'capture') {
-          if (S.bg === 'capture' && S.cap.src) { $('#fileInput').click(); return; }
-          openPhotoHelp(); return;
-        }
-        if (b.dataset.bg === 'road' && S.bg !== 'road') { AS.mapx.setRoad(S.roadId || 'lane4'); openSheet('road'); return; }
-        if (b.dataset.bg === 'road' && S.bg === 'road') { openSheet('road'); return; }
-        AS.mapx.setBg(b.dataset.bg);
-      });
-    });
-    $('#fileInput').addEventListener('change', function (e) {
-      var f = e.target.files && e.target.files[0]; if (!f) return;
-      var fr = new FileReader();
-      fr.onload = function () {
-        S.cap.src = fr.result; S.cap.base = null; $('#capImg').src = fr.result;
-        AS.mapx.setBg('capture'); toast('배경 사진으로 사용합니다 — 두 손가락으로 확대·이동'); C.save();
-        e.target.value = '';
-      };
-      fr.readAsDataURL(f);
-    });
-
-    $('#btnLock').addEventListener('click', function () { AS.mapx.setLock(!S.lock); });
-    $('#btnGeo').addEventListener('click', function () {
-      toast('현위치 확인 중…');
-      AS.mapx.geolocate().then(function (p) {
-        AS.mapx.setGps(p);
-        if (S.bg === 'road' || S.bg === 'capture') AS.mapx.setBg('dark');
-        AS.mapx.fly(p.lat, p.lng, 19); AS.mapx.setLock(false);
-        AS.mapx.layoutGps();
-        toast('현위치로 이동했습니다');
-      }).catch(function (e) { toast(e && e.code === 1 ? '위치 권한이 꺼져 있어요' : '현위치를 잡지 못했어요'); });
-    });
-
-    $('#searchPill').addEventListener('click', openSearch);
-    $('#searchClose').addEventListener('click', closeSearch);
-    $('#search').addEventListener('click', function (e) { if (e.target === $('#search')) closeSearch(); });
-    $('#qGo').addEventListener('click', doSearch);
-    $('#q').addEventListener('input', function () {
-      clearTimeout(qTimer); var v = $('#q').value.trim(); if (v.length < 2) return;
-      qTimer = setTimeout(doSearch, 420);
-    });
-    $('#q').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
-
-    // 나침반 1손가락 좌우 회전
-    var cmp = $('#compassBtn');
-    if (cmp) {
-      var cmpDrag = null;
-      cmp.addEventListener('pointerdown', function (e) {
-        e.stopPropagation();
-        cmpDrag = { x0: e.clientX, b0: S.view.bearing || 0, moved: false };
-        try { cmp.setPointerCapture(e.pointerId); } catch (er) {}
-      });
-      cmp.addEventListener('pointermove', function (e) {
-        if (!cmpDrag) return;
-        var dx = e.clientX - cmpDrag.x0;
-        if (!cmpDrag.moved && Math.abs(dx) < 4) return;
-        cmpDrag.moved = true; AS.mapx.setBearing(cmpDrag.b0 + dx * 0.8, true);
-      });
-      var cmpEnd = function () {
-        if (!cmpDrag) return;
-        if (!cmpDrag.moved) { AS.mapx.setBearing(0, false); toast('지도를 정북(0°)으로 맞췄어요'); }
-        cmpDrag = null;
-      };
-      cmp.addEventListener('pointerup', cmpEnd);
-      cmp.addEventListener('pointercancel', cmpEnd);
-    }
-
-    // 3D 각도(틸트) 1손가락 위아래 스와이프 / 탭하면 0° ↔ 35°
-    var tlt = $('#tiltBtn');
-    if (tlt) {
-      var tltDrag = null;
-      tlt.addEventListener('pointerdown', function (e) {
-        e.stopPropagation();
-        tltDrag = { y0: e.clientY, t0: S.view.tilt || 0, moved: false };
-        try { tlt.setPointerCapture(e.pointerId); } catch (er) {}
-      });
-      tlt.addEventListener('pointermove', function (e) {
-        if (!tltDrag) return;
-        var dy = e.clientY - tltDrag.y0;
-        if (!tltDrag.moved && Math.abs(dy) < 4) return;
-        tltDrag.moved = true; AS.mapx.setTilt(tltDrag.t0 - dy * 0.5);
-      });
-      var tltEnd = function () {
-        if (!tltDrag) return;
-        if (!tltDrag.moved) {
-          var next = (S.view.tilt || 0) > 10 ? 0 : 35;
-          AS.mapx.setTilt(next);
-          toast(next ? '3D 입체 각도 ' + next + '°' : '평면 탑뷰(0°)');
-        }
-        tltDrag = null;
-      };
-      tlt.addEventListener('pointerup', tltEnd);
-      tlt.addEventListener('pointercancel', tltEnd);
-    }
 
     $('#selBar').addEventListener('click', function (e) {
       var b = e.target.closest('[data-act]'); if (!b) return;
@@ -756,26 +681,23 @@ window.AS = window.AS || {};
 
     window.addEventListener('keydown', function (e) {
       if (document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
-      if (e.key === 'Escape') { closeSheet(); closeSearch(); closeModal(); closeMemo(); }
+      if (e.key === 'Escape') { closeSheet(); closeModal(); closeMemo(); }
       if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel) { e.preventDefault(); AS.objs.del(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); C.undo(); }
-      if (e.key === 'l' || e.key === 'L') AS.mapx.setLock(!S.lock);
     });
 
+    var onResize = function () {
+      measure();
+      AS.view.renderRoad();
+      AS.objs.layout();
+      AS.objs.chrome();
+    };
     if (window.ResizeObserver) {
-      var ro = new ResizeObserver(function () {
-        measure();
-        if (AS.mapx.map) AS.mapx.map.invalidateSize();
-        AS.mapx.renderRoadLayer();
-        AS.objs.layout();
-      });
+      var ro = new ResizeObserver(onResize);
       ro.observe($('#stage'));
     }
-    window.addEventListener('resize', function () {
-      measure(); if (AS.mapx.map) AS.mapx.map.invalidateSize();
-      AS.mapx.renderRoadLayer(); AS.objs.layout();
-    });
-    window.addEventListener('orientationchange', function () { setTimeout(function () { measure(); AS.mapx.renderRoadLayer(); AS.objs.layout(); }, 300); });
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', function () { setTimeout(onResize, 300); });
   }
 
   function closeModal() { $('#modal').hidden = true; var b = $('#modalBody'); b.innerHTML = ''; delete b.dataset.lab; }
@@ -808,7 +730,7 @@ window.AS = window.AS || {};
     body.innerHTML =
       '<button class="mclose" data-close="1" aria-label="닫기">✕</button>' +
       '<h3>화면 요소 전체 지우기</h3>' +
-      '<p class="mhint">지도에 놓은 차량·사람·표시를 모두 지웁니다. 배경(지도·캡처·도로)은 그대로 남고, 실행취소(↶)로 되돌릴 수 있어요.</p>' +
+      '<p class="mhint">약도에 놓은 차량·사람·표시를 모두 지웁니다. 배경(도로·사진)은 그대로 남고, 실행취소(↶)로 되돌릴 수 있어요.</p>' +
       '<div class="mrow"><button class="btn ghost" data-close="1">취소</button>' +
       '<button class="btn primary" id="btnDoClear">초기화</button></div>';
     $('#modal').hidden = false;
@@ -834,21 +756,22 @@ window.AS = window.AS || {};
     $('#btnPickPhoto').addEventListener('click', function () { closeModal(); $('#fileInput').click(); });
   }
 
-  /* 캡처 배경일 때만 '사진 교체' 버튼 노출 */
+  /* 사진 모드일 때만 '사진 교체' 버튼 노출 */
   function syncCapture() {
     var b = $('#capSwap');
     if (!b) return;
-    b.hidden = S.bg !== 'capture';
+    b.hidden = S.mode !== 'photo';
   }
 
-  function measure() { var r = $('#stage').getBoundingClientRect(); S.stage.w = r.width; S.stage.h = r.height; }
+  function measure() { AS.view.measure(); }
 
   AS.toast = toast;
   AS.ui = {
     toast: toast, bind: bind, syncTool: syncTool, openSheet: openSheet, closeSheet: closeSheet, selbar: selbar, bgchips: bgchips,
-    openSearch: openSearch, openSearchWith: openSearchWith, closeSearch: closeSearch, openLab: openLab, setTheme: setTheme,
+    openLab: openLab, setTheme: setTheme,
     memo: openMemo, closeModal: closeModal, measure: measure, previewSVG: previewSVG,
     renderRoles: renderRoles, syncDock: syncDock, THEMES: THEMES,
-    openReset: openReset, applyBtnSize: applyBtnSize, cycleBtnSize: cycleBtnSize, syncCapture: syncCapture
+    openReset: openReset, applyBtnSize: applyBtnSize, cycleBtnSize: cycleBtnSize, syncCapture: syncCapture,
+    pickPhoto: pickPhoto, applyPhotoFile: applyPhotoFile, putPhoto: putPhoto, openPhotoHelp: openPhotoHelp
   };
 })(window.AS);

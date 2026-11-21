@@ -1,5 +1,8 @@
 /* ==========================================================================
-   objs.js — 객체 렌더 · 지도 투영 · 선택 · 드래그/회전/크기/핀치 · 펜
+   objs.js — 객체 렌더 · 선택 · 드래그/회전/크기/핀치 · 펜
+   좌표는 전부 '월드'(캔버스 기준 px) 좌표다. 화면 좌표가 필요하면
+   AS.view.project() 로 옮긴다. 사진 배경의 확대·회전·이동은 #world 그룹
+   변환이 맡으므로 요소 좌표는 사진에 붙은 채로 함께 움직인다.
    ========================================================================== */
 window.AS = window.AS || {};
 (function (AS) {
@@ -9,7 +12,7 @@ window.AS = window.AS || {};
   var nodeOf = {};
 
   function init() {
-    layer = $('#layer');
+    layer = $('#artLayer');
     selEl = $('#sel'); boxEl = selEl.querySelector('.selbox');
     rotH = selEl.querySelector('.hnd.rot'); sizeH = selEl.querySelector('.hnd.size');
     angleEl = selEl.querySelector('.angle'); chipRot = $('#chipRot');
@@ -53,8 +56,8 @@ window.AS = window.AS || {};
   }
 
   function dispRot(o) {
-    if (!o || o.type === 'memo') return (o && o.rot) || 0;
-    return (((o.rot || 0) + (S.view.bearing || 0)) % 360 + 360) % 360;
+    if (!o) return 0;
+    return (((o.rot || 0) % 360) + 360) % 360;
   }
 
   function objMarkup(o) {
@@ -195,9 +198,20 @@ window.AS = window.AS || {};
 
   /* ─────────────────────────── 렌더 ─────────────────────────── */
   function isRoadObj(o) { return o && o.type === 'sym' && o.kind && o.kind.indexOf('road_') === 0; }
+
+  function syncWorld() {
+    for (var i = 0; i < S.objs.length; i++) {
+      var o = S.objs[i];
+      if (!isFinite(o.x)) o.x = S.stage.w / 2;
+      if (!isFinite(o.y)) o.y = S.stage.h / 2;
+      o._cx = o.x; o._cy = o.y;
+      if (o.type === 'pen' && o.pts) o._pts = o.pts;
+    }
+  }
+
   function render() {
     if (!layer) return;
-    projectAll();
+    syncWorld();
     var roads = [], top = [];
     for (var i = 0; i < S.objs.length; i++) {
       var o = S.objs[i];
@@ -215,41 +229,10 @@ window.AS = window.AS || {};
 
   function isFine(o) { return o && isFinite(o._cx) && isFinite(o._cy); }
 
-  function projectAll() {
-    var m = AS.mapx.map;
-    if (!m) return;
-    for (var i = 0; i < S.objs.length; i++) {
-      var o = S.objs[i];
-      var p = AS.mapx.project(o.lat, o.lng);
-      o._cx = p.x; o._cy = p.y;
-      if (o.type === 'pen' && o.pts) {
-        o._pts = o.pts.map(function (q) {
-          var r = AS.mapx.project(q[0], q[1]);
-          return [r.x, r.y];
-        });
-      }
-    }
-  }
-
-  /* 지도 이동/줌/회전 시 위치만 갱신 (구조 재생성 없이) */
+  /* 사진 확대·회전·이동은 #world 그룹 변환 하나로 끝난다 —
+     요소는 월드 좌표에 그대로 두고 선택 크롬만 다시 그린다 */
   function layout() {
-    if (!layer) return;
-    projectAll();
-    for (var i = 0; i < S.objs.length; i++) {
-      var o = S.objs[i], g = nodeOf[o.id];
-      if (!g || !isFine(o)) continue;
-      if (o.type === 'pen') {
-        g.innerHTML = penStroke(o, penPath(o));
-      } else {
-        var dr = dispRot(o);
-        g.setAttribute('transform', 'translate(' + fmt(o._cx) + ',' + fmt(o._cy) + ')' +
-          (dr ? ' rotate(' + fmt(dr) + ')' : '') + (o.sc !== 1 ? ' scale(' + o.sc + ')' : ''));
-      }
-    }
-    var bg = layer.querySelector('.badges');
-    if (bg) bg.innerHTML = marks();
     chrome();
-    if (AS.mapx && AS.mapx.layoutGps) AS.mapx.layoutGps();
   }
 
   /* ─────────────────────────── 선택 크롬 ─────────────────────────── */
@@ -261,32 +244,39 @@ window.AS = window.AS || {};
   function chrome() {
     var o = selObj();
     if (!o || !isFine(o)) { selEl.classList.remove('on'); hideHandles(); return; }
+    var c = AS.view.project(o.x, o.y);
+    var kz = AS.view.scale();
+    var rr = (o.rot || 0) + AS.view.rot();
     selEl.classList.add('on');
-    var W = o.type === 'pen' ? 0 : o.w * o.sc;
-    var H = o.type === 'pen' ? 0 : (o.type === 'memo' ? o.h : (o.w * (o.vb.h / o.vb.w))) * o.sc;
     if (o.type === 'pen') {
-      var xs = o._pts.map(function (p) { return p[0]; }), ys = o._pts.map(function (p) { return p[1]; });
-      var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
-      var y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
-      W = Math.max(14, x1 - x0); H = Math.max(14, y1 - y0);
-      boxEl.style.width = W + 'px'; boxEl.style.height = H + 'px';
-      boxEl.style.transform = 'translate(' + fmt((x0 + x1) / 2 - W / 2) + 'px,' + fmt((y0 + y1) / 2 - H / 2) + 'px)';
+      var pts = o._pts || [];
+      if (!pts.length) { hideHandles(); return; }
+      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      pts.forEach(function (q) {
+        var p = AS.view.project(q[0], q[1]);
+        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+      });
+      var W0 = Math.max(14, maxX - minX), H0 = Math.max(14, maxY - minY);
+      boxEl.style.width = W0 + 'px'; boxEl.style.height = H0 + 'px';
+      boxEl.style.transform = 'translate(' + fmt((minX + maxX) / 2 - W0 / 2) + 'px,' + fmt((minY + maxY) / 2 - H0 / 2) + 'px)';
       boxEl.style.borderRadius = '10px';
       rotH.hidden = true; sizeH.hidden = true; angleEl.hidden = true;
       return;
     }
-    var dr = dispRot(o);
+    var W = o.w * o.sc * kz;
+    var H = (o.type === 'memo' ? o.h : (o.w * (o.vb.h / o.vb.w))) * o.sc * kz;
     boxEl.style.width = W + 'px'; boxEl.style.height = H + 'px';
     boxEl.style.borderRadius = (S.theme === 'C' ? 2 : 4) + 'px';
-    boxEl.style.transform = 'translate(' + fmt(o._cx - W / 2) + 'px,' + fmt(o._cy - H / 2) + 'px) rotate(' + fmt(dr) + 'deg)';
+    boxEl.style.transform = 'translate(' + fmt(c.x - W / 2) + 'px,' + fmt(c.y - H / 2) + 'px) rotate(' + fmt(rr) + 'deg)';
     var gr = handPx() / 2 + 4;
-    var rp = rotPt(o._cx, o._cy, 0, -(H / 2 + gr + 4), dr);
-    var sp = rotPt(o._cx, o._cy, W / 2 + gr * 0.72, H / 2 + gr * 0.72, dr);
+    var rp = rotPt(c.x, c.y, 0, -(H / 2 + gr + 4), rr);
+    var sp = rotPt(c.x, c.y, W / 2 + gr * 0.72, H / 2 + gr * 0.72, rr);
     rotH.hidden = false; sizeH.hidden = false;
     rotH.style.left = rp[0] + 'px'; rotH.style.top = rp[1] + 'px';
     sizeH.style.left = sp[0] + 'px'; sizeH.style.top = sp[1] + 'px';
     if (!angleEl.hidden) {
-      var ap = rotPt(o._cx, o._cy, 0, -(H / 2 + gr + 34), dr);
+      var ap = rotPt(c.x, c.y, 0, -(H / 2 + gr + 34), rr);
       angleEl.style.left = ap[0] + 'px'; angleEl.style.top = ap[1] + 'px';
     }
   }
@@ -310,7 +300,7 @@ window.AS = window.AS || {};
     S.sel = id;
     chrome();
     AS.ui.selbar();
-    if (id && !(opts && opts.silent)) AS.mapx.setLock(true, true);
+    if (id && S.mode === 'photo' && !(S.photo && S.photo.locked)) AS.view.setLock(true, true);
   }
   function deselect() {
     if (!S.sel) return;
@@ -318,7 +308,7 @@ window.AS = window.AS || {};
     chrome(); AS.ui.selbar();
   }
 
-  /* ─────────────────────────── 히트 테스트 ─────────────────────────── */
+  /* ─────────────────────────── 히트 테스트 (월드 좌표) ─────────────────────────── */
   function hit(x, y) {
     for (var i = S.objs.length - 1; i >= 0; i--) {
       var o = S.objs[i];
@@ -348,7 +338,7 @@ window.AS = window.AS || {};
   }
 
   /* ─────────────────────────── 제스처 ─────────────────────────── */
-  var ptrs = {}, rawPtrs = {}, drag = null, base = null, penDraft = null, vecDraft = null;
+  var ptrs = {}, rawPtrs = {}, drag = null, penDraft = null, vecDraft = null;
 
   function rawPtOf(e) {
     var r = $('#stage').getBoundingClientRect();
@@ -356,7 +346,7 @@ window.AS = window.AS || {};
   }
   function ptOf(e) {
     var raw = rawPtOf(e);
-    return AS.mapx.screenToPlane ? AS.mapx.screenToPlane(raw.x, raw.y) : raw;
+    return AS.view.unproject(raw.x, raw.y);
   }
   function pcount() { return Object.keys(ptrs).length; }
   function twoPtrs() {
@@ -376,84 +366,48 @@ window.AS = window.AS || {};
     window.addEventListener('pointercancel', onUp);
   }
 
-  function beginMapPinch() {
+  function photoAdjustable() { return S.mode === 'photo' && !(S.photo && S.photo.locked); }
+
+  function beginPhotoGesture() {
     var rt = twoRawPtrs();
-    drag = {
-      mode: 'mappinch', moved: false,
-      d0: Math.hypot(rt[0].x - rt[1].x, rt[0].y - rt[1].y) || 1,
-      a0: Math.atan2(rt[1].y - rt[0].y, rt[1].x - rt[0].x) * 180 / Math.PI,
-      mid: { x: (rt[0].x + rt[1].x) / 2, y: (rt[0].y + rt[1].y) / 2 }
-    };
-    drag.rawMid0 = { x: drag.mid.x, y: drag.mid.y };
-    AS.mapx.startPinch(drag.mid.x, drag.mid.y);
+    var mid = { x: (rt[0].x + rt[1].x) / 2, y: (rt[0].y + rt[1].y) / 2 };
+    var d = Math.hypot(rt[0].x - rt[1].x, rt[0].y - rt[1].y) || 1;
+    var a = Math.atan2(rt[1].y - rt[0].y, rt[1].x - rt[0].x) * 180 / Math.PI;
+    AS.view.gestureStart(mid, d, a);
+    drag = { mode: 'photopinch', moved: false };
   }
 
-  /* 획이 짧으면(< 26px 또는 < 320ms) 지우고, 제법 길었으면 마무리한 뒤 핀치로 */
-  function releaseDraftForPinch() {
-    var d = penDraft || vecDraft;
-    if (!d) return;
-    var dur = performance.now() - (d._t0 || 0), span = 0;
-    if (d.type === 'pen' && d._pts && d._pts.length) {
-      var p0 = d._pts[0];
-      for (var i = 1; i < d._pts.length; i++) {
-        var dd = Math.hypot(d._pts[i][0] - p0[0], d._pts[i][1] - p0[1]);
-        if (dd > span) span = dd;
-      }
-    } else if (d.type === 'vec') {
-      span = d.h > 24 ? d.h : 0;
-    }
-    if (dur < 320 || span < 26) {
-      stopHoldLoop();
-      S.objs = S.objs.filter(function (o) { return o !== d; });
-      penDraft = null; vecDraft = null;
-      render(); AS.ui.selbar();
-    } else if (penDraft) {
-      finishPen();
-    } else if (vecDraft) {
-      finishVec();
-    }
+  /* 사진 조정 중에 그리던 획이 있으면 정리한다 */
+  function closeDraft() {
+    if (penDraft) finishPen();
+    else if (vecDraft) finishVec();
   }
 
   function onDown(e) {
     if (e.button && e.button !== 0) return;
     var tg = e.target;
-    if (tg && tg.closest && (tg.closest('.hnd') || tg.closest('#toolChip'))) return;
+    if (tg && tg.closest && (tg.closest('.hnd') || tg.closest('#toolChip') || tg.closest('#emptyPhoto') || tg.closest('#modeSeg') || tg.closest('#photoBar'))) return;
     var rp = rawPtOf(e);
-    var p = AS.mapx.screenToPlane ? AS.mapx.screenToPlane(rp.x, rp.y) : rp;
+    var p = AS.view.unproject(rp.x, rp.y);
     rawPtrs[e.pointerId] = rp;
     ptrs[e.pointerId] = p;
 
-    /* 그리는 중(펜·화살표) 두 손가락 → 짧은 획은 취소하고 바로 지도 핀치로 전환 */
-    if (pcount() === 2 && (penDraft || vecDraft)) {
-      if (e.cancelable) e.preventDefault();
-      e.stopPropagation();
-      releaseDraftForPinch();
-      beginMapPinch();
-      return;
-    }
-
-    if (pcount() === 2 && !drag) {
-      /* 지도가 고정된 상태에서도 두 손가락 각도·회전은 되게 (v3.8) */
-      beginMapPinch();
-      return;
-    }
-
-    if (pcount() === 2 && drag) {
-      var t = twoPtrs(), rt = twoRawPtrs();
-      if (drag.mode === 'map' || drag.mode === 'mappinch') {
-        drag.mode = 'mappinch';
-        drag.d0 = Math.hypot(rt[0].x - rt[1].x, rt[0].y - rt[1].y) || 1;
-        drag.a0 = Math.atan2(rt[1].y - rt[0].y, rt[1].x - rt[0].x) * 180 / Math.PI;
-        drag.mid = { x: (rt[0].x + rt[1].x) / 2, y: (rt[0].y + rt[1].y) / 2 };
-        drag.rawMid0 = { x: drag.mid.x, y: drag.mid.y };
-        AS.mapx.startPinch(drag.mid.x, drag.mid.y);
+    /* 두 손가락 — 사진 조정 중이면 사진 확대·회전·이동 */
+    if (pcount() === 2) {
+      if (penDraft || vecDraft) closeDraft();
+      if (photoAdjustable()) {
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        beginPhotoGesture();
         return;
       }
-      if (drag.o && drag.o.type !== 'pen') {
+      if (drag && drag.o && drag.o.type !== 'pen') {
+        var t = twoPtrs();
         drag.mode = 'pinch';
         drag.d0 = Math.hypot(t[0].x - t[1].x, t[0].y - t[1].y) || 1;
         drag.a0 = Math.atan2(t[1].y - t[0].y, t[1].x - t[0].x) * 180 / Math.PI;
         drag.sc0 = drag.o.sc; drag.rot0 = drag.o.rot;
+        return;
       }
       return;
     }
@@ -475,9 +429,8 @@ window.AS = window.AS || {};
       e.stopPropagation(); e.preventDefault();
       if (S.tool === 'memo') { S.tool = 'idle'; AS.ui.syncTool(); AS.ui.memo(p); return; }
       select(o.id, { silent: true });
-      if (!S.lock) AS.mapx.setLock(true, true); else AS.ui.selbar();
       drag = {
-        mode: 'move', o: o, p0: p, sx: o._cx, sy: o._cy, lat0: o.lat, lng0: o.lng,
+        mode: 'move', o: o, p0: p, sx: o._cx, sy: o._cy,
         pts0: o.type === 'pen' && o._pts ? o._pts.map(function (q) { return [q[0], q[1]]; }) : null,
         moved: false
       };
@@ -487,8 +440,9 @@ window.AS = window.AS || {};
     // 빈 곳
     if (S.tool === 'memo') { S.tool = 'idle'; AS.ui.syncTool(); AS.ui.memo(p); e.stopPropagation(); e.preventDefault(); return; }
     if (S.sel) deselect();
-    if (!S.lock && S.tool === 'idle') {
-      drag = { mode: 'map', last: p, moved: false };
+    if (photoAdjustable()) {
+      drag = { mode: 'photo', moved: false };
+      AS.view.gestureStart(rp, 1, 0);
       try { $('#stage').setPointerCapture(e.pointerId); } catch (er) { }
     }
   }
@@ -497,39 +451,36 @@ window.AS = window.AS || {};
     if (!ptrs[e.pointerId]) return;
     var rp = rawPtOf(e);
     rawPtrs[e.pointerId] = rp;
-    ptrs[e.pointerId] = AS.mapx.screenToPlane ? AS.mapx.screenToPlane(rp.x, rp.y) : rp;
+    ptrs[e.pointerId] = AS.view.unproject(rp.x, rp.y);
     if (penDraft) { extendPen(ptrs[e.pointerId]); return; }
     if (vecDraft) { extendVec(ptrs[e.pointerId]); return; }
     if (!drag) return;
     e.preventDefault();
 
-    if (drag.mode === 'map') {
-      var curp = ptrs[e.pointerId];
-      var mdx = curp.x - drag.last.x, mdy = curp.y - drag.last.y;
-      if (!drag.moved && Math.hypot(mdx, mdy) < 2) return;
+    if (drag.mode === 'photo') {
+      AS.view.gestureMove(rp, 1, 0);
       drag.moved = true;
-      drag.last = curp;
-      AS.mapx.panScreen(mdx, mdy);
       return;
     }
-    if (drag.mode === 'mappinch') {
+    if (drag.mode === 'photopinch') {
       var rt = twoRawPtrs();
       var md = Math.hypot(rt[0].x - rt[1].x, rt[0].y - rt[1].y) || 1;
       var ma = Math.atan2(rt[1].y - rt[0].y, rt[1].x - rt[0].x) * 180 / Math.PI;
       var mid = { x: (rt[0].x + rt[1].x) / 2, y: (rt[0].y + rt[1].y) / 2 };
-      AS.mapx.movePinch(mid.x, mid.y, md / drag.d0, ma - drag.a0);
+      AS.view.gestureMove(mid, md, ma);
       drag.moved = true;
       return;
     }
 
     var o = drag.o;
+    if (!o) return;
     if (drag.mode === 'pinch') {
       var t = twoPtrs();
       var d = Math.hypot(t[0].x - t[1].x, t[0].y - t[1].y) || 1;
       var a = Math.atan2(t[1].y - t[0].y, t[1].x - t[0].x) * 180 / Math.PI;
       o.sc = C.clamp(drag.sc0 * (d / drag.d0), .4, 3);
-      var rot = drag.rot0 + (a - drag.a0);
-      o.rot = S.snap ? snapAngle(rot) : ((rot % 360) + 360) % 360;
+      var rotv = drag.rot0 + (a - drag.a0);
+      o.rot = S.snap ? snapAngle(rotv) : ((rotv % 360) + 360) % 360;
       showAngle(o.rot);
       render(); AS.ui.selbar(); drag.moved = true;
       return;
@@ -537,34 +488,27 @@ window.AS = window.AS || {};
     if (drag.mode === 'move') {
       var cur = ptrs[e.pointerId];
       var dx = cur.x - drag.p0.x, dy = cur.y - drag.p0.y;
-      if (!drag.moved && Math.hypot(dx, dy) < 3) return;
+      if (!drag.moved && Math.hypot(dx, dy) < 2) return;
       drag.moved = true;
       if (o.type === 'pen' && drag.pts0) {
         o._pts = drag.pts0.map(function (q) { return [q[0] + dx, q[1] + dy]; });
-        o.pts = o._pts.map(function (q) { var llp = AS.mapx.unproject(q[0], q[1]); return [llp.lat, llp.lng]; });
-        o.lat = o.pts[0][0]; o.lng = o.pts[0][1];
-        o._cx = o._pts[0][0]; o._cy = o._pts[0][1];
+        o.pts = o._pts;
+        o.x = o._pts[0][0]; o.y = o._pts[0][1];
+        o._cx = o.x; o._cy = o.y;
         var pg = nodeOf[o.id];
         if (pg) pg.innerHTML = penStroke(o, penPath(o));
         chrome();
         return;
       }
-      var ll = AS.mapx.unproject(drag.sx + dx, drag.sy + dy);
-      o.lat = ll.lat; o.lng = ll.lng;
-      var p = AS.mapx.project(o.lat, o.lng);
-      o._cx = p.x; o._cy = p.y;
+      o.x = drag.sx + dx; o.y = drag.sy + dy;
+      o._cx = o.x; o._cy = o.y;
       var g = nodeOf[o.id];
       var drMove = dispRot(o);
       if (g) g.setAttribute('transform', 'translate(' + fmt(o._cx) + ',' + fmt(o._cy) + ')' + (drMove ? ' rotate(' + fmt(drMove) + ')' : '') + (o.sc !== 1 ? ' scale(' + o.sc + ')' : ''));
-      layoutBadge(o);
+      var bg = layer && layer.querySelector('.badges');
+      if (bg) bg.innerHTML = marks();
       chrome();
     }
-  }
-
-  function layoutBadge(o) {
-    var bg = layer && layer.querySelector('.badges');
-    if (!bg) return;
-    bg.innerHTML = marks();
   }
 
   function onUp(e) {
@@ -574,25 +518,23 @@ window.AS = window.AS || {};
     if (penDraft) { finishPen(); return; }
     if (vecDraft) { finishVec(); return; }
     if (!drag) return;
-    if ((drag.mode === 'mappinch' || drag.mode === 'pinch') && pcount() === 1) {
-      var k = Object.keys(ptrs)[0];
-      if (drag.mode === 'mappinch') {
-        AS.mapx.endPinch();
-        /* 지도가 고정된 상태였다면 남은 손가락으로 지도가 끌리지 않게 */
-        drag = S.lock ? null : { mode: 'map', last: ptrs[k], moved: true };
-        return;
-      }
-      drag.mode = 'move'; drag.p0 = ptrs[k]; drag.moved = true; return;
+    if (drag.mode === 'photopinch' && pcount() === 1) {
+      /* 한 손가락이 남으면 남은 손가락으로 사진을 끌 수 있게 이어 간다 */
+      AS.view.gestureEnd();
+      var k = Object.keys(rawPtrs)[0];
+      drag = { mode: 'photo', moved: true };
+      if (k) AS.view.gestureStart(rawPtrs[k], 1, 0);
+      return;
     }
     if (pcount() > 0) return;
-    if (drag.mode === 'map' || drag.mode === 'mappinch') {
-      if (drag.mode === 'mappinch') AS.mapx.endPinch();
+    if (drag.mode === 'photo' || drag.mode === 'photopinch') {
+      AS.view.gestureEnd();
+      if (drag.mode === 'photopinch' || drag.moved) C.save();
       drag = null;
       return;
     }
     if (drag.moved) {
       C.pushUndo();
-      if (drag.o && drag.o.lat !== undefined) { /* 위치 커밋 */ }
       C.save();
       AS.ui.selbar();
     }
@@ -694,8 +636,9 @@ window.AS = window.AS || {};
       var ring = $('#holdRing');
       if (ring) {
         ring.hidden = false;
-        ring.style.left = holdAnchor.x + 'px';
-        ring.style.top = holdAnchor.y + 'px';
+        var sp = AS.view.project(holdAnchor.x, holdAnchor.y);
+        ring.style.left = sp.x + 'px';
+        ring.style.top = sp.y + 'px';
         var fg = ring.querySelector('.fg');
         var frac = C.clamp((el - HOLD_RING_SHOW) / (HOLD_SNAP_MS - HOLD_RING_SHOW), 0, 1);
         if (fg) fg.style.strokeDashoffset = (138.23 * (1 - frac)).toFixed(2);
@@ -895,12 +838,9 @@ window.AS = window.AS || {};
     if (!penDraft || penDraft.snapped) return;
     var res = recognizeShape(penDraft._pts);
     penDraft._pts = res.pts;
-    penDraft.pts = res.pts.map(function (q) {
-      var ll = AS.mapx.unproject(q[0], q[1]);
-      return [ll.lat, ll.lng];
-    });
-    penDraft.lat = penDraft.pts[0][0];
-    penDraft.lng = penDraft.pts[0][1];
+    penDraft.pts = res.pts;
+    penDraft.x = penDraft.pts[0][0];
+    penDraft.y = penDraft.pts[0][1];
     penDraft.snapped = res.label;
     if (res.arrowEnd) penDraft.arrowEnd = true;
     hideHoldRing();
@@ -910,13 +850,12 @@ window.AS = window.AS || {};
   }
 
   function startPen(p) {
-    var ll = AS.mapx.unproject(p.x, p.y);
     penDraft = {
-      id: C.uid(), type: 'pen', lat: ll.lat, lng: ll.lng, rot: 0, sc: 1,
+      id: C.uid(), type: 'pen', x: p.x, y: p.y, rot: 0, sc: 1,
       w: 1, h: 1, color: S.pen.color, lw: 3.6,
-      pts: [[ll.lat, ll.lng]]
+      pts: [[p.x, p.y]]
     };
-    penDraft._cx = p.x; penDraft._cy = p.y; penDraft._pts = [[p.x, p.y]];
+    penDraft._cx = p.x; penDraft._cy = p.y; penDraft._pts = penDraft.pts;
     penDraft._t0 = performance.now();
     S.objs.push(penDraft);
     startHoldLoop();
@@ -930,9 +869,7 @@ window.AS = window.AS || {};
     }
     var last = penDraft._pts[penDraft._pts.length - 1];
     if (Math.hypot(p.x - last[0], p.y - last[1]) < 2.4) return;
-    var ll = AS.mapx.unproject(p.x, p.y);
-    penDraft.pts.push([ll.lat, ll.lng]);
-    penDraft._pts.push([p.x, p.y]);
+    penDraft.pts.push([p.x, p.y]);
     var g = nodeOf[penDraft.id];
     if (g && g.firstChild) g.firstChild.setAttribute('d', penPath(penDraft));
   }
@@ -951,9 +888,8 @@ window.AS = window.AS || {};
 
   /* ─────────────────────────── 직선 화살표 ─────────────────────────── */
   function startVec(p) {
-    var ll = AS.mapx.unproject(p.x, p.y);
     vecDraft = {
-      id: C.uid(), type: 'vec', lat: ll.lat, lng: ll.lng, rot: 0, sc: 1,
+      id: C.uid(), type: 'vec', x: p.x, y: p.y, rot: 0, sc: 1,
       w: 44, h: 90, color: themeAccent(), _cx: p.x, _cy: p.y, _x0: p.x, _y0: p.y, _t0: performance.now()
     };
     S.objs.push(vecDraft);
@@ -963,10 +899,8 @@ window.AS = window.AS || {};
     var d = Math.hypot(p.x - vecDraft._x0, p.y - vecDraft._y0);
     if (d < 4) return;
     var ang = Math.atan2(p.y - vecDraft._y0, p.x - vecDraft._x0) * 180 / Math.PI + 90;
-    var mid = { x: (p.x + vecDraft._x0) / 2, y: (p.y + vecDraft._y0) / 2 };
-    var ll = AS.mapx.unproject(mid.x, mid.y);
-    vecDraft.lat = ll.lat; vecDraft.lng = ll.lng;
-    vecDraft._cx = mid.x; vecDraft._cy = mid.y;
+    vecDraft.x = (p.x + vecDraft._x0) / 2; vecDraft.y = (p.y + vecDraft._y0) / 2;
+    vecDraft._cx = vecDraft.x; vecDraft._cy = vecDraft.y;
     vecDraft.rot = S.snap ? snapAngle(((ang % 360) + 360) % 360) : ((ang % 360) + 360) % 360;
     vecDraft.h = Math.max(24, d);
     render();
@@ -975,9 +909,8 @@ window.AS = window.AS || {};
     if (!vecDraft) return;
     if (vecDraft.h < 26) {
       vecDraft.h = 90;
-      var ll2 = AS.mapx.unproject(vecDraft._x0, vecDraft._y0);
-      vecDraft.lat = ll2.lat; vecDraft.lng = ll2.lng;
-      vecDraft._cx = vecDraft._x0; vecDraft._cy = vecDraft._y0;
+      vecDraft.x = vecDraft._x0; vecDraft.y = vecDraft._y0;
+      vecDraft._cx = vecDraft.x; vecDraft._cy = vecDraft.y;
     }
     C.pushUndo();
     var id = vecDraft.id;
@@ -986,16 +919,17 @@ window.AS = window.AS || {};
   }
 
   /* ─────────────────────────── 추가/조작 API ─────────────────────────── */
+  function centerWorld() {
+    var n = S.objs.length;
+    return {
+      x: S.stage.w / 2 + ((n % 3) - 1) * 26,
+      y: S.stage.h / 2 + (Math.floor(n / 3) % 3 - 1) * 22
+    };
+  }
+
   function add(spec, at) {
-    var p = at || (function () {
-      var n = S.objs.length;
-      return { x: S.stage.w / 2 + ((n % 3) - 1) * 26, y: S.stage.h / 2 + (Math.floor(n / 3) % 3 - 1) * 22 };
-    })();
-    var ll = at ? at.ll : AS.mapx.unproject(p.x, p.y);
-    var o = C.makeObj(spec, ll.lat, ll.lng);
-    if (spec.type !== 'memo' && S.view.bearing) {
-      o.rot = (((o.rot || 0) - S.view.bearing) % 360 + 360) % 360;
-    }
+    var p = at && isFinite(at.x) ? at : centerWorld();
+    var o = C.makeObj(spec, p.x, p.y);
     if (spec.type === 'memo') o.text = spec.text || '';
     S.objs.push(o);
     if (spec.type === 'car' && S.newRole !== 'none') {
@@ -1003,26 +937,24 @@ window.AS = window.AS || {};
     }
     C.pushUndo();
     S.sel = o.id;
+    if (S.mode === 'photo' && !(S.photo && S.photo.locked)) AS.view.setLock(true, true);
     render(); AS.ui.selbar(); C.save();
-    AS.mapx.setLock(true, true);
     return o;
   }
 
   function addMemo(text, x, y) {
-    var ll = AS.mapx.unproject(x, y);
     var o = {
-      id: C.uid(), type: 'memo', kind: 'memo', lat: ll.lat, lng: ll.lng, rot: 0, sc: 1,
+      id: C.uid(), type: 'memo', kind: 'memo', x: x, y: y, rot: 0, sc: 1,
       text: text, w: Math.max(64, text.length * 13 + 20), h: 28, vb: { x: 0, y: 0, w: 10, h: 10 }
     };
     S.objs.push(o); C.pushUndo(); S.sel = o.id;
     render(); AS.ui.selbar(); C.save();
-    AS.mapx.setLock(true, true);
   }
 
   function update(fn) {
     var o = selObj(); if (!o) return;
     fn(o);
-    render(); AS.ui.selbar(); AS.mapx.setLock(true);
+    render(); AS.ui.selbar();
   }
 
   function del() {
@@ -1042,16 +974,17 @@ window.AS = window.AS || {};
       copy.role = C.nextCarRole();
       S.newRole = copy.role;
     }
-    var p = AS.mapx.project(o.lat, o.lng);
-    var ll;
     if (copy.type === 'car') {
       var rad = dispRot(o) * Math.PI / 180;
       var step = (o.h || 90) * (o.sc || 1) * 1.04;
-      ll = AS.mapx.unproject(p.x - Math.sin(rad) * step, p.y + Math.cos(rad) * step);
+      copy.x = o.x - Math.sin(rad) * step;
+      copy.y = o.y + Math.cos(rad) * step;
+    } else if (copy.type === 'pen' && copy.pts) {
+      copy.pts = copy.pts.map(function (q) { return [q[0] + 18, q[1] + 26]; });
+      copy.x = copy.pts[0][0]; copy.y = copy.pts[0][1];
     } else {
-      ll = AS.mapx.unproject(p.x + 24, p.y + 38);
+      copy.x = o.x + 24; copy.y = o.y + 38;
     }
-    copy.lat = ll.lat; copy.lng = ll.lng;
     S.objs.push(copy); C.pushUndo();
     S.sel = copy.id;
     render(); AS.ui.selbar(); C.save();
@@ -1066,10 +999,6 @@ window.AS = window.AS || {};
     C.pushUndo(); render(); AS.ui.selbar(); C.save();
   }
 
-  function svgMarkup() {
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + S.stage.w + '" height="' + S.stage.h + '">' + layer.innerHTML + '</svg>';
-  }
-
   function togglePenArrow() {
     var o = selObj(); if (!o || o.type !== 'pen') return;
     o.arrowEnd = !o.arrowEnd;
@@ -1079,6 +1008,6 @@ window.AS = window.AS || {};
   AS.objs = {
     init: init, render: render, layout: layout, chrome: chrome, hit: hit, select: select, deselect: deselect,
     add: add, addMemo: addMemo, update: update, del: del, dup: dup, scaleBy: scaleBy, togglePenArrow: togglePenArrow,
-    selObj: selObj, svgMarkup: svgMarkup, projectAll: projectAll, esc: esc
+    selObj: selObj, esc: esc
   };
 })(window.AS);
