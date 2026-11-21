@@ -106,7 +106,7 @@ window.AS = window.AS || {};
     AS.mapx.setLock(true, true);
     AS.objs.render(); selbar(); C.save();
     closeSheet();
-    toast('과실도표 [' + pr.no + '] ' + pr.label + ' 적용');
+    toast('[' + pr.no + '] ' + pr.label + ' 적용');
   }
 
   /* ────────── 시트 ────────── */
