@@ -475,6 +475,40 @@ window.AS = window.AS || {};
     AS.view.syncMode();
   }
 
+  /* ────────── 사진 크기 조절 ──────────
+     100% = 불러온 사진 그대로(전체가 다 보이는 상태). 그 아래로는 절대 줄지 않는다.
+     슬라이더·＋·− 와 두 손가락 핀치가 모두 같은 값을 함께 본다. */
+  function zoomPct(k) { return Math.round((isFinite(k) ? k : 1) * 100); }
+
+  function syncPhotoZoom() {
+    var sl = $('#photoZoom'), lab = $('#photoZoomVal');
+    var out = $('#btnZoomOut'), inn = $('#btnZoomIn');
+    if (!sl) return;
+    var k = AS.view.photoScale ? AS.view.photoScale() : 1;
+    var pct = zoomPct(k);
+    if (String(sl.value) !== String(pct)) sl.value = String(pct);
+    sl.style.setProperty('--fill', ((pct - 100) / 400 * 100) + '%');
+    if (lab) lab.textContent = pct + '%';
+    if (out) { out.disabled = k <= (AS.view.K_MIN || 1) + 0.001; }
+    if (inn) { inn.disabled = k >= (AS.view.K_MAX || 5) - 0.001; }
+    if (sl) {
+      sl.setAttribute('aria-valuetext', pct === 100
+        ? '100% — 불러온 사진 그대로 (더 줄일 수 없음)'
+        : pct + '% — 불러온 사진보다 ' + (pct > 100 ? '확대' : '작게'));
+    }
+  }
+
+  function applyZoom(k, save) {
+    AS.view.setPhotoScale(k);
+    syncPhotoZoom();
+    if (save) C.save();
+  }
+
+  function zoomStep(dir) {
+    var k = AS.view.photoScale ? AS.view.photoScale() : 1;
+    applyZoom(k + dir * 0.2, true);
+  }
+
   /* ────────── 갤러리 사진 ────────── */
   function pickPhoto() {
     var inp = $('#fileInput');
@@ -631,7 +665,20 @@ window.AS = window.AS || {};
       AS.view.setLock(!(S.photo && S.photo.locked));
     });
     var ft = $('#btnPhotoFit');
-    if (ft) ft.addEventListener('click', function () { AS.view.fitPhoto(); toast('사진을 화면에 꽉 맞췄어요'); });
+    if (ft) ft.addEventListener('click', function () {
+      AS.view.fitPhoto();
+      syncPhotoZoom();
+      toast('사진을 불러온 그대로(100%)로 되돌렸어요');
+    });
+
+    /* 사진 크기 — 한 손으로 바로: −  /  슬라이더  /  ＋ */
+    var zout = $('#btnZoomOut'), zin = $('#btnZoomIn'), zr = $('#photoZoom');
+    if (zout) zout.addEventListener('click', function () { zoomStep(-1); });
+    if (zin) zin.addEventListener('click', function () { zoomStep(1); });
+    if (zr) {
+      zr.addEventListener('input', function () { applyZoom(Number(zr.value) / 100, false); });
+      zr.addEventListener('change', function () { applyZoom(Number(zr.value) / 100, true); });
+    }
     $('#fileInput').addEventListener('change', function (e) {
       var f = e.target.files && e.target.files[0];
       if (f) applyPhotoFile(f);
@@ -772,6 +819,7 @@ window.AS = window.AS || {};
     memo: openMemo, closeModal: closeModal, measure: measure, previewSVG: previewSVG,
     renderRoles: renderRoles, syncDock: syncDock, THEMES: THEMES,
     openReset: openReset, applyBtnSize: applyBtnSize, cycleBtnSize: cycleBtnSize, syncCapture: syncCapture,
+    syncPhotoZoom: syncPhotoZoom,
     pickPhoto: pickPhoto, applyPhotoFile: applyPhotoFile, putPhoto: putPhoto, openPhotoHelp: openPhotoHelp
   };
 })(window.AS);

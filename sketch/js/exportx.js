@@ -165,7 +165,7 @@ window.AS = window.AS || {};
     parts.push('<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="' + backdrop() + '"/>');
     parts.push('<g transform="' + AS.view.worldTransform() + '">');
     if (S.mode === 'photo' && S.photo.src) {
-      parts.push('<image x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid slice" href="' + S.photo.src + '"/>');
+      parts.push('<image x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid meet" href="' + S.photo.src + '"/>');
     }
     if (S.mode === 'road' && S.roadId && S.roadId !== 'blank') {
       parts.push(AS.roads.build(S.roadId, w, h));

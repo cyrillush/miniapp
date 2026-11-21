@@ -47,21 +47,33 @@
       </button>
     </div>
 
-    <!-- 사진 모드 전용 줄 -->
+    <!-- 사진 모드 전용 줄 — 사진 고정/조정 · 원본 복원 · 교체 + 사진 크기 조절 -->
     <div id="photoBar" hidden>
-      <button id="btnPhotoLock" class="pchip" type="button" aria-pressed="true">
-        <svg class="ic-unlock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7-2.1"/></svg>
-        <svg class="ic-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7.6 0v2.5"/></svg>
-        <em id="photoLockTxt">사진 고정</em>
-      </button>
-      <button id="btnPhotoFit" class="pchip" type="button">
-        <svg viewBox="0 0 24 24"><path d="M4.4 9.2V5.4a1 1 0 0 1 1-1h3.8M14.8 4.4h3.8a1 1 0 0 1 1 1v3.8M19.6 14.8v3.8a1 1 0 0 1-1 1h-3.8M9.2 19.6H5.4a1 1 0 0 1-1-1v-3.8"/></svg>
-        <em>맞춤</em>
-      </button>
-      <button id="capSwap" class="pchip" type="button">
-        <svg viewBox="0 0 24 24"><rect x="3.4" y="5.4" width="17.2" height="13.2" rx="2.4"/><path d="M3.4 9.4h17.2M8 5.4v-2h8v2"/></svg>
-        <em>사진 교체</em>
-      </button>
+      <div class="prow">
+        <button id="btnPhotoLock" class="pchip" type="button" aria-pressed="true">
+          <svg class="ic-unlock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7-2.1"/></svg>
+          <svg class="ic-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7.6 0v2.5"/></svg>
+          <em id="photoLockTxt">사진 고정</em>
+        </button>
+        <button id="btnPhotoFit" class="pchip" type="button" aria-label="사진을 불러온 그대로(100%) 되돌리기">
+          <svg viewBox="0 0 24 24"><path d="M4.4 9.2V5.4a1 1 0 0 1 1-1h3.8M14.8 4.4h3.8a1 1 0 0 1 1 1v3.8M19.6 14.8v3.8a1 1 0 0 1-1 1h-3.8M9.2 19.6H5.4a1 1 0 0 1-1-1v-3.8"/></svg>
+          <em>원본 100%</em>
+        </button>
+        <button id="capSwap" class="pchip" type="button">
+          <svg viewBox="0 0 24 24"><rect x="3.4" y="5.4" width="17.2" height="13.2" rx="2.4"/><path d="M3.4 9.4h17.2M8 5.4v-2h8v2"/></svg>
+          <em>사진 교체</em>
+        </button>
+      </div>
+      <div class="prow pzoom">
+        <button id="btnZoomOut" class="zbtn" type="button" aria-label="사진 축소 (100%보다 작게는 줄일 수 없어요)">
+          <svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
+        </button>
+        <input id="photoZoom" type="range" min="100" max="500" step="5" value="100" aria-label="사진 크기 (100%는 불러온 그대로)" />
+        <span id="photoZoomVal" aria-live="off">100%</span>
+        <button id="btnZoomIn" class="zbtn" type="button" aria-label="사진 확대">
+          <svg viewBox="0 0 24 24"><path d="M6 12h12M12 6v12"/></svg>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -70,7 +82,7 @@
     <div id="roadLayer" hidden></div>
     <svg id="board" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <g id="world">
-        <image id="photoImg" href="" preserveAspectRatio="xMidYMid slice" x="0" y="0" width="390" height="640" visibility="hidden"></image>
+        <image id="photoImg" href="" preserveAspectRatio="xMidYMid meet" x="0" y="0" width="390" height="640" visibility="hidden"></image>
         <g id="artLayer"></g>
       </g>
     </svg>

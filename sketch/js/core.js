@@ -258,7 +258,7 @@ window.AS = window.AS || {};
       if (d.photo) {
         S.photo = {
           src: d.photo.src || '',
-          k: isFinite(d.photo.k) ? d.photo.k : 1,
+          k: isFinite(d.photo.k) ? Math.min(5, Math.max(1, d.photo.k)) : 1,
           rot: isFinite(d.photo.rot) ? d.photo.rot : 0,
           tx: isFinite(d.photo.tx) ? d.photo.tx : 0,
           ty: isFinite(d.photo.ty) ? d.photo.ty : 0,

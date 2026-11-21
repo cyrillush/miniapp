@@ -22,6 +22,10 @@ window.AS = window.AS || {};
   var lastW = 0, lastH = 0;
   var gesture = null;
 
+  /* 사진 배율 하한·상한 — 100%(k=1)가 '불러온 사진 그대로'이고,
+     그보다 작게 줄이는 것은 어떤 경로(핀치·슬라이더·− 버튼)로도 허용하지 않는다. */
+  var K_MIN = 1, K_MAX = 5;
+
   function f(n) { return Math.round(n * 100) / 100; }
 
   function init() {
@@ -71,7 +75,9 @@ window.AS = window.AS || {};
   function xf() {
     if (S.mode !== 'photo') return { k: 1, rot: 0, tx: 0, ty: 0 };
     var p = S.photo || {};
-    return { k: p.k || 1, rot: p.rot || 0, tx: p.tx || 0, ty: p.ty || 0 };
+    var k = isFinite(p.k) && p.k > 0 ? p.k : 1;
+    if (k < K_MIN) k = K_MIN; else if (k > K_MAX) k = K_MAX;
+    return { k: k, rot: p.rot || 0, tx: p.tx || 0, ty: p.ty || 0 };
   }
 
   function project(wx, wy) {
@@ -104,7 +110,28 @@ window.AS = window.AS || {};
 
   function applyTransform() {
     if (worldEl) worldEl.setAttribute('transform', worldTransformString());
+    /* 배율 표시·슬라이더를 화면 변환과 항상 같은 값으로 맞춘다 */
+    if (AS.ui && AS.ui.syncPhotoZoom) AS.ui.syncPhotoZoom();
   }
+
+  /* 슬라이더·＋·− 버튼용 — 화면 중앙을 기준으로 배율만 바꾼다.
+     중심 기준 확대는 tx·ty 에 같은 비율을 곱하는 것과 같아서 사진이 튀지 않는다. */
+  function setPhotoScale(k) {
+    if (S.mode !== 'photo' || !hasPhoto()) return;
+    var p = S.photo;
+    var k0 = xf().k;
+    var k1 = C.clamp(Number(k) || k0, K_MIN, K_MAX);
+    if (Math.abs(k1 - k0) < 0.0001) { applyTransform(); return; }
+    var ratio = k1 / k0;
+    p.k = k1;
+    p.tx = (p.tx || 0) * ratio;
+    p.ty = (p.ty || 0) * ratio;
+    clampPhoto();
+    applyTransform();
+    AS.objs.chrome();
+  }
+
+  function photoScale() { return xf().k; }
 
   /* ────────── 배경: 도로 ────────── */
   function renderRoad() {
@@ -246,7 +273,7 @@ window.AS = window.AS || {};
     if (!isFinite(mid.x) || !isFinite(mid.y)) return;
     if (!isFinite(d) || d <= 0) d = gesture.d0;
     if (!isFinite(a)) a = gesture.a0;
-    var k = C.clamp(gesture.k0 * (d / gesture.d0), 1, 8);
+    var k = C.clamp(gesture.k0 * (d / gesture.d0), K_MIN, K_MAX);
     var rr = gesture.rot0 + (a - gesture.a0);
     var cx = S.stage.w / 2, cy = S.stage.h / 2;
     var rad = rr * Math.PI / 180, cs = Math.cos(rad), sn = Math.sin(rad);
@@ -283,6 +310,7 @@ window.AS = window.AS || {};
     setMode: setMode, syncMode: syncMode,
     setRoad: setRoad, renderRoad: renderRoad,
     setPhoto: setPhoto, renderPhoto: renderPhoto, hasPhoto: hasPhoto, fitPhoto: fitPhoto,
+    setPhotoScale: setPhotoScale, photoScale: photoScale, K_MIN: K_MIN, K_MAX: K_MAX,
     setLock: setLock, isLocked: isLocked,
     gestureStart: gestureStart, gestureMove: gestureMove, gestureEnd: gestureEnd
   };
