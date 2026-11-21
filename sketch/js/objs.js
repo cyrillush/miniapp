@@ -213,6 +213,7 @@ window.AS = window.AS || {};
     var bg = layer.querySelector('.badges');
     if (bg) bg.innerHTML = S.objs.map(badgeMarkup).join('');
     chrome();
+    if (AS.mapx && AS.mapx.layoutGps) AS.mapx.layoutGps();
   }
 
   /* ─────────────────────────── 선택 크롬 ─────────────────────────── */

@@ -135,7 +135,7 @@ window.AS = window.AS || {};
         b.innerHTML = '<div class="pthumb">' + AS.roads.thumb(pr.bg) + '</div>' +
           '<div class="ptxt"><b>[' + pr.no + '] ' + pr.label + '</b><span>' + pr.summary + '</span></div>';
         b.addEventListener('click', function () { applyPreset(pr); });
-        rs.add(b, '[' + pr.no + '] ' + pr.label + ' ' + pr.summary + ' 과실도표 프리셋 빠른불러오기 ' + pr.bg);
+        rs.add(b, '[' + pr.no + '] ' + pr.label + ' ' + pr.summary + ' ' + (pr.tags || '') + ' 과실도표 프리셋 빠른불러오기 ' + pr.bg);
       });
       [1, 2, 3, 4].forEach(function (g) {
         rs.group(AS.roads.GROUP_LABEL[g]);
@@ -149,7 +149,7 @@ window.AS = window.AS || {};
             closeSheet();
             toast(r.label + ' 전체화면 적용');
           });
-          rs.add(b, r.label + ' ' + r.id + ' ' + AS.roads.GROUP_LABEL[g] + ' 도로배경 배경');
+          rs.add(b, r.label + ' ' + r.id + ' ' + (r.tags || '') + ' 도로배경 배경');
         });
       });
     }
@@ -216,23 +216,20 @@ window.AS = window.AS || {};
     return g;
   }
 
-  /* 도로 시트 맨 위 검색 — 이름 필터 + 전국 실제 도로 검색 */
+  /* 도로 시트 맨 위 검색 — 도로 템플릿·과실도표 전용(지도 검색 아님) */
   function roadSearchUI(body) {
     var wrap = document.createElement('div');
     wrap.className = 'rsearch';
     wrap.innerHTML =
       '<label class="rin">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.6"/><path d="m19.6 19.6-3.4-3.4"/></svg>' +
-      '<input id="rq" type="search" inputmode="search" autocomplete="off" placeholder="도로 이름으로 바로 찾기 (예: 중앙로, 신대지구)" />' +
+      '<input id="rq" type="search" inputmode="search" autocomplete="off" placeholder="도로 종류 검색 (예: 사거리, 회전교차로, 골목길, 고가, 일방통행)" />' +
       '</label>' +
-      '<button class="rgo" type="button" id="rqGo">' +
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s6.2-6.3 6.2-11A6.2 6.2 0 0 0 5.8 10c0 4.7 6.2 11 6.2 11Z"/><circle cx="12" cy="10" r="2.3"/></svg>' +
-      '<span>전국 실제 도로 지도에서 찾기</span></button>' +
-      '<p class="rhint">위 도로 배경·과실도표는 이름으로 걸러지고, 버튼은 실제 도로 위치로 이동합니다.</p>';
+      '<p class="rhint">도로 배경·과실도표 카드를 이름으로 바로 걸러 줍니다.</p>';
     body.appendChild(wrap);
 
     var entries = [], groups = [], curGroup = null;
-    var input = wrap.querySelector('#rq'), hint = wrap.querySelector('.rhint'), go = wrap.querySelector('#rqGo');
+    var input = wrap.querySelector('#rq'), hint = wrap.querySelector('.rhint');
     var sync = function () {
       groups.forEach(function (g) {
         var any = false;
@@ -240,30 +237,28 @@ window.AS = window.AS || {};
         g.hidden = !any;
       });
     };
+    var count = function (q) {
+      var n = 0;
+      for (var i = 0; i < entries.length; i++) if (!entries[i].el.hidden) n += 1;
+      return n;
+    };
     var filter = function () {
       var q = input.value.trim().toLowerCase();
-      var shown = 0;
       entries.forEach(function (e) {
-        var ok = !q || e.text.indexOf(q) >= 0;
-        e.el.hidden = !ok;
-        if (ok) shown += 1;
+        e.el.hidden = !!q && e.text.indexOf(q) < 0;
       });
-      hint.textContent = !q ? '위 도로 배경·과실도표는 이름으로 걸러지고, 버튼은 실제 도로 위치로 이동합니다.'
-        : shown ? shown + '개 항목 · 실제 도로는 위 버튼으로 검색하세요'
-          : '일치하는 배경이 없어요 — 위 버튼으로 전국 실제 도로를 검색해 보세요';
       sync();
-    };
-    var toMap = function () {
-      var q = input.value.trim();
-      if (!q) { input.focus(); toast('도로명을 입력하세요'); return; }
-      closeSheet();
-      openSearchWith(q);
+      if (!q) { hint.innerHTML = '도로 배경·과실도표 카드를 이름으로 바로 걸러 줍니다.'; return; }
+      var n = count(q);
+      hint.innerHTML = n
+        ? '<b>' + n + '개</b> 도로 카드 · “' + AS.objs.esc(input.value.trim()) + '”'
+        : '“' + AS.objs.esc(input.value.trim()) + '” 에 맞는 도로 카드가 없어요 — 사거리·골목·고가·톨게이트·유턴·버스전용 처럼 넣어 보세요';
     };
     input.addEventListener('input', filter);
+    /* Enter 는 지도로 넘어가지 않고 현재 검색 결과 개수만 보여 준다 */
     input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); toMap(); }
+      if (e.key === 'Enter') { e.preventDefault(); filter(); }
     });
-    go.addEventListener('click', toMap);
     return {
       group: function (text) { curGroup = addGroup(body, text); groups.push(curGroup); return curGroup; },
       add: function (el, text) { entries.push({ el: el, text: String(text || '').toLowerCase(), g: curGroup }); body.appendChild(el); }
@@ -632,8 +627,11 @@ window.AS = window.AS || {};
     $('#btnGeo').addEventListener('click', function () {
       toast('현위치 확인 중…');
       AS.mapx.geolocate().then(function (p) {
-        if (S.bg === 'road') AS.mapx.setBg('sat');
-        AS.mapx.fly(p.lat, p.lng, 19); AS.mapx.setLock(false); toast('현위치로 이동했습니다');
+        AS.mapx.setGps(p);
+        if (S.bg === 'road' || S.bg === 'capture') AS.mapx.setBg('sat');
+        AS.mapx.fly(p.lat, p.lng, 19); AS.mapx.setLock(false);
+        AS.mapx.layoutGps();
+        toast('현위치로 이동했습니다');
       }).catch(function (e) { toast(e && e.code === 1 ? '위치 권한이 꺼져 있어요' : '현위치를 잡지 못했어요'); });
     });
 

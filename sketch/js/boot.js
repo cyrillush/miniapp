@@ -48,6 +48,21 @@
         AS.ui.toast('작업하던 약도를 불러왔어요', 1800);
       }
     }, 260);
+
+    /* 내 위치 — 이미 위치 권한을 허용(granted)한 경우에만 팝업 없이 조용히 찍어 둔다.
+       거부·미요청 상태에서는 브라우저 권한 팝업을 띄우지 않는다(상단 현위치 버튼으로만 요청). */
+    autoGps();
+  }
+
+  function autoGps() {
+    if (!navigator.geolocation || !navigator.permissions || !navigator.permissions.query) return;
+    navigator.permissions.query({ name: 'geolocation' }).then(function (st) {
+      if (!st || st.state !== 'granted') return;
+      AS.mapx.geolocate().then(function (p) {
+        AS.mapx.setGps(p);
+        AS.mapx.layoutGps();
+      }).catch(function () {});
+    }).catch(function () {});
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);

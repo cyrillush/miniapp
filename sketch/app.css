@@ -95,7 +95,8 @@ body[data-theme="D"] {
 }
 
 /* ───────────────────────────────── 무대 내부 */
-#mapRot { position: absolute; left: 50%; top: 50%; width: 190vmax; height: 190vmax; transform: translate(-50%, -50%) rotate(0deg); transform-origin: 50% 50%; z-index: 0; will-change: transform; }
+#mapRot { position: absolute; left: 50%; top: 50%; width: 155vmax; height: 155vmax; transform: translate(-50%, -50%) rotate(0deg); transform-origin: 50% 50%; z-index: 0; will-change: transform; }
+/* 155vmax — 어느 회전 각도든 화면 대각선을 덮으면서 모바일 GPU 텍스처 메모리·타일 요청은 줄인다 */
 #map { position: absolute; inset: 0; background: var(--bg); }
 #mapRot.blank #map {
   background-color: #F4F7FB;
@@ -109,6 +110,28 @@ body[data-theme="D"] {
 #capLayer { position: absolute; inset: 0; overflow: hidden; background: #0b0f14; z-index: 1; }
 #capLayer img { width: 100%; height: 100%; object-fit: cover; opacity: .94; }
 #layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 2; }
+/* 내 위치 — 파란 점 + 흰 테두리 + 반투명 정확도 원 + 펄스 링 (화면 표시 전용, PNG 미포함) */
+#gpsLayer { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+#gpsLayer .acc {
+  position: absolute; transform: translate(-50%, -50%); border-radius: 50%;
+  background: rgba(47,107,255,.15); border: 1.5px solid rgba(47,107,255,.42);
+}
+#gpsLayer .pulse {
+  position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+  background: rgba(47,107,255,.30); border: 2px solid rgba(47,107,255,.55);
+  animation: gpsPulse 2.1s ease-out infinite;
+}
+#gpsLayer .dot {
+  position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: #2F6BFF; border: 3px solid #FFFFFF;
+  box-shadow: 0 1px 6px rgba(15,27,46,.45), 0 0 0 1.5px rgba(47,107,255,.55);
+}
+#gpsLayer .lb {
+  position: absolute; transform: translate(-50%, 0); padding: 2px 7px; border-radius: 999px;
+  background: rgba(255,255,255,.92); color: #1E4FD8; font-size: 9.5px; font-weight: 800;
+  letter-spacing: -.2px; white-space: nowrap; box-shadow: 0 1px 4px rgba(15,27,46,.25);
+}
+@keyframes gpsPulse { 0% { transform: scale(.55); opacity: .85; } 70% { opacity: 0; } 100% { transform: scale(2.5); opacity: 0; } }
 #holdRing { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; pointer-events: none; z-index: 7; transform: rotate(-90deg); }
 #holdRing circle { fill: none; stroke-width: 4.5; }
 #holdRing circle.bg { stroke: rgba(255,255,255,.45); }
@@ -238,6 +261,7 @@ body[data-theme="D"] #bgChips button { border: 1.5px solid #2B2724; box-shadow: 
 }
 #sheetBody .rsearch .rgo svg { width: 15px; height: 15px; }
 #sheetBody .rsearch .rhint { font-size: 10.5px; color: var(--ink3); padding: 0 2px; }
+#sheetBody .rsearch .rhint b { color: var(--acc); font-weight: 800; }
 
 /* ───────────────────────────────── 하단 편집 바 */
 #dock {

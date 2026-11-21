@@ -13,17 +13,18 @@ window.AS = window.AS || {};
   var BASE_ATTR = '© OpenStreetMap contributors · 타일 FOSSGIS';
   /* Google 타일: scale=2 → 512px 원본(레티나 선명) · ACAO:* 라서 PNG 합성도 안전 */
   var G = 'https://mt{s}.google.com/vt/lyrs=';
-  var GOPT = { subdomains: '0123', tileSize: 256, maxNativeZoom: 21, maxZoom: 22, attribution: '© Google' };
+  /* maxNativeZoom 20 — scale=2(512px) 하이브리드 타일이 전 지역에서 100% 존재하는 상한.
+     z21/22 를 네이티브로 받으면 404·빈 타일이 섞여 스카이가 하얗게 뜬다(확대는 20타일 업스케일). */
+  var GOPT = { subdomains: '0123', tileSize: 256, maxNativeZoom: 20, maxZoom: 22, attribution: '© Google' };
+  var TOPTS = { crossOrigin: true, keepBuffer: 2, updateWhenZooming: false, updateWhenIdle: false };
   function gurl(l) { return G + l + '&scale=2&hl=ko&x={x}&y={y}&z={z}'; }
   /* 스카이: y = 위성 + 도로명·건물명 라벨(하이브리드) / 라벨 끄면 s = 순수 위성 */
+  /* filter 는 비워 둔다 — 안드로이드 WebView/Chrome GPU 는 3D transform + filter 조합에서
+     타일 텍스처를 하얗게 날려 버린다(스카이 안 뜨는 원인). 다크만 필터 유지. */
   var TILES = {
-    sat: {
-      url: function () { return gurl(S.labels === false ? 's' : 'y'); },
-      opt: GOPT,
-      filter: 'contrast(1.08) saturate(1.06) brightness(1.02)'
-    },
+    sat: { url: function () { return gurl(S.labels === false ? 's' : 'y'); }, opt: GOPT, filter: '' },
     /* 지도: m = 512px 한글 도로명·건물명·건물 윤곽 */
-    map: { url: function () { return gurl('m'); }, opt: GOPT, filter: 'saturate(.88) brightness(1.0) contrast(1.08)' },
+    map: { url: function () { return gurl('m'); }, opt: GOPT, filter: '' },
     /* 다크: 같은 지도 타일에 고대비 다크 필터 */
     dark: { url: function () { return gurl('m'); }, opt: GOPT, filter: 'invert(1) hue-rotate(180deg) saturate(.7) brightness(1.06) contrast(1.02)' }
   };
@@ -50,7 +51,7 @@ window.AS = window.AS || {};
     applyTilt();
     applyLock();
 
-    map.on('move zoom viewreset resize', function () { AS.objs.layout(); });
+    map.on('move zoom viewreset resize', function () { AS.objs.layout(); layoutGps(); });
     var savet = null;
     map.on('moveend zoomend', function () {
       var c = map.getCenter();
@@ -60,34 +61,57 @@ window.AS = window.AS || {};
       };
       clearTimeout(savet); savet = setTimeout(function () { AS.core.save(); }, 500);
     });
-    setTimeout(function () { map.invalidateSize(); renderRoadLayer(); AS.objs.layout(); }, 120);
+    setTimeout(function () { map.invalidateSize(); renderRoadLayer(); AS.objs.layout(); layoutGps(); }, 120);
     return map;
   }
 
+  /* 스카이 폴백 단계: 0 = 설정(하이브리드/위성) → 1 = 순수 위성(lyrs=s) → 2 = Esri */
+  var satStage = 0;
+
+  function satLayerFor(stage) {
+    if (stage >= 2) {
+      return L.tileLayer(SAT_FALLBACK.url, Object.assign({ maxNativeZoom: 19, maxZoom: 22, attribution: SAT_FALLBACK.attr }, TOPTS));
+    }
+    var lyrs = (stage >= 1 || S.labels === false) ? 's' : 'y';
+    return L.tileLayer(gurl(lyrs), Object.assign({}, TOPTS, GOPT));
+  }
+
   function makeLayer(k) {
-    var t = TILES[k];
-    var lay = L.tileLayer(typeof t.url === 'function' ? t.url() : t.url, Object.assign({
-      crossOrigin: true, keepBuffer: 6, updateWhenZooming: false, updateWhenIdle: false
-    }, t.opt));
-    var errs = 0;
+    var lay = (k === 'sat')
+      ? satLayerFor(satStage)
+      : L.tileLayer(typeof TILES[k].url === 'function' ? TILES[k].url() : TILES[k].url, Object.assign({}, TOPTS, TILES[k].opt));
+    lay._errs = 0;
+    /* 타일이 하나라도 들어오면 연속 실패 카운트를 리셋 — 산발적 1~2건으로 폴백하지 않게 */
+    lay.on('tileload', function () { lay._errs = 0; });
     lay.on('tileerror', function () {
-      errs += 1;
-      if (errs === 4) {
-        if (k === 'sat') useSatFallback();
-        else useFallback();
-      }
+      lay._errs += 1;
+      if (lay._errs < 12) return;
+      lay._errs = 0;
+      if (k === 'sat') advanceSat();
+      else useFallback();
     });
     return lay;
+  }
+
+  /* 스카이: 1차는 순수 위성(lyrs=s&scale=2), 그마저 안 되면 Esri */
+  function advanceSat() {
+    if (satStage >= 2 || !map) return;
+    satStage += (satStage === 0 && S.labels === false) ? 2 : 1;
+    var was = cur === layers.sat || map.hasLayer(layers.sat);
+    if (map.hasLayer(layers.sat)) map.removeLayer(layers.sat);
+    layers.sat = makeLayer('sat');
+    if (was) { layers.sat.addTo(map); if (cur) cur = layers.sat; }
+    applyFilter(currentFilter());
   }
 
   /* 스카이 건물·도로명 라벨 토글 */
   function setLabels(on) {
     S.labels = !!on;
-    var live = !!(map && cur === layers.sat && map.hasLayer(layers.sat));
+    var live = !!(map && map.hasLayer(layers.sat));
     if (live) map.removeLayer(layers.sat);
+    satStage = 0;
     layers.sat = makeLayer('sat');
-    satFellBack = false;
-    if (live) { layers.sat.addTo(map); cur = layers.sat; }
+    if (live) { layers.sat.addTo(map); if (cur) cur = layers.sat; }
     applyFilter(currentFilter());
     syncLabelChip();
     AS.core.save();
@@ -102,26 +126,17 @@ window.AS = window.AS || {};
     b.classList.toggle('off', !on);
   }
 
-  var satFellBack = false;
-  function useSatFallback() {
-    if (satFellBack) return;
-    satFellBack = true;
-    var was = cur === layers.sat;
-    if (map.hasLayer(layers.sat)) map.removeLayer(layers.sat);
-    layers.sat = L.tileLayer(SAT_FALLBACK.url, { crossOrigin: true, maxNativeZoom: 19, maxZoom: 21, attribution: SAT_FALLBACK.attr, keepBuffer: 2 });
-    if (was) { layers.sat.addTo(map); cur = layers.sat; }
-  }
-
   var fellBack = false;
   function useFallback() {
-    if (fellBack) return;
+    if (fellBack || !map) return;
     fellBack = true;
     Object.keys(layers).forEach(function (k) {
       if (k === 'sat') return;
       if (map.hasLayer(layers[k])) map.removeLayer(layers[k]);
-      layers[k] = L.tileLayer(FALLBACK.url, { crossOrigin: true, maxNativeZoom: FALLBACK.maxNative, maxZoom: 20, attribution: FALLBACK.attr, keepBuffer: 2 });
+      layers[k] = L.tileLayer(FALLBACK.url, Object.assign({ maxNativeZoom: FALLBACK.maxNative, maxZoom: 22, attribution: FALLBACK.attr }, TOPTS));
       if (k === S.bg) { layers[k].addTo(map); cur = layers[k]; }
     });
+    applyFilter(currentFilter());
     AS.toast('지도 타일을 예비 소스로 전환했어요');
   }
 
@@ -161,6 +176,7 @@ window.AS = window.AS || {};
   }
 
   function setBg(name) {
+    var fromRoad = S.bg === 'road';
     S.bg = name;
     if (name === 'road') {
       if (cur && map.hasLayer(cur)) { map.removeLayer(cur); cur = null; }
@@ -174,7 +190,15 @@ window.AS = window.AS || {};
         cur = layers[key];
       }
       applyFilter(currentFilter());
+      /* 도로(전체화면)에서 지도로 돌아올 때 — 레이어를 다시 붙인 직후엔 타일이 비어 보이므로
+         즉시 크기 재계산 + 다시 그리기로 기다림 없이 채운다 */
+      if (fromRoad && map && cur) {
+        map.invalidateSize(false);
+        if (cur.redraw) cur.redraw();
+        AS.objs.layout();
+      }
     }
+    layoutGps();
     renderRoadLayer();
     var cap = $('#capLayer');
     if (cap) cap.hidden = name !== 'capture' || !S.cap.src;
@@ -355,7 +379,52 @@ window.AS = window.AS || {};
 
   function fly(lat, lng, z) {
     if (!map) return;
-    map.flyTo([lat, lng], z || Math.max(map.getZoom(), 18), { duration: .8 });
+    var targetZ = z || Math.max(map.getZoom(), 18);
+    var c = map.getCenter();
+    var far = dist({ lat: c.lat, lng: c.lng }, { lat: lat, lng: lng }) > 5000;
+    /* 먼 거리로 flyTo 하면 중간 줌 타일을 수십 개씩 받았다 버려 모바일에서 하얗게 비는 일이 생긴다 —
+       멀거나 줌 차이가 크면 전환 애니메이션으로 한 번에 옮긴다 */
+    if (far || Math.abs(map.getZoom() - targetZ) > 4) {
+      map.setView([lat, lng], targetZ, { animate: true });
+    } else {
+      map.flyTo([lat, lng], targetZ, { duration: .8 });
+    }
+    layoutGps();
+  }
+
+  /* ────────── 내 위치(GPS) 마커 — 화면 위에만 표시, PNG 저장에는 포함하지 않는다 ────────── */
+  function setGps(p) {
+    if (!p || !isFinite(p.lat) || !isFinite(p.lng)) return null;
+    S.gps = { lat: p.lat, lng: p.lng, acc: isFinite(p.acc) ? p.acc : 25 };
+    layoutGps();
+    return S.gps;
+  }
+
+  function metersPerPixel() {
+    if (!map) return 1;
+    var m = meters(100);
+    return m > 0 ? m / 100 : 1;
+  }
+
+  function layoutGps() {
+    var el = document.getElementById('gpsLayer');
+    if (!el) return;
+    var show = !!(S.gps && isFinite(S.gps.lat) && (S.bg === 'sat' || S.bg === 'map' || S.bg === 'dark') && map);
+    if (!show) { el.hidden = true; return; }
+    var p = project(S.gps.lat, S.gps.lng);
+    if (!p || !isFinite(p.x) || !isFinite(p.y)) { el.hidden = true; return; }
+    el.hidden = false;
+    var accPx = AS.core.clamp((S.gps.acc || 25) / metersPerPixel(), 6, 620);
+    var acc = el.querySelector('.acc'), pulse = el.querySelector('.pulse'), dot = el.querySelector('.dot'), lb = el.querySelector('.lb');
+    if (acc) {
+      acc.style.width = (accPx * 2).toFixed(1) + 'px';
+      acc.style.height = (accPx * 2).toFixed(1) + 'px';
+      acc.style.left = p.x.toFixed(1) + 'px';
+      acc.style.top = p.y.toFixed(1) + 'px';
+    }
+    if (pulse) { pulse.style.left = p.x.toFixed(1) + 'px'; pulse.style.top = p.y.toFixed(1) + 'px'; }
+    if (dot) { dot.style.left = p.x.toFixed(1) + 'px'; dot.style.top = p.y.toFixed(1) + 'px'; }
+    if (lb) { lb.style.left = p.x.toFixed(1) + 'px'; lb.style.top = (p.y + 20).toFixed(1) + 'px'; }
   }
 
   function center() {
@@ -507,6 +576,7 @@ window.AS = window.AS || {};
     panScreen: panScreen,
     startPinch: startPinch, movePinch: movePinch, endPinch: endPinch,
     fly: fly, center: center, project: project, unproject: unproject, meters: meters, dist: dist,
+    setGps: setGps, layoutGps: layoutGps,
     search: search, geolocate: geolocate, curLayer: function () { return cur; },
     currentFilter: currentFilter, PERSPECTIVE: PERSPECTIVE, TILT_ORIGIN_Y: TILT_ORIGIN_Y
   };

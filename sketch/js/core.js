@@ -179,6 +179,7 @@ window.AS = window.AS || {};
     carMode: 'real',
     snap: true,
     cap: { src: '', opacity: .92, scale: 1 },
+    gps: null,
     stage: { w: 390, h: 640 }
   };
 

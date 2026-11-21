@@ -244,14 +244,19 @@ window.AS = window.AS || {};
     return s;
   }
 
-  function mergeRoad(W, H, mode) {
+  function mergeRoad(W, H, mode, side) {
+    var left = side === 'left';
     var s = rect(0, 0, W, H, C.ground);
     var mainW = W * 0.42, cx = W * 0.5;
     s += rect(cx - mainW / 2, 0, mainW, H, C.asp);
-    var d = 'M ' + f(W * 0.98) + ' ' + f(H * 0.92) + ' Q ' + f(W * 0.8) + ' ' + f(H * 0.7) + ' ' + f(cx + mainW / 2 - 6) + ' ' + f(H * 0.44);
+    var jx = left ? cx - mainW / 2 + 6 : cx + mainW / 2 - 6;
+    var d = left
+      ? 'M ' + f(W * 0.02) + ' ' + f(H * 0.92) + ' Q ' + f(W * 0.2) + ' ' + f(H * 0.7) + ' ' + f(jx) + ' ' + f(H * 0.44)
+      : 'M ' + f(W * 0.98) + ' ' + f(H * 0.92) + ' Q ' + f(W * 0.8) + ' ' + f(H * 0.7) + ' ' + f(jx) + ' ' + f(H * 0.44);
     s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(W * 0.2) + '" stroke-linecap="round"/>';
     s += '<path d="' + d + '" fill="none" stroke="' + C.white + '" stroke-width="3" stroke-dasharray="14 13"/>';
-    s += urbanBlock(6, 6, cx - mainW / 2 - 44, H * 0.38, 31);
+    if (left) s += urbanBlock(cx + mainW / 2 + 38, 6, W - cx - mainW / 2 - 44, H * 0.38, 31);
+    else s += urbanBlock(6, 6, cx - mainW / 2 - 44, H * 0.38, 31);
     s += line(cx - mainW / 2 + 3, 0, cx - mainW / 2 + 3, H, C.white, 2.4) + line(cx + mainW / 2 - 3, 0, cx + mainW / 2 - 3, H, C.white, 2.4);
     s += line(cx, 0, cx, H, C.white, 2.2, 'stroke-dasharray="16 15"');
     if (mode === 'split') {
@@ -360,76 +365,551 @@ window.AS = window.AS || {};
     return s;
   }
 
+  /* ────────── 노면 표기·기하 헬퍼 ────────── */
+  /* 세로쓰기 한글 (버스전용차로 등) */
+  function vText(chars, cx, y0, gap, fs, col) {
+    var s = '';
+    for (var i = 0; i < chars.length; i++) {
+      s += '<text x="' + f(cx) + '" y="' + f(y0 + gap * i + fs * 0.34) + '" text-anchor="middle"' +
+        ' font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="' + f(fs) +
+        '" font-weight="800" fill="' + col + '">' + chars[i] + '</text>';
+    }
+    return s;
+  }
+  /* 방향 삼각형 (기본은 위쪽, ang 로 회전) */
+  function tri(x, y, size, ang, col) {
+    return '<path d="M0 ' + f(-size) + 'L' + f(size * 0.74) + ' ' + f(size * 0.72) + 'L' + f(-size * 0.74) + ' ' + f(size * 0.72) + 'Z"' +
+      ' fill="' + col + '" transform="translate(' + f(x) + ',' + f(y) + ') rotate(' + f(ang) + ')"/>';
+  }
+  /* 임의 방향 횡단보도 띠 */
+  function crosswalkLine(x0, y0, x1, y1, bandW) {
+    var dx = x1 - x0, dy = y1 - y0, L = Math.sqrt(dx * dx + dy * dy);
+    var ang = Math.atan2(dy, dx) * 180 / Math.PI;
+    var n = Math.max(2, Math.round(L / (bandW * 0.95)));
+    var s = '';
+    for (var i = 0; i < n; i++) {
+      var t = (i + 0.5) / n;
+      s += '<rect x="' + f(-bandW * 0.28) + '" y="' + f(-bandW / 2) + '" width="' + f(bandW * 0.56) + '" height="' + f(bandW) +
+        '" fill="' + C.white + '" opacity=".95" transform="translate(' + f(x0 + dx * t) + ',' + f(y0 + dy * t) + ') rotate(' + f(ang) + ')"/>';
+    }
+    return s;
+  }
+
+  /* ────────── 일방통행: 실제 노면지시처럼 화살표 1개 + '일방통행' 1개 ────────── */
   function oneway(W, H) {
-    var base = laneRoad(W, H, { lanes: 3, hw: 0.24, twoWay: false });
-    var cx = base.cx, lw = base.laneW, s = base.svg;
-    var roadW = base.x1 - base.x0;
-    var lanes = [base.x0 + lw * 0.5, cx, base.x1 - lw * 0.5];
-    var ah = Math.min(lw * 0.92, H * 0.115), aw = ah * 0.66;
-    var rows = H > 260 ? [0.10, 0.50, 0.90] : [0.22, 0.78];
-    rows.forEach(function (fy) {
-      lanes.forEach(function (lx) { s += arrowMark(lx, H * fy, aw, ah, 1, C.white, 0.9); });
-    });
-    /* 노면에 큰 흰색 한글 “일방통행” — 통차로 폭에 맞춘 가로쓰기 */
-    var fs = Math.min(roadW * 0.205, H * 0.066, 36);
-    if (fs < 9) return s;
-    var tys = H > 260 ? [0.30, 0.70] : [0.50];
-    tys.forEach(function (fy) {
-      s += '<text x="' + f(cx) + '" y="' + f(H * fy + fs * 0.35) + '" text-anchor="middle"' +
+    var hw = 0.24 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, roadW = x1 - x0;
+    var s = rect(0, 0, W, H, C.ground);
+    s += groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
+    s += rect(x0, 0, roadW, H, C.asp);
+    /* 양쪽 흰 실선 테두리만 — 점선으로 글자를 자르지 않는다 */
+    s += line(x0 + 2.8, 0, x0 + 2.8, H, C.white, 3.2);
+    s += line(x1 - 2.8, 0, x1 - 2.8, H, C.white, 3.2);
+    /* 진행 방향 흰 화살표 1개 (상단) */
+    var aw = Math.min(roadW * 0.46, W * 0.24), ah = aw * 1.32;
+    s += arrowMark(cx, H * 0.235, aw, ah, 1, C.white, 0.96);
+    /* 노면 '일방통행' 1개 (중앙~하단) */
+    var fs = Math.min(roadW * 0.90 / 4.35, H * 0.075, 46);
+    if (fs >= 8) {
+      s += '<text x="' + f(cx) + '" y="' + f(H * 0.635 + fs * 0.36) + '" text-anchor="middle"' +
         ' font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif"' +
         ' font-size="' + f(fs) + '" font-weight="800" fill="#FFFFFF"' +
-        ' paint-order="stroke" stroke="#4B5563" stroke-width="' + f(Math.max(2, fs * 0.1)) + '"' +
-        ' stroke-linejoin="round" letter-spacing="' + f(fs * 0.15) + '">일방통행</text>';
+        ' letter-spacing="' + f(fs * 0.06) + '">일방통행</text>';
+    }
+    return s;
+  }
+
+  /* ────────── 가로(수평) 도로 — 세로 도로를 90° 회전 ────────── */
+  function laneRoadH(W, H, o) {
+    return '<g transform="translate(' + f(W) + ',0) rotate(90)">' + laneRoad(H, W, o).svg + '</g>';
+  }
+
+  /* ────────── 중앙버스전용(6차로) ────────── */
+  function busCenter(W, H) {
+    var hw = 0.30 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, lw = (x1 - x0) / 6;
+    var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
+    s += rect(x0, 0, x1 - x0, H, C.asp);
+    s += line(x0 + 2.6, 0, x0 + 2.6, H, C.white, 2.8) + line(x1 - 2.6, 0, x1 - 2.6, H, C.white, 2.8);
+    s += line(x0 + lw, 0, x0 + lw, H, C.white, 2.2, 'stroke-dasharray="16 15"');
+    s += line(x1 - lw, 0, x1 - lw, H, C.white, 2.2, 'stroke-dasharray="16 15"');
+    /* 버스전용차로 경계 — 파란 실선 */
+    s += line(x0 + lw * 2, 0, x0 + lw * 2, H, C.blue, 3.2);
+    s += line(x1 - lw * 2, 0, x1 - lw * 2, H, C.blue, 3.2);
+    /* 중앙분리대 · 정류장 섬 */
+    var mw = Math.max(7, W * 0.022);
+    s += rect(cx - mw / 2, 0, mw, H, C.walk);
+    s += rect(cx - mw * 1.9, H * 0.30, mw * 3.8, H * 0.15, C.walk, 'stroke="' + C.blockS + '" stroke-width="1.2" rx="3"');
+    return s;
+  }
+
+  /* ────────── 가로변버스전용(4차로) ────────── */
+  function busSide(W, H) {
+    var hw = 0.26 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, lw = (x1 - x0) / 4;
+    var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
+    s += rect(x0, 0, x1 - x0, H, C.asp);
+    s += line(x0 + 2.6, 0, x0 + 2.6, H, C.white, 2.8) + line(x1 - 2.6, 0, x1 - 2.6, H, C.white, 2.8);
+    s += line(cx - 2.5, 0, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, H, C.yel, 2.2);
+    s += line(x0 + lw, 0, x0 + lw, H, C.white, 2.2, 'stroke-dasharray="16 15"');
+    s += line(x0 + lw * 3, 0, x0 + lw * 3, H, C.white, 2.2, 'stroke-dasharray="16 15"');
+    /* 가로변(최우측) 버스전용차로 — 파란 실선 + '버스' 노면 표기 */
+    s += line(x1 - lw, 0, x1 - lw, H, C.blue, 3.4);
+    s += line(x1 - 8, 0, x1 - 8, H, C.blue, 2.2);
+    var fs = Math.min(lw * 0.62, 30);
+    s += vText(['버', '스'], x1 - lw * 0.5, H * 0.30, fs * 1.22, fs, C.blue);
+    return s;
+  }
+
+  /* ────────── 유턴구역(4차로) ────────── */
+  function uturnRoad(W, H) {
+    var hw = 0.25 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, lw = (x1 - x0) / 4;
+    var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
+    s += rect(x0, 0, x1 - x0, H, C.asp);
+    s += line(x0 + 2.6, 0, x0 + 2.6, H, C.white, 2.8) + line(x1 - 2.6, 0, x1 - 2.6, H, C.white, 2.8);
+    s += line(x0 + lw, 0, x0 + lw, H, C.white, 2.2, 'stroke-dasharray="16 15"');
+    s += line(x1 - lw, 0, x1 - lw, H, C.white, 2.2, 'stroke-dasharray="16 15"');
+    /* 중앙선은 유턴 구간에서 열려 있다 */
+    var gy0 = H * 0.44, gy1 = H * 0.72;
+    s += line(cx - 2.5, 0, cx - 2.5, gy0, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, gy0, C.yel, 2.2);
+    s += line(cx - 2.5, gy1, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, gy1, cx + 2.5, H, C.yel, 2.2);
+    /* 유턴 화살표 — 북측(올라가는 쪽) 안쪽 차로 */
+    var ux = cx + lw * 0.5, r = Math.min(lw * 0.44, W * 0.058), cyu = H * 0.55, sw = Math.max(3, lw * 0.15);
+    s += '<path d="M' + f(ux + r) + ' ' + f(cyu + r * 1.5) + 'L' + f(ux + r) + ' ' + f(cyu) +
+      'A' + f(r) + ' ' + f(r) + ' 0 0 0 ' + f(ux - r) + ' ' + f(cyu) + 'L' + f(ux - r) + ' ' + f(cyu + r * 1.5) +
+      '" fill="none" stroke="' + C.white + '" stroke-width="' + f(sw) + '" stroke-linecap="round"/>';
+    s += tri(ux - r, cyu + r * 1.5 + r * 0.42, r * 0.9, 180, C.white);
+    return s;
+  }
+
+  /* ────────── 자전거겸용도로 ────────── */
+  function bikeGlyph(cx, cy, r, col) {
+    return '<g fill="none" stroke="' + col + '" stroke-width="' + f(r * 0.24) + '" stroke-linecap="round" stroke-linejoin="round">' +
+      '<circle cx="' + f(cx - r) + '" cy="' + f(cy) + '" r="' + f(r * 0.58) + '"/>' +
+      '<circle cx="' + f(cx + r) + '" cy="' + f(cy) + '" r="' + f(r * 0.58) + '"/>' +
+      '<path d="M' + f(cx - r) + ' ' + f(cy) + 'L' + f(cx - r * 0.25) + ' ' + f(cy - r * 0.78) + 'L' + f(cx + r * 0.42) + ' ' + f(cy) + '"/>' +
+      '<path d="M' + f(cx - r * 0.25) + ' ' + f(cy - r * 0.78) + 'L' + f(cx - r * 0.02) + ' ' + f(cy - r * 1.12) + '"/>' +
+      '</g>';
+  }
+  function bikeLane(W, H) {
+    var hw = 0.23 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, lw = (x1 - x0) / 2;
+    var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
+    s += rect(x0, 0, x1 - x0, H, C.asp);
+    var bw = Math.min(W * 0.085, lw * 0.55);
+    s += rect(x1 - bw, 0, bw, H, '#9A5B43');
+    s += line(x0 + 2.6, 0, x0 + 2.6, H, C.white, 2.8) + line(x1 - 2.6, 0, x1 - 2.6, H, C.white, 2.8);
+    s += line(x1 - bw, 0, x1 - bw, H, C.white, 2.6);
+    s += line(cx - 2.5, 0, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, H, C.yel, 2.2);
+    var gr = Math.min(bw * 0.30, 20);
+    for (var yy = H * 0.17; yy < H; yy += H * 0.33) s += bikeGlyph(x1 - bw * 0.5, yy, gr, '#FFFFFF');
+    return s;
+  }
+
+  /* ────────── 어린이보호구역(스쿨존) ────────── */
+  function schoolZone(W, H) {
+    var hw = 0.21 * W, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw, roadW = x1 - x0;
+    var s = rect(0, 0, W, H, C.ground) + groundStrip(W, H, x0, x1, 'left') + groundStrip(W, H, x0, x1, 'right');
+    s += rect(x0, 0, roadW, H, '#8A4A44');
+    s += line(x0 + 3, 0, x0 + 3, H, C.white, 3) + line(x1 - 3, 0, x1 - 3, H, C.white, 3);
+    s += line(cx - 2.5, 0, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, H, C.yel, 2.2);
+    s += crosswalkBand(H * 0.62, x0, x1);
+    var fs = Math.min(roadW * 0.44, H * 0.13, 76);
+    s += '<text x="' + f(cx) + '" y="' + f(H * 0.30 + fs * 0.36) + '" text-anchor="middle"' +
+      ' font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="' + f(fs) +
+      '" font-weight="800" fill="#FFFFFF">30</text>';
+    return s;
+  }
+
+  /* ────────── 방지턱·과속방지턱 ────────── */
+  function speedBump(W, H) {
+    var base = laneRoad(W, H, { lanes: 2, hw: 0.22 });
+    var s = base.svg, x0 = base.x0, x1 = base.x1, rw = x1 - x0;
+    [0.32, 0.66].forEach(function (fy) {
+      var y = H * fy, h = Math.max(9, H * 0.03), n = 10;
+      for (var i = 0; i < n; i++) {
+        s += rect(x0 + rw * i / n, y, rw / n + 0.4, h, i % 2 ? C.white : C.yel, 'opacity=".95"');
+      }
     });
     return s;
   }
 
+  /* ────────── 골목길·이면도로(직선) ────────── */
+  function alley(W, H) {
+    var hw = W * 0.15, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw;
+    var s = rect(0, 0, W, H, C.ground);
+    s += rect(x0 - 11, 0, 11, H, C.walk) + rect(x1, 0, 11, H, C.walk);
+    s += rect(x0, 0, x1 - x0, H, '#5A6370');
+    /* 골목: 중앙선·차선 없음, 배수로만 */
+    s += line(x0 + 3.5, 0, x0 + 3.5, H, '#6E7887', 2.2) + line(x1 - 3.5, 0, x1 - 3.5, H, '#6E7887', 2.2);
+    s += urbanBlock(3, 4, x0 - 15, H * 0.44, 51);
+    s += urbanBlock(3, H * 0.48, x0 - 15, H * 0.46, 52);
+    s += urbanBlock(x1 + 13, 4, W - x1 - 16, H * 0.52, 53);
+    s += urbanBlock(x1 + 13, H * 0.56, W - x1 - 16, H * 0.38, 54);
+    return s;
+  }
+
+  /* ────────── 골목길 교차로 ────────── */
+  function alleyCross(W, H) {
+    var vx = W * 0.47, hy = H * 0.45, rw = Math.min(W, H) * 0.135;
+    var s = rect(0, 0, W, H, C.ground);
+    s += rect(vx - rw - 9, 0, 9, H, C.walk) + rect(vx + rw, 0, 9, H, C.walk);
+    s += rect(0, hy - rw - 9, W, 9, C.walk) + rect(0, hy + rw, W, 9, C.walk);
+    s += rect(vx - rw, 0, rw * 2, H, '#5A6370') + rect(0, hy - rw, W, rw * 2, '#5A6370');
+    s += urbanBlock(4, 4, vx - rw - 16, hy - rw - 16, 61);
+    s += urbanBlock(vx + rw + 10, 4, W - vx - rw - 14, hy - rw - 16, 62);
+    s += urbanBlock(4, hy + rw + 10, vx - rw - 16, H - hy - rw - 14, 63);
+    s += urbanBlock(vx + rw + 10, hy + rw + 10, W - vx - rw - 14, H - hy - rw - 14, 64);
+    return s;
+  }
+
+  /* ────────── 아파트 단지내 도로 ────────── */
+  function aptSlab(x, y, w, h) {
+    if (w < 14 || h < 14) return '';
+    var s = rect(x, y, w, h, '#DEE4ED', 'stroke="#C2CBD9" stroke-width="1.2" rx="2.5"');
+    var step = Math.max(5, h * 0.17);
+    for (var yy = y + step; yy < y + h - 3; yy += step) s += line(x + 4, yy, x + w - 4, yy, '#C6CFDC', Math.max(2, h * 0.045));
+    return s;
+  }
+  function aptRoad(W, H) {
+    var hw = W * 0.155, cx = W * 0.5, x0 = cx - hw, x1 = cx + hw;
+    var s = rect(0, 0, W, H, C.ground);
+    s += rect(x0, 0, x1 - x0, H, '#59616D');
+    s += line(x0 + 2.4, 0, x0 + 2.4, H, C.white, 2.2) + line(x1 - 2.4, 0, x1 - 2.4, H, C.white, 2.2);
+    s += line(cx, 0, cx, H, C.white, 1.8, 'stroke-dasharray="12 12" opacity=".65"');
+    var bay = x0 * 0.30;
+    [0.10, 0.36, 0.62, 0.88].forEach(function (fy) {
+      s += line(x0 - bay, H * fy, x0, H * fy, C.white, 2.2);
+      s += line(x1, H * fy, x1 + bay, H * fy, C.white, 2.2);
+    });
+    s += aptSlab(3, H * 0.04, x0 - bay - 8, H * 0.30);
+    s += aptSlab(3, H * 0.56, x0 - bay - 8, H * 0.38);
+    s += aptSlab(x1 + bay + 8, H * 0.04, W - x1 - bay - 11, H * 0.34);
+    s += aptSlab(x1 + bay + 8, H * 0.56, W - x1 - bay - 11, H * 0.38);
+    return s;
+  }
+
+  /* ────────── 좌회전 포켓차로 교차로 ────────── */
+  function xjPocket(W, H) {
+    var base = crossRoad(W, H, { lanes: 4, hw: 0.22 });
+    var s = base.svg;
+    var hw = 0.22 * Math.min(W, H), cx = W * 0.5, cy = H * 0.5;
+    var y1 = cy + hw, lw = hw / 2;
+    var py = Math.min(H - 6, y1 + hw * 1.05);
+    /* 포켓 차로(중앙선 옆) 흰 실선 */
+    s += line(cx + lw, y1 + 4, cx + lw, py, C.white, 2.6);
+    /* 좌회전 화살표 */
+    var ax = cx + lw * 0.5, ay = py - 4, sw = Math.max(3, lw * 0.16);
+    s += '<path d="M' + f(ax) + ' ' + f(ay) + 'L' + f(ax) + ' ' + f(ay - lw * 0.72) +
+      'Q' + f(ax) + ' ' + f(ay - lw * 1.12) + ' ' + f(ax - lw * 0.46) + ' ' + f(ay - lw * 1.12) +
+      '" fill="none" stroke="' + C.white + '" stroke-width="' + f(sw) + '" stroke-linecap="round"/>';
+    s += tri(ax - lw * 0.50 - lw * 0.22, ay - lw * 1.12, lw * 0.30, 270, C.white);
+    return s;
+  }
+
+  /* ────────── 대각선 횡단보도(스크램블) ────────── */
+  function xjScramble(W, H) {
+    var base = crossRoad(W, H, { lanes: 4, hw: 0.22 });
+    var s = base.svg;
+    var hw = 0.22 * Math.min(W, H), cx = W * 0.5, cy = H * 0.5, bw = hw * 0.34;
+    s += crosswalkLine(cx - hw * 0.86, cy - hw * 0.86, cx + hw * 0.86, cy + hw * 0.86, bw);
+    s += crosswalkLine(cx + hw * 0.86, cy - hw * 0.86, cx - hw * 0.86, cy + hw * 0.86, bw);
+    return s;
+  }
+
+  /* ────────── Y자형 삼거리 ────────── */
+  function yRoad(W, H) {
+    var rw = Math.min(W * 0.30, H * 0.21), cx = W * 0.5, jy = H * 0.46;
+    var s = rect(0, 0, W, H, C.ground);
+    var arms = 'M' + f(cx - rw * 1.52) + ' -10L' + f(cx) + ' ' + f(jy) + 'L' + f(cx + rw * 1.52) + ' -10';
+    var stem = 'M' + f(cx) + ' ' + f(jy) + 'L' + f(cx) + ' ' + f(H + 10);
+    s += '<path d="' + arms + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 26) + '" stroke-linejoin="round" stroke-linecap="round"/>';
+    s += '<path d="' + stem + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 26) + '" stroke-linecap="round"/>';
+    s += '<path d="' + arms + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linejoin="round" stroke-linecap="round"/>';
+    s += '<path d="' + stem + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linecap="round"/>';
+    s += '<path d="' + arms + '" fill="none" stroke="' + C.yel + '" stroke-width="2.4" stroke-dasharray="15 14"/>';
+    s += '<path d="' + stem + '" fill="none" stroke="' + C.yel + '" stroke-width="2.4" stroke-dasharray="15 14"/>';
+    s += urbanBlock(5, 5, cx - rw * 1.52 - rw * 0.9, H * 0.10, 91);
+    s += urbanBlock(cx + rw * 1.52 + rw * 0.4, 5, W - (cx + rw * 1.52 + rw * 0.4) - 6, H * 0.10, 92);
+    s += urbanBlock(5, jy + rw * 1.1, cx - rw * 1.35, H - jy - rw * 1.1, 93);
+    s += urbanBlock(cx + rw * 1.1, jy + rw * 1.1, W - cx - rw * 1.1 - 6, H - jy - rw * 1.1, 94);
+    return s;
+  }
+
+  /* ────────── 오거리 교차로 ────────── */
+  function fiveWay(W, H) {
+    var cx = W * 0.5, cy = H * 0.47, rw = Math.min(W, H) * 0.19, L = Math.max(W, H) * 1.2;
+    var s = rect(0, 0, W, H, C.ground);
+    var angs = [90, 18, 162, 234, 306];
+    var paths = angs.map(function (a) {
+      var r = a * Math.PI / 180;
+      return 'M' + f(cx) + ' ' + f(cy) + 'L' + f(cx + Math.cos(r) * L) + ' ' + f(cy - Math.sin(r) * L);
+    });
+    paths.forEach(function (d) {
+      s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 24) + '" stroke-linecap="round"/>';
+    });
+    paths.forEach(function (d) {
+      s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linecap="round"/>';
+    });
+    paths.forEach(function (d) {
+      s += '<path d="' + d + '" fill="none" stroke="' + C.white + '" stroke-width="2.2" stroke-dasharray="15 14"/>';
+    });
+    s += '<circle cx="' + f(cx) + '" cy="' + f(cy) + '" r="' + f(rw * 1.02) + '" fill="' + C.asp + '"/>';
+    return s;
+  }
+
+  /* ────────── 지하차도 ────────── */
+  function underpass(W, H) {
+    var g = laneRoad(W, H, { lanes: 4, hw: 0.25 });
+    var s = g.svg, x0 = g.x0, x1 = g.x1, rw = x1 - x0;
+    var deckY = H * 0.56, deckH = Math.max(24, H * 0.085), wallW = Math.max(10, W * 0.032);
+    /* 옹벽 + 지하 구간 어둡게 */
+    s += rect(x0 - wallW, deckY - deckH * 2.0, wallW, deckH * 2.0, '#94A3B8');
+    s += rect(x1, deckY - deckH * 2.0, wallW, deckH * 2.0, '#94A3B8');
+    s += rect(x0, deckY - deckH * 2.0, rw, H - (deckY - deckH * 2.0), 'rgba(15,23,42,.45)');
+    /* 위로 지나는 도로(덱) */
+    s += rect(-2, deckY, W + 4, deckH, '#8E9BAB');
+    s += rect(-2, deckY + deckH * 0.26, W + 4, deckH * 0.48, '#6B7787');
+    s += line(0, deckY + deckH * 0.26, W, deckY + deckH * 0.26, C.white, 2.2);
+    s += line(0, deckY + deckH * 0.74, W, deckY + deckH * 0.74, C.white, 2.2);
+    s += line(0, deckY + deckH * 0.5, W, deckY + deckH * 0.5, C.white, 2, 'stroke-dasharray="14 13" opacity=".8"');
+    return s;
+  }
+
+  /* ────────── 고가도로 ────────── */
+  function overpass(W, H) {
+    var s = rect(0, 0, W, H, C.ground);
+    var cy = H * 0.74, gh = Math.min(H * 0.17, W * 0.21);
+    s += rect(0, cy - gh / 2, W, gh, '#6B7280');
+    s += line(0, cy - gh / 2 + 2.2, W, cy - gh / 2 + 2.2, C.white, 2.2) + line(0, cy + gh / 2 - 2.2, W, cy + gh / 2 - 2.2, C.white, 2.2);
+    s += line(0, cy - 2.2, W, cy - 2.2, C.yel, 2) + line(0, cy + 2.2, W, cy + 2.2, C.yel, 2);
+    s += urbanBlock(6, 6, W * 0.10, cy - gh / 2 - 14, 71);
+    s += urbanBlock(W * 0.66, 6, W * 0.32, cy - gh / 2 - 14, 72);
+    s += urbanBlock(6, cy + gh / 2 + 12, W * 0.40, H - cy - gh / 2 - 18, 73);
+    s += urbanBlock(W * 0.62, cy + gh / 2 + 12, W * 0.36, H - cy - gh / 2 - 18, 74);
+    /* 고가도로 — 그림자 + 덱 + 난간 */
+    var hw = W * 0.255, cx = W * 0.5;
+    s += rect(cx - hw + 10, 0, hw * 2, H, 'rgba(15,23,42,.16)');
+    s += rect(cx - hw - 5, 0, hw * 2 + 10, H, '#C7D0DB');
+    s += rect(cx - hw, 0, hw * 2, H, C.asp);
+    s += line(cx - hw + 2.6, 0, cx - hw + 2.6, H, C.white, 2.6) + line(cx + hw - 2.6, 0, cx + hw - 2.6, H, C.white, 2.6);
+    s += line(cx - 2.5, 0, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, H, C.yel, 2.2);
+    return s;
+  }
+
+  /* ────────── 교량(다리) ────────── */
+  function bridge(W, H) {
+    var s = rect(0, 0, W, H, '#BFD8EE');
+    s += rect(0, 0, W, H * 0.16, C.ground) + rect(0, H * 0.84, W, H * 0.16, C.ground);
+    for (var yy = H * 0.22; yy < H * 0.82; yy += H * 0.11) {
+      s += line(W * 0.03, yy, W * 0.28, yy, '#A8C7E4', 2) + line(W * 0.74, yy, W * 0.97, yy, '#A8C7E4', 2);
+    }
+    var hw = W * 0.24, cx = W * 0.5;
+    s += rect(cx - hw - 7, 0, hw * 2 + 14, H, '#C8D2DE');
+    s += rect(cx - hw, 0, hw * 2, H, C.asp);
+    s += line(cx - hw + 3, 0, cx - hw + 3, H, C.white, 2.6) + line(cx + hw - 3, 0, cx + hw - 3, H, C.white, 2.6);
+    s += line(cx - 2.5, 0, cx - 2.5, H, C.yel, 2.2) + line(cx + 2.5, 0, cx + 2.5, H, C.yel, 2.2);
+    [0.30, 0.50, 0.70].forEach(function (fy) {
+      s += rect(cx - hw - 11, H * fy, 11, H * 0.06, '#9FB0C2') + rect(cx + hw, H * fy, 11, H * 0.06, '#9FB0C2');
+    });
+    return s;
+  }
+
+  /* ────────── IC·JC 진출입 램프 ────────── */
+  function icRamp(W, H) {
+    var hw = W * 0.235, cx = W * 0.40, rw = W * 0.115;
+    var s = rect(0, 0, W, H, C.ground);
+    /* 진출 램프를 먼저 그리고 본선을 그 위에 그려 진출부가 도로 경계에서 갈라지게 한다 */
+    var d = 'M' + f(cx + hw - 24) + ' ' + f(H * 0.15) +
+      'C' + f(cx + hw + W * 0.16) + ' ' + f(H * 0.26) + ' ' + f(W * 0.86) + ' ' + f(H * 0.38) + ' ' + f(W * 0.93) + ' ' + f(H * 0.74);
+    s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 16) + '" stroke-linecap="round"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linecap="round"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.white + '" stroke-width="2.2" stroke-dasharray="14 13"/>';
+    /* 본선 */
+    s += rect(cx - hw - 16, 0, 16, H, C.walk) + rect(cx + hw, 0, 16, H, C.walk);
+    s += rect(cx - hw, 0, hw * 2, H, C.asp);
+    s += line(cx - hw + 3, 0, cx - hw + 3, H, C.white, 2.6) + line(cx + hw - 3, 0, cx + hw - 3, H, C.white, 2.6);
+    [-1, 1].forEach(function (sd) {
+      s += line(cx + sd * hw / 2, 0, cx + sd * hw / 2, H, C.white, 2.2, 'stroke-dasharray="18 16"');
+      s += line(cx + sd * (hw - 4), 0, cx + sd * (hw - 4), H, C.white, 2.4);
+    });
+    return s;
+  }
+
+  /* ────────── S자 급커브 ────────── */
+  function sCurve(W, H) {
+    var rw = Math.min(W * 0.40, H * 0.24);
+    var s = rect(0, 0, W, H, C.ground);
+    s += urbanBlock(6, 6, W * 0.30, H * 0.26, 81);
+    s += urbanBlock(W * 0.52, H * 0.52, W * 0.42, H * 0.34, 82);
+    var d = 'M' + f(W * 0.30) + ' -20' +
+      'C' + f(W * 0.30) + ' ' + f(H * 0.20) + ' ' + f(W * 0.72) + ' ' + f(H * 0.20) + ' ' + f(W * 0.72) + ' ' + f(H * 0.45) +
+      'C' + f(W * 0.72) + ' ' + f(H * 0.70) + ' ' + f(W * 0.30) + ' ' + f(H * 0.72) + ' ' + f(W * 0.30) + ' ' + f(H + 20);
+    s += '<path d="' + d + '" fill="none" stroke="' + C.walk + '" stroke-width="' + f(rw + 22) + '" stroke-linecap="round"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.asp + '" stroke-width="' + f(rw) + '" stroke-linecap="round"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + C.yel + '" stroke-width="3" stroke-dasharray="16 14"/>';
+    return s;
+  }
+
+  /* ────────── 고속도로 톨게이트 ────────── */
+  function tollgate(W, H) {
+    var cx = W * 0.5, s = rect(0, 0, W, H, C.ground);
+    var nw = W * 0.21, pw = W * 0.40, y0 = H * 0.30, y1 = H * 0.64, sp = H * 0.07;
+    /* 본선 → 광장 → 본선 */
+    s += rect(cx - nw, 0, nw * 2, y0 + 2, C.asp);
+    s += '<path d="M' + f(cx - nw) + ' 0L' + f(cx + nw) + ' 0L' + f(cx + pw) + ' ' + f(y0 + sp) + 'L' + f(cx - pw) + ' ' + f(y0 + sp) + 'Z" fill="' + C.asp + '"/>';
+    s += rect(cx - pw, y0 + sp, pw * 2, y1 - y0 - sp, C.asp);
+    s += '<path d="M' + f(cx - pw) + ' ' + f(y1) + 'L' + f(cx + pw) + ' ' + f(y1) + 'L' + f(cx + nw) + ' ' + f(y1 + sp) + 'L' + f(cx - nw) + ' ' + f(y1 + sp) + 'Z" fill="' + C.asp + '"/>';
+    s += rect(cx - nw, y1 + sp, nw * 2, H - y1 - sp, C.asp);
+    /* 본선 차로선 */
+    [0, 1].forEach(function (k) {
+      var yy0 = k ? y1 + sp : 0, yy1 = k ? H : y0;
+      s += line(cx - nw + 3, yy0, cx - nw + 3, yy1, C.white, 2.6) + line(cx + nw - 3, yy0, cx + nw - 3, yy1, C.white, 2.6);
+      s += line(cx, yy0, cx, yy1, C.white, 2.2, 'stroke-dasharray="16 14"');
+    });
+    var lanes = 5, isl = (pw * 2) / lanes * 0.30;
+    for (var i = 1; i < lanes; i++) {
+      var xa = cx - pw + (pw * 2) * i / lanes;
+      s += line(xa, y0 + sp + 5, xa, y1 - 5, C.white, 2.2, 'stroke-dasharray="12 11" opacity=".9"');
+    }
+    /* 톨게이트 부스 섬 */
+    for (var j = 0; j < lanes - 1; j++) {
+      var xb = cx - pw + (pw * 2) * (j + 1) / lanes;
+      s += rect(xb - isl / 2, y0 + sp + (y1 - y0 - sp) * 0.14, isl, (y1 - y0 - sp) * 0.66, '#E6EBF2', 'stroke="#AEB9C7" stroke-width="1.2" rx="2"');
+      s += rect(xb - isl / 2, y0 + sp + (y1 - y0 - sp) * 0.22, isl, (y1 - y0 - sp) * 0.14, '#F59E0B', 'rx="1.5"');
+    }
+    return s;
+  }
+
+  /* ────────── 철길 건널목 ────────── */
+  function railCross(W, H) {
+    var g = laneRoad(W, H, { lanes: 2, hw: 0.22 });
+    var s = g.svg, x0 = g.x0, x1 = g.x1;
+    var y0 = H * 0.40, bh = H * 0.14;
+    s += rect(0, y0, W, bh, '#4B4553');
+    var step = Math.max(11, W * 0.032);
+    for (var x = 5; x < W; x += step) s += rect(x, y0 + 4, Math.max(4, W * 0.010), bh - 8, '#6B6472');
+    s += line(0, y0 + bh * 0.32, W, y0 + bh * 0.32, '#D9E0EA', 4.5);
+    s += line(0, y0 + bh * 0.68, W, y0 + bh * 0.68, '#D9E0EA', 4.5);
+    s += rect(x0, y0 - 5, x1 - x0, 3, '#E2564E') + rect(x0, y0 + bh + 2, x1 - x0, 3, '#E2564E');
+    s += rect(x0, y0 - 15, x1 - x0, 6, C.white);
+    return s;
+  }
+
+  /* ────────── 사선(빗각) 주차장 ────────── */
+  function lotAngle(W, H) {
+    var s = rect(0, 0, W, H, C.asp);
+    var top = H * 0.06, bd = H * 0.26, a0 = top + bd, a1 = H - top - bd;
+    s += rect(0, 0, W, top, C.block) + rect(0, H - top, W, top, C.block);
+    s += line(0, top, W, top, C.white, 2.6) + line(0, H - top, W, H - top, C.white, 2.6);
+    s += line(0, a0, W, a0, C.white, 2.6) + line(0, a1, W, a1, C.white, 2.6);
+    var n = 6, bw = W / n, skew = bd * 0.55;
+    for (var i = 0; i <= n; i++) {
+      s += line(i * bw, a0, i * bw + skew, top, C.white, 2.4);
+      s += line(i * bw, a1, i * bw + skew, H - top, C.white, 2.4);
+    }
+    s += line(W * 0.5, a0 + 8, W * 0.5, a1 - 8, C.white, 2.2, 'stroke-dasharray="14 14" opacity=".6"');
+    return s;
+  }
+
   var LIST = [
-    { id: 'blank', label: '초기화면(격자)', g: 1 },
-    { id: 'lane2', label: '일반(2차로)', g: 1 },
-    { id: 'lane3', label: '일반(3차로)', g: 1 },
-    { id: 'lane4', label: '일반(4차로)', g: 1 },
-    { id: 'lane6', label: '일반(6차로)', g: 1 },
-    { id: 'lane8', label: '일반(8차로)', g: 1 },
-    { id: 'lane10', label: '일반(10차로)', g: 1 },
-    { id: 'cross4', label: '횡단보도(4차로)', g: 1 },
-    { id: 'tunnel2', label: '터널(2차로)', g: 1 },
-    { id: 'tunnel4', label: '터널(4차로)', g: 1 },
-    { id: 'merge4', label: '우합류(4차로)', g: 1 },
-    { id: 'safety', label: '안전지대', g: 1 },
-    { id: 'reduce', label: '우측차로감소', g: 1 },
-    { id: 'oneway', label: '일방통행', g: 1 },
-    { id: 'living', label: '생활도로', g: 1 },
-    { id: 'parkOk1', label: '주정차가능1', g: 2 },
-    { id: 'parkOk2', label: '주정차가능2', g: 2 },
-    { id: 'parkNo1', label: '주정차금지', g: 2 },
-    { id: 'lot1', label: '주차장1', g: 2 },
-    { id: 'lot2', label: '주차장2(실내)', g: 2 },
-    { id: 'shoulder', label: '갓길주차', g: 2 },
-    { id: 'xj4', label: '+교차로(4차로)', g: 3 },
-    { id: 'xj6', label: '+교차로(6차로)', g: 3 },
-    { id: 'xj2', label: '+교차로(2차로)', g: 3 },
-    { id: 'teeUp', label: 'ㅗ자형 교차로', g: 3 },
-    { id: 'teeDown', label: 'T자형 교차로', g: 3 },
-    { id: 'teeRight', label: 'ㅏ자형 교차로', g: 3 },
-    { id: 'teeLeft', label: 'ㅓ자형 교차로', g: 3 },
-    { id: 'roundS', label: '회전교차로(소)', g: 3 },
-    { id: 'roundL', label: '회전교차로(대)', g: 3 },
-    { id: 'curveL', label: '곡선로(좌)', g: 4 },
-    { id: 'curveR', label: '곡선로(우)', g: 4 },
-    { id: 'merge', label: '합류로', g: 4 },
-    { id: 'split', label: '분할로', g: 4 },
-    { id: 'hw1', label: '고속/전용도로1', g: 4 },
-    { id: 'hw2', label: '고속/전용도로2', g: 4 }
+    { id: 'blank', label: '초기화면(격자)', g: 1, tags: '격자 그리드 도면 빈빠지 빈화면 초기화' },
+
+    /* ── 일반 ── */
+    { id: 'lane2', label: '일반(2차로)', g: 1, tags: '2차로 세로 2차선 양방향 편도' },
+    { id: 'lane3', label: '일반(3차로)', g: 1, tags: '3차로 세로 3차선 일방통행' },
+    { id: 'lane4', label: '일반(4차로)', g: 1, tags: '4차로 세로 4차선 왕복' },
+    { id: 'lane6', label: '일반(6차로)', g: 1, tags: '6차로 6차선 대로 대형로' },
+    { id: 'lane8', label: '일반(8차로)', g: 1, tags: '8차로 8차선 대로' },
+    { id: 'lane10', label: '일반(10차로)', g: 1, tags: '10차로 10차선 대형 대로' },
+    { id: 'lane2H', label: '가로(2차로)', g: 1, tags: '가로 2차로 수평 좌우 왕복 이면도로' },
+    { id: 'lane4H', label: '가로(4차로)', g: 1, tags: '가로 4차로 수평 좌우 왕복 대로' },
+    { id: 'busCenter', label: '중앙버스전용(6차로)', g: 1, tags: '버스전용 버스 중앙버스 중앙차로 버스정류장 6차로 노선버스' },
+    { id: 'busSide', label: '가로변버스전용(4차로)', g: 1, tags: '버스전용 가로변 버스차로 버스 4차로' },
+    { id: 'uturnRoad', label: '유턴구역(4차로)', g: 1, tags: '유턴 유턴구역 유턴차로 회차 4차로' },
+    { id: 'bikeLane', label: '자전거겸용도로', g: 1, tags: '자전거 자전거도로 바이크 차도 공유 자전거차로' },
+    { id: 'schoolZone', label: '어린이보호구역(스쿨존)', g: 1, tags: '스쿨존 어린이보호구역 어린이 학교 등하교 30 과속' },
+    { id: 'speedBump', label: '방지턱·과속방지', g: 1, tags: '방지턱 과속방지턱 과속 방지팍 속도 줄임턱 과속방지' },
+    { id: 'oneway', label: '일방통행', g: 1, tags: '일방통행 한쪽통행 편도 화살표' },
+    { id: 'living', label: '생활도로', g: 1, tags: '생활도로 주택가 이면도로 소통' },
+    { id: 'safety', label: '안전지대', g: 1, tags: '안전지대 안전섬 보행섬' },
+    { id: 'reduce', label: '우측차로감소', g: 1, tags: '차로감소 차선감소 합류 우측감소' },
+    { id: 'cross4', label: '횡단보도(4차로)', g: 1, tags: '횡단보도 건널목 4차로 보행자' },
+
+    /* ── 골목·주정차·주차장 ── */
+    { id: 'alley', label: '골목길·이면도로(직선)', g: 2, tags: '골목 골목길 이면도로 좁은길 주택가 진입로' },
+    { id: 'alleyCross', label: '골목길 교차로', g: 2, tags: '골목 교차로 이면도로 사거리 좁은 교차' },
+    { id: 'aptRoad', label: '아파트 단지내 도로', g: 2, tags: '아파트 단지 단지내 주택가 주차장 입구 공동주택' },
+    { id: 'parkOk1', label: '주정차가능1', g: 2, tags: '주정차 주차 가능 정차 파란선 한쪽' },
+    { id: 'parkOk2', label: '주정차가능2', g: 2, tags: '주정차 주차 가능 정차 파란선 양쪽' },
+    { id: 'parkNo1', label: '주정차금지', g: 2, tags: '주정차 금지 황색선 노란선 정차금지' },
+    { id: 'lot1', label: '주차장', g: 2, tags: '주차장 야외 주차면 출차 통로' },
+    { id: 'lot2', label: '주차장(실내)', g: 2, tags: '주차장 실내 지하주차장 지하 주차벽' },
+    { id: 'lotAngle', label: '사선(빗각) 주차장', g: 2, tags: '사선주차 빗각주차 대각선 주차장 주차면' },
+    { id: 'shoulder', label: '갓길주차', g: 2, tags: '갓길 갓길주차 정차 주정차' },
+
+    /* ── 교차로·회전·다지 ── */
+    { id: 'xj4', label: '+교차로(4차로)', g: 3, tags: '사거리 교차로 십자 4차로 신호 신호등' },
+    { id: 'xj6', label: '+교차로(6차로)', g: 3, tags: '사거리 교차로 십자 6차로 대횡단로' },
+    { id: 'xj2', label: '+교차로(2차로)', g: 3, tags: '사거리 교차로 십자 2차로 좁은' },
+    { id: 'xjPocket', label: '좌회전 포켓차로 교차로', g: 3, tags: '좌회전 포켓 포켓차로 교차로 사거리 비보호' },
+    { id: 'xjScramble', label: '대각선 횡단보도(스크램블)', g: 3, tags: '대각선 횡단보도 스크램블 사거리 엇갈림' },
+    { id: 'teeUp', label: 'ㅗ자형 교차로', g: 3, tags: '삼거리 ㅗ자 T자 교차로 세로' },
+    { id: 'teeDown', label: 'T자형 교차로', g: 3, tags: '삼거리 T자 교차로' },
+    { id: 'teeRight', label: 'ㅏ자형 교차로', g: 3, tags: '삼거리 ㅏ자 교차로 가로' },
+    { id: 'teeLeft', label: 'ㅓ자형 교차로', g: 3, tags: '삼거리 ㅓ자 교차로 가로' },
+    { id: 'yRoad', label: 'Y자형 삼거리', g: 3, tags: '삼거리 Y자 갈림 분기 교차로' },
+    { id: 'fiveWay', label: '오거리 교차로', g: 3, tags: '오거리 다지 교차로 다섯갈래 오거리형' },
+    { id: 'roundS', label: '회전교차로(소)', g: 3, tags: '회전교차로 로터리 라운드 소' },
+    { id: 'roundL', label: '회전교차로(대)', g: 3, tags: '회전교차로 로터리 라운드 대' },
+
+    /* ── 곡선·입체·고속·특수 ── */
+    { id: 'curveL', label: '곡선로(좌)', g: 4, tags: '곡선 커브 코너 좌회전 굽은길' },
+    { id: 'curveR', label: '곡선로(우)', g: 4, tags: '곡선 커브 코너 우회전 굽은길' },
+    { id: 'sCurve', label: 'S자 급커브', g: 4, tags: 's자 에스자 급커브 굽은길 산길 구비' },
+    { id: 'merge', label: '합류로', g: 4, tags: '합류 오른쪽합류 진입 램프' },
+    { id: 'split', label: '분할로', g: 4, tags: '분할 분기 길어짐' },
+    { id: 'merge4', label: '우합류(4차로)', g: 4, tags: '합류 우합류 4차로 진입가속' },
+    { id: 'mergeL', label: '좌합류(4차로)', g: 4, tags: '합류 좌합류 4차로 진입좌측' },
+    { id: 'hw1', label: '고속/전용도로1', g: 4, tags: '고속도로 전용도로 자동차전용 지방도' },
+    { id: 'hw2', label: '고속/전용도로2', g: 4, tags: '고속도로 전용도로 자동차전용 중앙분리대' },
+    { id: 'underpass', label: '지하차도', g: 4, tags: '지하차도 지하 지하차로 터널 지하도' },
+    { id: 'overpass', label: '고가도로', g: 4, tags: '고가 고가도로 입체 교량 위 램프' },
+    { id: 'bridge', label: '교량(다리)', g: 4, tags: '교량 다리 브리지 강 물 하천' },
+    { id: 'tunnel2', label: '터널(2차로)', g: 4, tags: '터널 2차로 지하 갱' },
+    { id: 'tunnel4', label: '터널(4차로)', g: 4, tags: '터널 4차로 지하 갱' },
+    { id: 'icRamp', label: 'IC·JC 진출입 램프', g: 4, tags: 'ic jc 램프 진출 진입 진출입 분기 고속도로 인터체인지' },
+    { id: 'tollgate', label: '고속도로 톨게이트', g: 4, tags: '톨게이트 톨비 톨비소 요금소 영업소 고속도로' },
+    { id: 'railCross', label: '철길 건널목', g: 4, tags: '철길 철도 선로 건널목 기차 차단기' }
   ];
 
-  var GROUP_LABEL = { 1: '일반·터널 도로', 2: '주정차·주차장', 3: '교차로', 4: '곡선·합류·고속' };
+  var GROUP_LABEL = { 1: '일반·전용·보호 도로', 2: '골목·주정차·주차장', 3: '교차로·회전·다지', 4: '곡선·입체·고속·특수' };
 
   function build(id, W, H) {
     W = W || 400; H = H || 600;
     switch (id) {
       case 'blank': return rect(0, 0, W, H, '#F4F7FB');
       case 'lane2': return laneRoad(W, H, { lanes: 2, hw: 0.19 }).svg;
+      case 'lane2H': return laneRoadH(W, H, { lanes: 2, hw: 0.19 });
+      case 'lane4H': return laneRoadH(W, H, { lanes: 4, hw: 0.25 });
+      case 'busCenter': return busCenter(W, H);
+      case 'busSide': return busSide(W, H);
+      case 'uturnRoad': return uturnRoad(W, H);
+      case 'bikeLane': return bikeLane(W, H);
+      case 'schoolZone': return schoolZone(W, H);
+      case 'speedBump': return speedBump(W, H);
+      case 'alley': return alley(W, H);
+      case 'alleyCross': return alleyCross(W, H);
+      case 'aptRoad': return aptRoad(W, H);
+      case 'xjPocket': return xjPocket(W, H);
+      case 'xjScramble': return xjScramble(W, H);
+      case 'yRoad': return yRoad(W, H);
+      case 'fiveWay': return fiveWay(W, H);
+      case 'underpass': return underpass(W, H);
+      case 'overpass': return overpass(W, H);
+      case 'bridge': return bridge(W, H);
+      case 'mergeL': return mergeRoad(W, H, 'merge', 'left');
+      case 'icRamp': return icRamp(W, H);
+      case 'sCurve': return sCurve(W, H);
+      case 'tollgate': return tollgate(W, H);
+      case 'railCross': return railCross(W, H);
+      case 'lotAngle': return lotAngle(W, H);
       case 'lane3': return laneRoad(W, H, { lanes: 3, hw: 0.23, twoWay: false }).svg;
       case 'lane4': return laneRoad(W, H, { lanes: 4, hw: 0.25 }).svg;
       case 'lane6': return laneRoad(W, H, { lanes: 6, hw: 0.29 }).svg;
@@ -530,7 +1010,7 @@ window.AS = window.AS || {};
 
   var PRESETS = [
     {
-      id: 'p252', no: '252', label: '차로변경(진로변경)', bg: 'lane4',
+      id: 'p252', no: '252', label: '차로변경(진로변경)', bg: 'lane4', tags: '차로변경 진로변경 차선변경 급차로변경 접촉 후면',
       summary: '자차 편도 2차로 주행 중, 대차1이 좌측 차로에서 진로를 변경하며 자차 좌측 후면을 충격',
       layout: function (W, H) {
         var g = gLane4(W, H), sx = g.up[1], sy = H * 0.30;
@@ -549,7 +1029,7 @@ window.AS = window.AS || {};
       }
     },
     {
-      id: 'p253', no: '253', label: '추돌 (양차량 주행중)', bg: 'lane4',
+      id: 'p253', no: '253', label: '추돌 (양차량 주행중)', bg: 'lane4', tags: '추돌 후미추돌 정체 감속',
       summary: '자차 주행 중 전방 정체로 감속, 뒤따르던 대차1이 자차 후면을 추돌',
       layout: function (W, H) {
         var g = gLane4(W, H), sx = g.up[1], sy = H * 0.34;
@@ -568,7 +1048,7 @@ window.AS = window.AS || {};
       }
     },
     {
-      id: 'p255', no: '255', label: '추돌 (주·정차중)', bg: 'lane4',
+      id: 'p255', no: '255', label: '추돌 (주·정차중)', bg: 'lane4', tags: '추돌 주정차 정차 후미추돌',
       summary: '자차 정차 중, 후방에서 진행하던 대차1이 정지 상태의 자차를 추돌',
       layout: function (W, H) {
         var g = gLane4(W, H), sx = g.up[1] + W * 0.018, sy = H * 0.28;
@@ -586,7 +1066,7 @@ window.AS = window.AS || {};
       }
     },
     {
-      id: 'p205', no: '205', label: '신호없는 교차로', bg: 'xj4',
+      id: 'p205', no: '205', label: '신호없는 교차로', bg: 'xj4', tags: '사거리 교차로 신호없는 비보호 측면충돌',
       summary: '신호기 없는 교차로에서 자차가 직진 중, 우측(동쪽)에서 진입한 대차1과 충돌',
       layout: function (W, H) {
         var g = gCross(W, H);
@@ -607,7 +1087,7 @@ window.AS = window.AS || {};
       }
     },
     {
-      id: 'p242', no: '242', label: '차도 아닌 곳에서 진입', bg: 'merge',
+      id: 'p242', no: '242', label: '차도 아닌 곳에서 진입', bg: 'merge', tags: '진입 주유소 주차장 출구 합류 본선',
       summary: '자차가 차도 외 장소(주유소·주차장 출구)에서 본선으로 진입하던 중, 본선을 주행하던 대차1과 충돌',
       layout: function (W, H) {
         var g = gMerge(W, H);
@@ -629,7 +1109,7 @@ window.AS = window.AS || {};
       }
     },
     {
-      id: 'p244', no: '244', label: '주차장 사고', bg: 'lot1',
+      id: 'p244', no: '244', label: '주차장 사고', bg: 'lot1', tags: '주차장 출차 통로 주차면',
       summary: '주차면에서 통로로 출차하던 자차와, 통로를 진행하던 대차1이 충돌',
       layout: function (W, H) {
         var g = gLot(W, H), bx = g.bayX(1), sy = g.aisle0 - 13;
@@ -648,7 +1128,7 @@ window.AS = window.AS || {};
       }
     },
     {
-      id: 'p240', no: '240', label: '삼거리 직진 대 회전', bg: 'teeDown',
+      id: 'p240', no: '240', label: '삼거리 직진 대 회전', bg: 'teeDown', tags: '삼거리 회전 우회전 T자',
       summary: 'T자형 삼거리에서 가로도로를 직진하던 자차 앞으로, 위쪽 도로에서 우회전해 나오던 대차1이 진입해 충돌',
       layout: function (W, H) {
         var g = gTee(W, H);
