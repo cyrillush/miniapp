@@ -166,6 +166,7 @@ window.AS = window.AS || {};
   var S = AS.S = {
     theme: 'A',
     bg: 'sat',
+    labels: true,
     roadId: 'lane4',
     lock: false,
     objs: [],
@@ -220,7 +221,7 @@ window.AS = window.AS || {};
     saveTimer = setTimeout(function () {
       try {
         localStorage.setItem(KEY, JSON.stringify({
-          v: 5, theme: S.theme, bg: S.bg === 'capture' ? 'sat' : S.bg, roadId: S.roadId, view: S.view,
+          v: 6, theme: S.theme, bg: S.bg === 'capture' ? 'sat' : S.bg, labels: S.labels !== false, roadId: S.roadId, view: S.view,
           info: S.info, objs: S.objs, newRole: S.newRole, carMode: S.carMode, snap: S.snap,
           cap: S.cap.src && S.cap.src.length < 700000 ? S.cap : { src: '', opacity: S.cap.opacity, scale: S.cap.scale }
         }));
@@ -240,6 +241,7 @@ window.AS = window.AS || {};
       });
       S.theme = ['A', 'B', 'C', 'D'].indexOf(d.theme) >= 0 ? d.theme : 'A';
       S.bg = (d.v >= 4 && d.bg) ? d.bg : 'sat';
+      S.labels = d.labels !== false;
       S.roadId = d.roadId || 'lane4';
       S.view = d.view || S.view;
       if (typeof S.view.bearing !== 'number') S.view.bearing = 0;

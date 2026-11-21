@@ -331,14 +331,61 @@ window.AS = window.AS || {};
     window.addEventListener('pointercancel', onUp);
   }
 
+  function beginMapPinch() {
+    var rt = twoRawPtrs();
+    drag = {
+      mode: 'mappinch', moved: false,
+      d0: Math.hypot(rt[0].x - rt[1].x, rt[0].y - rt[1].y) || 1,
+      a0: Math.atan2(rt[1].y - rt[0].y, rt[1].x - rt[0].x) * 180 / Math.PI,
+      mid: { x: (rt[0].x + rt[1].x) / 2, y: (rt[0].y + rt[1].y) / 2 }
+    };
+    drag.rawMid0 = { x: drag.mid.x, y: drag.mid.y };
+    AS.mapx.startPinch(drag.mid.x, drag.mid.y);
+  }
+
+  /* 획이 짧으면(< 26px 또는 < 320ms) 지우고, 제법 길었으면 마무리한 뒤 핀치로 */
+  function releaseDraftForPinch() {
+    var d = penDraft || vecDraft;
+    if (!d) return;
+    var dur = performance.now() - (d._t0 || 0), span = 0;
+    if (d.type === 'pen' && d._pts && d._pts.length) {
+      var p0 = d._pts[0];
+      for (var i = 1; i < d._pts.length; i++) {
+        var dd = Math.hypot(d._pts[i][0] - p0[0], d._pts[i][1] - p0[1]);
+        if (dd > span) span = dd;
+      }
+    } else if (d.type === 'vec') {
+      span = d.h > 24 ? d.h : 0;
+    }
+    if (dur < 320 || span < 26) {
+      stopHoldLoop();
+      S.objs = S.objs.filter(function (o) { return o !== d; });
+      penDraft = null; vecDraft = null;
+      render(); AS.ui.selbar();
+    } else if (penDraft) {
+      finishPen();
+    } else if (vecDraft) {
+      finishVec();
+    }
+  }
+
   function onDown(e) {
     if (e.button && e.button !== 0) return;
     var tg = e.target;
-    if (tg && tg.closest && tg.closest('.hnd')) return;
+    if (tg && tg.closest && (tg.closest('.hnd') || tg.closest('#toolChip'))) return;
     var rp = rawPtOf(e);
     var p = AS.mapx.screenToPlane ? AS.mapx.screenToPlane(rp.x, rp.y) : rp;
     rawPtrs[e.pointerId] = rp;
     ptrs[e.pointerId] = p;
+
+    /* 그리는 중(펜·화살표) 두 손가락 → 짧은 획은 취소하고 바로 지도 핀치로 전환 */
+    if (pcount() === 2 && (penDraft || vecDraft)) {
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+      releaseDraftForPinch();
+      beginMapPinch();
+      return;
+    }
 
     if (pcount() === 2 && drag) {
       var t = twoPtrs(), rt = twoRawPtrs();
@@ -819,6 +866,7 @@ window.AS = window.AS || {};
       pts: [[ll.lat, ll.lng]]
     };
     penDraft._cx = p.x; penDraft._cy = p.y; penDraft._pts = [[p.x, p.y]];
+    penDraft._t0 = performance.now();
     S.objs.push(penDraft);
     startHoldLoop();
     resetHold(p);
@@ -855,7 +903,7 @@ window.AS = window.AS || {};
     var ll = AS.mapx.unproject(p.x, p.y);
     vecDraft = {
       id: C.uid(), type: 'vec', lat: ll.lat, lng: ll.lng, rot: 0, sc: 1,
-      w: 44, h: 90, color: themeAccent(), _cx: p.x, _cy: p.y, _x0: p.x, _y0: p.y
+      w: 44, h: 90, color: themeAccent(), _cx: p.x, _cy: p.y, _x0: p.x, _y0: p.y, _t0: performance.now()
     };
     S.objs.push(vecDraft);
     render();

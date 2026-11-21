@@ -29,6 +29,10 @@
         <span class="bname">사고약도</span>
       </button>
       <div class="topacts">
+        <button id="btnPen" class="gl" type="button" aria-pressed="false" aria-label="그리기 켜기/끄기">
+          <svg viewBox="0 0 24 24"><path d="M16.4 4.6 19.4 7.6 9.2 17.8 4.8 19.2l1.4-4.4z"/><path d="M14.2 6.8 17.2 9.8"/></svg>
+          <em>그리기</em>
+        </button>
         <button id="btnLock" class="gl" type="button" aria-pressed="false">
           <svg class="ic-unlock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7-2.1"/></svg>
           <svg class="ic-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7.6 0v2.5"/></svg>
@@ -51,6 +55,7 @@
       <button type="button" data-bg="road">도로</button>
       <button type="button" data-bg="dark">다크</button>
       <button type="button" data-bg="capture">캡처</button>
+      <button type="button" id="chipLabel" aria-pressed="true" title="스카이에 도로명·상호·건물명 라벨">라벨</button>
       <button type="button" id="tiltBtn" class="compass" title="위아래로 밀어 3D 각도 조절 · 탭하면 0°/35°">
         <svg viewBox="0 0 24 24"><path d="M4 18 8 7h8l4 11Z"/><path d="M9.5 11.5h5"/></svg>
         <em id="tiltTxt">3D 0°</em>
@@ -61,7 +66,6 @@
       </button>
     </div>
 
-    <button id="toolChip" type="button" hidden></button>
   </header>
 
   <!-- 중앙 순수 약도 캔버스 (버튼에 가리지 않음) -->
@@ -80,6 +84,7 @@
       </div>
     </div>
     <div id="chipRot" hidden>0°</div>
+    <button id="toolChip" type="button" hidden aria-live="polite"></button>
   </main>
 
   <!-- 하단 편집 영역 (약도 캔버스와 완전 분리) -->

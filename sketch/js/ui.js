@@ -62,16 +62,23 @@ window.AS = window.AS || {};
     AS.mapx.setTilt(0);
     AS.mapx.setRoad(pr.bg);
     var w = S.stage.w || 390, h = S.stage.h || 600;
-    (pr.cars || []).forEach(function (c) {
-      var ll = AS.mapx.unproject(c.x * w, c.y * h);
+    var geo = AS.roads.presetGeo ? AS.roads.presetGeo(pr, w, h) : null;
+    /* 고정 비율(px) → 도로 함수와 동일한 차로 좌표로 배치 */
+    var data = geo ? geo : {
+      cars: (pr.cars || []).map(function (c) { return { kind: c.kind, role: c.role, x: c.x * w, y: c.y * h, rot: c.rot || 0 }; }),
+      arrows: (pr.arrows || []).map(function (a) { return { color: a.color, pts: (a.pts || []).map(function (q) { return [q[0] * w, q[1] * h]; }) }; }),
+      impact: pr.impact ? { x: pr.impact.x * w, y: pr.impact.y * h } : null
+    };
+    (data.cars || []).forEach(function (c) {
+      var ll = AS.mapx.unproject(c.x, c.y);
       var o = C.makeObj({ type: 'car', kind: c.kind, role: c.role }, ll.lat, ll.lng);
       o.rot = c.rot || 0;
       S.objs.push(o);
     });
-    (pr.arrows || []).forEach(function (a) {
+    (data.arrows || []).forEach(function (a) {
       if (!a.pts || a.pts.length < 2) return;
       var pts = a.pts.map(function (q) {
-        var ll = AS.mapx.unproject(q[0] * w, q[1] * h);
+        var ll = AS.mapx.unproject(q[0], q[1]);
         return [ll.lat, ll.lng];
       });
       S.objs.push({
@@ -79,8 +86,8 @@ window.AS = window.AS || {};
         w: 1, h: 1, color: a.color || '#E9413B', lw: 3.8, arrowEnd: true, pts: pts
       });
     });
-    if (pr.impact) {
-      var ill = AS.mapx.unproject(pr.impact.x * w, pr.impact.y * h);
+    if (data.impact) {
+      var ill = AS.mapx.unproject(data.impact.x, data.impact.y);
       var imp = C.makeObj({ type: 'sym', kind: 'impact', w: 50 }, ill.lat, ill.lng);
       S.objs.push(imp);
     }
@@ -120,17 +127,18 @@ window.AS = window.AS || {};
     }
 
     if (cat === 'road') {
-      addGroup(body, '과실도표 빠른 불러오기 (7종)');
+      var rs = roadSearchUI(body);
+      rs.group('과실도표 빠른 불러오기 (7종)');
       AS.roads.PRESETS.forEach(function (pr) {
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'card preset';
         b.innerHTML = '<div class="pthumb">' + AS.roads.thumb(pr.bg) + '</div>' +
           '<div class="ptxt"><b>[' + pr.no + '] ' + pr.label + '</b><span>' + pr.summary + '</span></div>';
         b.addEventListener('click', function () { applyPreset(pr); });
-        body.appendChild(b);
+        rs.add(b, '[' + pr.no + '] ' + pr.label + ' ' + pr.summary + ' 과실도표 프리셋 빠른불러오기 ' + pr.bg);
       });
       [1, 2, 3, 4].forEach(function (g) {
-        addGroup(body, AS.roads.GROUP_LABEL[g]);
+        rs.group(AS.roads.GROUP_LABEL[g]);
         AS.roads.LIST.filter(function (r) { return r.g === g; }).forEach(function (r) {
           var b = document.createElement('button');
           b.type = 'button';
@@ -141,7 +149,7 @@ window.AS = window.AS || {};
             closeSheet();
             toast(r.label + ' 전체화면 적용');
           });
-          body.appendChild(b);
+          rs.add(b, r.label + ' ' + r.id + ' ' + AS.roads.GROUP_LABEL[g] + ' 도로배경 배경');
         });
       });
     }
@@ -205,6 +213,61 @@ window.AS = window.AS || {};
     var g = document.createElement('div');
     g.className = 'grp'; g.textContent = text;
     body.appendChild(g);
+    return g;
+  }
+
+  /* 도로 시트 맨 위 검색 — 이름 필터 + 전국 실제 도로 검색 */
+  function roadSearchUI(body) {
+    var wrap = document.createElement('div');
+    wrap.className = 'rsearch';
+    wrap.innerHTML =
+      '<label class="rin">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.6"/><path d="m19.6 19.6-3.4-3.4"/></svg>' +
+      '<input id="rq" type="search" inputmode="search" autocomplete="off" placeholder="도로 이름으로 바로 찾기 (예: 중앙로, 신대지구)" />' +
+      '</label>' +
+      '<button class="rgo" type="button" id="rqGo">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s6.2-6.3 6.2-11A6.2 6.2 0 0 0 5.8 10c0 4.7 6.2 11 6.2 11Z"/><circle cx="12" cy="10" r="2.3"/></svg>' +
+      '<span>전국 실제 도로 지도에서 찾기</span></button>' +
+      '<p class="rhint">위 도로 배경·과실도표는 이름으로 걸러지고, 버튼은 실제 도로 위치로 이동합니다.</p>';
+    body.appendChild(wrap);
+
+    var entries = [], groups = [], curGroup = null;
+    var input = wrap.querySelector('#rq'), hint = wrap.querySelector('.rhint'), go = wrap.querySelector('#rqGo');
+    var sync = function () {
+      groups.forEach(function (g) {
+        var any = false;
+        for (var i = 0; i < entries.length; i++) if (entries[i].g === g && !entries[i].el.hidden) { any = true; break; }
+        g.hidden = !any;
+      });
+    };
+    var filter = function () {
+      var q = input.value.trim().toLowerCase();
+      var shown = 0;
+      entries.forEach(function (e) {
+        var ok = !q || e.text.indexOf(q) >= 0;
+        e.el.hidden = !ok;
+        if (ok) shown += 1;
+      });
+      hint.textContent = !q ? '위 도로 배경·과실도표는 이름으로 걸러지고, 버튼은 실제 도로 위치로 이동합니다.'
+        : shown ? shown + '개 항목 · 실제 도로는 위 버튼으로 검색하세요'
+          : '일치하는 배경이 없어요 — 위 버튼으로 전국 실제 도로를 검색해 보세요';
+      sync();
+    };
+    var toMap = function () {
+      var q = input.value.trim();
+      if (!q) { input.focus(); toast('도로명을 입력하세요'); return; }
+      closeSheet();
+      openSearchWith(q);
+    };
+    input.addEventListener('input', filter);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); toMap(); }
+    });
+    go.addEventListener('click', toMap);
+    return {
+      group: function (text) { curGroup = addGroup(body, text); groups.push(curGroup); return curGroup; },
+      add: function (el, text) { entries.push({ el: el, text: String(text || '').toLowerCase(), g: curGroup }); body.appendChild(el); }
+    };
   }
 
   function symCards(body, list) {
@@ -386,20 +449,37 @@ window.AS = window.AS || {};
 
   function syncTool() {
     var c = $('#toolChip');
+    var bp = $('#btnPen');
+    var drawing = S.tool === 'pen' || S.tool === 'vec';
+    if (bp) bp.setAttribute('aria-pressed', drawing ? 'true' : 'false');
+    document.body.setAttribute('data-drawing', drawing ? '1' : '0');
     if (!c) return;
-    if (!S.tool || S.tool === 'idle') { c.hidden = true; return; }
+    if (!S.tool || S.tool === 'idle') { c.hidden = true; c.innerHTML = ''; return; }
+    var t = S.tool === 'pen'
+      ? { ic: '✏️', title: '그리기 중 — 선 긋기', sub: '한 손가락 긋기 · 두 손가락 확대·이동' }
+      : S.tool === 'vec'
+        ? { ic: '↗️', title: '화살표 긋는 중', sub: '한 손가락 화살표 · 두 손가락 확대·이동' }
+        : { ic: '💬', title: '메모 위치 선택', sub: '약도에서 메모할 곳을 톡 누르세요' };
+    c.innerHTML = '<span class="tp-ic">' + t.ic + '</span>' +
+      '<span class="tp-tx"><b>' + t.title + '</b><i>' + t.sub + '</i></span>' +
+      '<span class="tp-x">' + (S.tool === 'memo' ? '취소' : '✕ 끄기') + '</span>';
     c.hidden = false;
-    c.textContent = S.tool === 'pen' ? '✏️ 그리는 중 · 1초 누르면 화살표·도형 보정 · 끝내기'
-      : S.tool === 'vec' ? '↗ 화살표 긋는 중 · 끝내기'
-        : '💬 약도에서 메모할 곳을 누르세요 · 취소';
   }
 
   function bgchips() {
     $$('#bgChips button[data-bg]').forEach(function (b) { b.classList.toggle('on', b.dataset.bg === S.bg); });
+    if (AS.mapx.syncLabelChip) AS.mapx.syncLabelChip();
   }
 
   /* ────────── 검색 ────────── */
   function openSearch() { $('#search').classList.add('open'); setTimeout(function () { $('#q').focus(); }, 220); }
+  function openSearchWith(q) {
+    openSearch();
+    var inp = $('#q');
+    inp.value = q || '';
+    $('#qList').innerHTML = '<p class="qempty">찾는 중…</p>';
+    setTimeout(doSearch, 160);
+  }
   function closeSearch() { $('#search').classList.remove('open'); $('#q').blur(); }
   function renderResults(list) {
     var box = $('#qList');
@@ -514,6 +594,18 @@ window.AS = window.AS || {};
     });
     $('#sheetClose').addEventListener('click', closeSheet);
     $('#toolChip').addEventListener('click', function () { S.tool = 'idle'; syncTool(); toast('그리기를 끝냈어요'); });
+    var bp = $('#btnPen');
+    if (bp) bp.addEventListener('click', function () {
+      if (S.tool === 'pen' || S.tool === 'vec') { S.tool = 'idle'; syncTool(); toast('그리기를 끝냈어요'); }
+      else {
+        S.tool = 'pen'; syncTool();
+        toast('그리기 켜짐 — 한 손가락으로 긋고, 두 손가락으로 지도를 확대·이동');
+      }
+    });
+    var cl = $('#chipLabel');
+    if (cl) cl.addEventListener('click', function () {
+      AS.mapx.setLabels(S.labels === false);
+    });
     $('#sheet').addEventListener('click', function (e) { if (e.target === $('#sheet')) closeSheet(); });
     $('#btnUndo').addEventListener('click', function () { C.undo(); });
     $('#btnSave').addEventListener('click', function () { AS.exportx.openSave(); });
@@ -670,7 +762,7 @@ window.AS = window.AS || {};
   AS.toast = toast;
   AS.ui = {
     toast: toast, bind: bind, syncTool: syncTool, openSheet: openSheet, closeSheet: closeSheet, selbar: selbar, bgchips: bgchips,
-    openSearch: openSearch, closeSearch: closeSearch, openLab: openLab, setTheme: setTheme,
+    openSearch: openSearch, openSearchWith: openSearchWith, closeSearch: closeSearch, openLab: openLab, setTheme: setTheme,
     memo: openMemo, closeModal: closeModal, measure: measure, previewSVG: previewSVG,
     renderRoles: renderRoles, syncDock: syncDock, THEMES: THEMES
   };

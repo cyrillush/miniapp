@@ -11,14 +11,21 @@ window.AS = window.AS || {};
 
   var BASE = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
   var BASE_ATTR = '© OpenStreetMap contributors · 타일 FOSSGIS';
+  /* Google 타일: scale=2 → 512px 원본(레티나 선명) · ACAO:* 라서 PNG 합성도 안전 */
+  var G = 'https://mt{s}.google.com/vt/lyrs=';
+  var GOPT = { subdomains: '0123', tileSize: 256, maxNativeZoom: 21, maxZoom: 22, attribution: '© Google' };
+  function gurl(l) { return G + l + '&scale=2&hl=ko&x={x}&y={y}&z={z}'; }
+  /* 스카이: y = 위성 + 도로명·건물명 라벨(하이브리드) / 라벨 끄면 s = 순수 위성 */
   var TILES = {
     sat: {
-      url: 'https://mt{s}.google.com/vt/lyrs=s&scale=2&hl=ko&x={x}&y={y}&z={z}',
-      opt: { subdomains: '0123', tileSize: 256, maxNativeZoom: 21, maxZoom: 22, attribution: '© Google' },
-      filter: 'contrast(1.10) saturate(1.08) brightness(1.02)'
+      url: function () { return gurl(S.labels === false ? 's' : 'y'); },
+      opt: GOPT,
+      filter: 'contrast(1.08) saturate(1.06) brightness(1.02)'
     },
-    map: { url: BASE, opt: { maxNativeZoom: 19, maxZoom: 20, attribution: BASE_ATTR }, filter: 'saturate(.68) brightness(1.03) contrast(.96)' },
-    dark: { url: BASE, opt: { maxNativeZoom: 19, maxZoom: 20, attribution: BASE_ATTR }, filter: 'grayscale(.6) invert(1) brightness(.9) contrast(1.1)' }
+    /* 지도: m = 512px 한글 도로명·건물명·건물 윤곽 */
+    map: { url: function () { return gurl('m'); }, opt: GOPT, filter: 'saturate(.88) brightness(1.0) contrast(1.08)' },
+    /* 다크: 같은 지도 타일에 고대비 다크 필터 */
+    dark: { url: function () { return gurl('m'); }, opt: GOPT, filter: 'invert(1) hue-rotate(180deg) saturate(.7) brightness(1.06) contrast(1.02)' }
   };
   var FALLBACK = { url: 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attr: '© OpenStreetMap contributors · 타일 OSM France(HOT)', maxNative: 18 };
   var SAT_FALLBACK = { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr: 'Imagery © Esri' };
@@ -33,19 +40,8 @@ window.AS = window.AS || {};
       zoomSnap: .1, zoomDelta: .5, maxZoom: 22, minZoom: 3,
       worldCopyJump: true, preferCanvas: false, zoomAnimation: false, fadeAnimation: false
     });
-    Object.keys(TILES).forEach(function (k) {
-      layers[k] = L.tileLayer(TILES[k].url, Object.assign({
-        crossOrigin: true, keepBuffer: 6, updateWhenZooming: false, updateWhenIdle: false
-      }, TILES[k].opt));
-      var errs = 0;
-      layers[k].on('tileerror', function () {
-        errs += 1;
-        if (errs === 4) {
-          if (k === 'sat') useSatFallback();
-          else useFallback();
-        }
-      });
-    });
+    Object.keys(TILES).forEach(function (k) { layers[k] = makeLayer(k); });
+    syncLabelChip();
     cur = layers[S.bg] || layers.sat;
     if (S.bg !== 'road') cur.addTo(map);
     applyFilter(currentFilter());
@@ -66,6 +62,44 @@ window.AS = window.AS || {};
     });
     setTimeout(function () { map.invalidateSize(); renderRoadLayer(); AS.objs.layout(); }, 120);
     return map;
+  }
+
+  function makeLayer(k) {
+    var t = TILES[k];
+    var lay = L.tileLayer(typeof t.url === 'function' ? t.url() : t.url, Object.assign({
+      crossOrigin: true, keepBuffer: 6, updateWhenZooming: false, updateWhenIdle: false
+    }, t.opt));
+    var errs = 0;
+    lay.on('tileerror', function () {
+      errs += 1;
+      if (errs === 4) {
+        if (k === 'sat') useSatFallback();
+        else useFallback();
+      }
+    });
+    return lay;
+  }
+
+  /* 스카이 건물·도로명 라벨 토글 */
+  function setLabels(on) {
+    S.labels = !!on;
+    var live = !!(map && cur === layers.sat && map.hasLayer(layers.sat));
+    if (live) map.removeLayer(layers.sat);
+    layers.sat = makeLayer('sat');
+    satFellBack = false;
+    if (live) { layers.sat.addTo(map); cur = layers.sat; }
+    applyFilter(currentFilter());
+    syncLabelChip();
+    AS.core.save();
+    AS.toast(S.labels ? '스카이 라벨 ON — 도로명·건물명 표시' : '스카이 라벨 OFF — 위성 사진만');
+  }
+
+  function syncLabelChip() {
+    var b = $('#chipLabel');
+    if (!b) return;
+    var on = S.labels !== false;
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.classList.toggle('off', !on);
   }
 
   var satFellBack = false;
@@ -403,16 +437,42 @@ window.AS = window.AS || {};
     }).catch(function () { return []; });
   }
 
+  /* ArcGIS World Geocoder — 대한민국 도로명(~로·~길·~대로)·읍면동·교차로·건물명 */
+  function arcgis(q) {
+    var url = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates';
+    url += '?f=json&outSR=4326&outFields=*&countryCode=KOR&langCode=ko&maxLocations=6&SingleLine=' + encodeURIComponent(q);
+    return fetch(url, { headers: { 'Accept': 'application/json' } }).then(function (r) { return r.json(); }).then(function (j) {
+      return ((j && j.candidates) || []).map(function (c) {
+        var a = c.attributes || {}, loc = c.location || {};
+        var nm = a.StName || a.ShortLabel || a.Match_addr || c.address || '';
+        var parts = [a.Region, a.City || a.District, a.Nbrhd].filter(function (v) { return !!v; });
+        var addr = parts.join(' ');
+        if (!addr) addr = a.LongLabel || c.address || '';
+        return {
+          name: nm || addr || '이름 없는 곳', addr: addr === nm ? '' : addr,
+          lat: +loc.y, lng: +loc.x, kind: (a.Addr_type || ''), score: c.score || 0
+        };
+      }).sort(function (x, y) { return (y.score || 0) - (x.score || 0); });
+    }).catch(function () { return []; });
+  }
+
   function search(q) {
     if (!q || q.trim().length < 1) return Promise.resolve([]);
-    return Promise.all([photon(q), nominatim(q)]).then(function (r) {
-      var out = [];
-      r[0].concat(r[1]).forEach(function (it) {
+    return Promise.all([arcgis(q), photon(q), nominatim(q)]).then(function (r) {
+      var out = [], nameCount = {};
+      var push = function (it, src) {
         if (!isFinite(it.lat) || !isFinite(it.lng)) return;
         for (var i = 0; i < out.length; i++) if (dist(out[i], it) < 45) return;
+        var key = String(it.name || '').replace(/\s+/g, '').toLowerCase();
+        if (key && (nameCount[key] || 0) >= 2) return;
+        if (key) nameCount[key] = (nameCount[key] || 0) + 1;
+        it.src = src;
         out.push(it);
-      });
-      return out.slice(0, 9);
+      };
+      r[0].forEach(function (it) { push(it, 'arcgis'); });
+      r[1].forEach(function (it) { push(it, 'photon'); });
+      r[2].forEach(function (it) { push(it, 'osm'); });
+      return out.slice(0, 12);
     });
   }
 
@@ -428,6 +488,7 @@ window.AS = window.AS || {};
   AS.mapx = {
     init: init, get map() { return map; }, layers: layers,
     setBg: setBg, setRoad: setRoad, renderRoadLayer: renderRoadLayer,
+    setLabels: setLabels, syncLabelChip: syncLabelChip,
     setLock: setLock, applyLock: applyLock,
     setBearing: setBearing, applyBearing: applyBearing,
     setTilt: setTilt, applyTilt: applyTilt,
