@@ -139,6 +139,24 @@ body[data-theme="D"] {
   letter-spacing: -.2px; white-space: nowrap; box-shadow: 0 1px 4px rgba(15,27,46,.25);
 }
 @keyframes gpsPulse { 0% { transform: scale(.55); opacity: .85; } 70% { opacity: 0; } 100% { transform: scale(2.5); opacity: 0; } }
+
+/* 충격지점 — 빨간 점은 고정, 얇은 링 1겹이 바깥으로 퍼지며 옅어지는 펄스 (화면 전용 움직임)
+   PNG 저장은 이 CSS가 닿지 않는 SVG로 래스터되므로 링의 기본 반지름(중간 크기·불투명)이
+   그대로 한 프레임으로 찍힌다 — 저장 이미지에서 링이 사라지지 않는다. */
+#layer .impact-pulse {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  animation: impactPulse 1.6s cubic-bezier(.22,.61,.36,1) infinite;
+}
+@keyframes impactPulse {
+  0%   { transform: scale(.58); opacity: .95; }
+  45%  { opacity: .66; }
+  100% { transform: scale(1.78); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #layer .impact-pulse { animation: none; }
+}
 #holdRing { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; pointer-events: none; z-index: 7; transform: rotate(-90deg); }
 #holdRing circle { fill: none; stroke-width: 4.5; }
 #holdRing circle.bg { stroke: rgba(255,255,255,.45); }

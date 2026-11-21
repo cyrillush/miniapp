@@ -29,7 +29,7 @@ window.AS = window.AS || {};
     body.innerHTML =
       '<button class="mclose" data-close="1" aria-label="닫기">✕</button>' +
       '<h3>약도 저장</h3>' +
-      '<p class="mhint">머리글(일시·장소·경위)이 함께 들어간 한 장으로 저장합니다.</p>' +
+      '<p class="mhint">약도만 담긴 한 장(PNG)으로 저장합니다 — 글자 없이 화면 전체 약도.</p>' +
       '<div class="fld"><span>일시</span><input id="fWhen" type="datetime-local" value="' + (S.info.when || nowLocal()) + '" /></div>' +
       '<div class="fld"><span>장소</span><input id="fPlace" type="text" maxlength="60" placeholder="예) 서초대로 ○○사거리" value="' + esc(S.info.place || '') + '" /></div>' +
       '<div class="fld"><span>사고 경위 (한 줄)</span><input id="fNote" type="text" maxlength="70" placeholder="예) 2차로 주행 중 우측에서 진입한 차량과 충돌" value="' + esc(S.info.note || '') + '" /></div>' +
@@ -37,7 +37,7 @@ window.AS = window.AS || {};
       '<button class="btn" id="btnRep">A4 보고서</button></div>' +
       '<div class="mrow"><button class="btn ghost sm" id="btnNew">새 약도</button>' +
       '<button class="btn ghost sm" data-close="1">닫기</button></div>' +
-      '<p class="tip">PNG는 배경 + 배치 요소 + 머리글이 합성된 이미지입니다.</p>';
+      '<p class="tip">PNG는 배경 + 배치 요소만 담깁니다(글자·워터마크 없음). 일시·장소·경위는 A4 보고서에 들어갑니다.</p>';
     $('#modal').hidden = false;
 
     var read = function () {
@@ -228,7 +228,9 @@ window.AS = window.AS || {};
       var stageR = $('#stage').getBoundingClientRect();
       var w = Math.round(stageR.width), h = Math.round(stageR.height);
       var W = w * sc, H = h * sc;
-      var headCss = opt.headless ? 0 : 64, headH = Math.round(headCss * sc);
+      /* PNG는 약도만 — 머리글(일시·장소·경위)·워터마크 등 글자를 넣지 않는다.
+         글자는 A4 보고서(printReport)에만 들어간다. */
+      var headH = 0;
 
       var flat = document.createElement('canvas');
       flat.width = W; flat.height = H;
@@ -284,26 +286,6 @@ window.AS = window.AS || {};
         else ctx.drawImage(flat, 0, 0);
         ctx.restore();
 
-        ctx.strokeStyle = themeColors().line;
-        ctx.lineWidth = Math.max(1, sc);
-        ctx.strokeRect(.5, .5, cv.width - 1, cv.height - 1);
-
-        ctx.font = font(Math.round(9.5 * sc), 700);
-        ctx.fillStyle = themeColors().sub;
-        ctx.textAlign = 'right';
-        var wtxt = '사고약도';
-        var tw = ctx.measureText(wtxt).width;
-        var pad = Math.round(7 * sc);
-        ctx.globalAlpha = .82;
-        ctx.fillStyle = themeColors().head === '#FFFFFF' ? 'rgba(255,255,255,.86)' : 'rgba(6,12,20,.62)';
-        if (ctx.roundRect) {
-          ctx.beginPath();
-          ctx.roundRect(W - tw - pad * 3, H + headH - Math.round(24 * sc), tw + pad * 2, Math.round(17 * sc), Math.round(8 * sc));
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = themeColors().sub;
-        ctx.fillText(wtxt, W - pad * 2, H + headH - Math.round(11 * sc));
         try {
           resolve(cv.toDataURL('image/png'));
         } catch (e) { reject(new Error('캔버스 보안 오류(타일 CORS)')); }
