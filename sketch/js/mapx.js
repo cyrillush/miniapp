@@ -328,6 +328,9 @@ window.AS = window.AS || {};
      - 두 손가락 벌리기는 어느 축에서든 확대·축소 (처음 손가락 중간점을 중심으로) */
   function movePinch(mx, my, scale, dBearing) {
     if (!pinch || !map) return;
+    if (!isFinite(mx) || !isFinite(my)) return;
+    if (!isFinite(scale) || scale <= 0) scale = 1;
+    if (!isFinite(dBearing)) dBearing = 0;
     var dxm = mx - pinch.px, dym = my - pinch.py;
     if (!pinch.axis && Math.max(Math.abs(dxm), Math.abs(dym)) > 8) {
       pinch.axis = Math.abs(dym) >= Math.abs(dxm) ? 'tilt' : 'rot';
@@ -363,6 +366,7 @@ window.AS = window.AS || {};
 
   function endPinch() {
     if (!pinch || !map) return;
+    if (!isFinite(pinch.s) || pinch.s <= 0) pinch.s = 1;
     var target = unproject(S.stage.w / 2, S.stage.h / 2);
     var newZ = AS.core.clamp(pinch.z0 + Math.log2(pinch.s), 3, 22);
     var newB = ((pinch.b0 + pinch.db) % 360 + 360) % 360;

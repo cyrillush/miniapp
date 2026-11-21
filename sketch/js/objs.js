@@ -432,6 +432,12 @@ window.AS = window.AS || {};
       return;
     }
 
+    if (pcount() === 2 && !drag) {
+      /* 지도가 고정된 상태에서도 두 손가락 각도·회전은 되게 (v3.8) */
+      beginMapPinch();
+      return;
+    }
+
     if (pcount() === 2 && drag) {
       var t = twoPtrs(), rt = twoRawPtrs();
       if (drag.mode === 'map' || drag.mode === 'mappinch') {
@@ -572,7 +578,8 @@ window.AS = window.AS || {};
       var k = Object.keys(ptrs)[0];
       if (drag.mode === 'mappinch') {
         AS.mapx.endPinch();
-        drag = { mode: 'map', last: ptrs[k], moved: true };
+        /* 지도가 고정된 상태였다면 남은 손가락으로 지도가 끌리지 않게 */
+        drag = S.lock ? null : { mode: 'map', last: ptrs[k], moved: true };
         return;
       }
       drag.mode = 'move'; drag.p0 = ptrs[k]; drag.moved = true; return;
