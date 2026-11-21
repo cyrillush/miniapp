@@ -312,15 +312,24 @@ window.AS = window.AS || {};
       s += line(x1 - lw, stemTop, x1 - lw, stemBot, C.white, 2.2, 'stroke-dasharray="15 14"');
       s += line(0, hy - 2.4, W, hy - 2.4, C.yel, 2.4) + line(0, hy + 2.4, W, hy + 2.4, C.yel, 2.4);
       s += line(cx - 2.4, stemTop, cx - 2.4, stemBot, C.yel, 2.4) + line(cx + 2.4, stemTop, cx + 2.4, stemBot, C.yel, 2.4);
+      /* 가로 도로 차로선·진행 화살표 */
+      var bw2 = hw / 2;
+      s += line(0, hy - bw2, W, hy - bw2, C.white, 2.2, 'stroke-dasharray="15 14"');
+      s += line(0, hy + bw2, W, hy + bw2, C.white, 2.2, 'stroke-dasharray="15 14"');
+      var aH = Math.min(bw2 * 1.5, 48);
+      s += glyph('up', W * 0.24, hy + bw2 * 0.5, aH, 90, C.white, .9);
+      s += glyph('up', W * 0.76, hy + bw2 * 0.5, aH, 270, C.white, .9);
       var cwD = Math.max(12, hw * 0.18);
       if (dir === 'up') {
+        /* 북진(줄기 위로) — 우측 반 차로가 진입 */
         s += cwBand(x0, x1, y1 + gap + 2, cwD);
-        s += stopBar(x0 + 1, y1 + gap + cwD + 8, hw - 4);
-        s += upArrow(x0 + lw * 0.5, y1 + gap + cwD + 62, Math.min(lw * 1.5, 46), 0);
+        s += stopBar(cx + 2, y1 + gap + cwD + 8, hw - 4);
+        s += upArrow(x1 - lw * 0.5, y1 + gap + cwD + 62, Math.min(lw * 1.5, 46), 0);
       } else {
+        /* 남진(줄기 아래로) — 좌측 반 차로가 진입 */
         s += cwBand(x0, x1, y0 - gap - cwD - 2, cwD);
-        s += stopBar(cx + 2, y0 - gap - cwD - 8 - 5, hw - 4);
-        s += upArrow(x1 - lw * 0.5, y0 - gap - cwD - 62, Math.min(lw * 1.5, 46), 180);
+        s += stopBar(x0 + 1, y0 - gap - cwD - 13, hw - 4);
+        s += upArrow(x0 + lw * 0.5, y0 - gap - cwD - 62, Math.min(lw * 1.5, 46), 180);
       }
     } else {
       var vx = dir === 'right' ? W * 0.34 : W * 0.66;
@@ -344,14 +353,25 @@ window.AS = window.AS || {};
         s += urbanBlock(x1r + gap + 6, 0, W - x1r - gap - 12, H, 8);
         s += urbanBlock(0, y1r + gap + 6, x0r - gap - 12, H - y1r - gap - 12, 9);
       }
-      s += line(x0r + 3, 0, x0r + 3, H, C.white, 2.6);
-      /* 세로 도로 가장자리 — 가로 가지 입구에서는 끊는다 */
-      s += line(x1r - 3, 0, x1r - 3, y0r, C.white, 2.6) + line(x1r - 3, y1r, x1r - 3, H, C.white, 2.6);
+      /* 세로 도로 가장자리 — 가로 가지가 붙는 쪽은 입구에서 끊는다 */
+      if (dir === 'right') {
+        s += line(x0r + 3, 0, x0r + 3, H, C.white, 2.6);
+        s += line(x1r - 3, 0, x1r - 3, y0r, C.white, 2.6) + line(x1r - 3, y1r, x1r - 3, H, C.white, 2.6);
+      } else {
+        s += line(x1r - 3, 0, x1r - 3, H, C.white, 2.6);
+        s += line(x0r + 3, 0, x0r + 3, y0r, C.white, 2.6) + line(x0r + 3, y1r, x0r + 3, H, C.white, 2.6);
+      }
       s += line(vx - 2.4, 0, vx - 2.4, H, C.yel, 2.4) + line(vx + 2.4, 0, vx + 2.4, H, C.yel, 2.4);
       var gx0 = dir === 'right' ? x1r : 0, gx1 = dir === 'right' ? W : x0r;
       s += line(gx0 + 6, y0r + 3, gx1, y0r + 3, C.white, 2.6) + line(gx0 + 6, y1r - 3, gx1, y1r - 3, C.white, 2.6);
       s += line(gx0, hyr - 2.4, gx1, hyr - 2.4, C.yel, 2.2) + line(gx0, hyr + 2.4, gx1, hyr + 2.4, C.yel, 2.2);
       s += line(vx, y0r + 3, vx, y1r - 3, C.white, 2.2, 'stroke-dasharray="14 13"');
+      s += line(vx - hw / 2, 0, vx - hw / 2, y0r - 6, C.white, 2.2, 'stroke-dasharray="15 14"');
+      s += line(vx + hw / 2, 0, vx + hw / 2, y0r - 6, C.white, 2.2, 'stroke-dasharray="15 14"');
+      s += line(vx - hw / 2, y1r + 6, vx - hw / 2, H, C.white, 2.2, 'stroke-dasharray="15 14"');
+      s += line(vx + hw / 2, y1r + 6, vx + hw / 2, H, C.white, 2.2, 'stroke-dasharray="15 14"');
+      s += glyph('up', vx - hw * 0.25, H * 0.16, Math.min(hw * 0.75, 46), 0, C.white, .9);
+      s += glyph('up', vx + hw * 0.25, H * 0.85, Math.min(hw * 0.75, 46), 180, C.white, .9);
       var cwD2 = Math.max(12, hw * 0.18);
       if (dir === 'right') {
         s += cwBandV(x1r + gap + 2, y0r, y1r, cwD2);
