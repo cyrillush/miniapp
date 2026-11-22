@@ -1,12 +1,16 @@
 /* ==========================================================================
-   sw.js — 사고약도 서비스워커 (v3.8)
+   sw.js — 사고약도 서비스워커 (v5.0)
    카카오맵 스카이뷰 캡처를 '공유 → 사고약도'로 넘겼을 때, PWA share_target 이
    이 주소(scope/share-target)로 multipart POST 를 보낸다. 받은 이미지를
    IndexedDB 에 넣고 앱(index.html?shared=1)으로 되돌린다. 앱이 켜지면서
    IndexedDB 의 pending 이미지를 읽어 배경으로 깐다.
+
+   v5.0 — 캐시 이름에 판번호를 넣고, 활성화될 때 이전 판 캐시를 지운다.
+   (예전 판의 index.html·app.css 가 남아 화면이 섞이지 않게)
    ========================================================================== */
 'use strict';
 
+var CACHE_NAME = 'accident-sketch-v5.0';
 var DB = 'accident-sketch-share';
 var STORE = 'files';
 var KEY = 'pending';
@@ -60,7 +64,15 @@ function handleShare(req) {
 }
 
 self.addEventListener('install', function () { self.skipWaiting(); });
-self.addEventListener('activate', function (event) { event.waitUntil(self.clients.claim()); });
+self.addEventListener('activate', function (event) {
+  event.waitUntil(
+    caches.keys().then(function (keys) {
+      return Promise.all(keys.map(function (k) {
+        return (k !== CACHE_NAME && /^accident-sketch/.test(k)) ? caches.delete(k) : null;
+      }));
+    }).then(function () { return self.clients.claim(); }).catch(function () { return self.clients.claim(); })
+  );
+});
 
 self.addEventListener('fetch', function (event) {
   var url = new URL(event.request.url);

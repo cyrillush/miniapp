@@ -19,11 +19,13 @@ button { border: 0; background: none; cursor: pointer; -webkit-tap-highlight-col
 svg { display: block; }
 button svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
-/* 요소 조작 버튼 크기 (S/M/L) — 핸들 지름과 하단 버튼 크기를 한 번에 바꾼다 */
-body { --hnd: 34px; --sb: 32px; }
-body[data-btnsz="sm"] { --hnd: 26px; --sb: 28px; }
-body[data-btnsz="md"] { --hnd: 34px; --sb: 32px; }
-body[data-btnsz="lg"] { --hnd: 44px; --sb: 40px; }
+/* 요소 조작 버튼 크기 (S/M/L) — 핸들 지름과 하단 버튼 크기를 한 번에 바꾼다.
+   v5.0: 핸들 원은 28px 로 콤팩트하게(옆 차·라벨을 가리지 않게), 터치 영역은
+   ::before 로 사방 7px 넓게 잡아 누르기 편하게 유지한다. */
+body { --hnd: 28px; --sb: 32px; }
+body[data-btnsz="sm"] { --hnd: 24px; --sb: 28px; }
+body[data-btnsz="md"] { --hnd: 28px; --sb: 32px; }
+body[data-btnsz="lg"] { --hnd: 36px; --sb: 40px; }
 
 /* ───────────────────────────────── 토큰 */
 body[data-theme="A"] {
@@ -78,9 +80,10 @@ body[data-theme="D"] {
   flex: none; z-index: 15;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
-  padding: calc(env(safe-area-inset-top, 0px) + 6px) 10px 7px;
-  display: flex; flex-direction: column; gap: 6px;
+  padding: calc(env(safe-area-inset-top, 0px) + 6px) 9px 6px;
 }
+/* 상단은 딱 1줄 — 로고 · [도로|사진] · (사진 조정) */
+#topbar { display: flex; align-items: center; gap: 6px; min-height: 36px; }
 
 #stage {
   flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden;
@@ -160,6 +163,8 @@ body[data-theme="D"] {
   background: var(--panel-solid); border: 1.6px solid var(--acc);
   box-shadow: var(--shadow-s);
 }
+/* 보이는 원은 작지만 손가락이 닿는 영역은 사방 8px 넓게 — 옆 차·라벨을 가리지 않으면서 누르기 편하다 */
+.hnd::before { content: ''; position: absolute; inset: -8px; border-radius: 50%; }
 .hnd svg { width: calc(var(--hnd) * 0.48); height: calc(var(--hnd) * 0.48); stroke-width: 1.9; }
 .hnd:active { transform: scale(.94); }
 /* 선택한 요소 위 빠른 삭제 × — 터치 영역 최소 32px, 화면 전용 크롬(PNG 미포함) */
@@ -183,75 +188,77 @@ body[data-theme="D"] {
   font-weight: 700; box-shadow: var(--shadow-s);
 }
 
-/* ───────────────────────────────── 상단 편집 바 */
-#topbar { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+/* ───────────────────────────────── 상단 편집 바 (v5.0 · 1줄) */
 .brand {
-  display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 11px 0 6px;
-  border-radius: var(--r); background: var(--panel-2); border: var(--hard);
+  display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px 0 5px; flex: none;
+  border-radius: 12px; background: var(--panel-2); border: var(--hard);
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .brand .bmark {
-  width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center;
   background: linear-gradient(140deg, var(--acc), color-mix(in srgb, var(--acc) 62%, #7A2CB0));
   color: #fff;
 }
-.brand .bmark svg { width: 16px; height: 16px; stroke-width: 1.8; fill: rgba(255,255,255,.22); }
-.brand .bname { font-size: 15px; font-weight: 800; letter-spacing: -.4px; }
-.topacts { display: flex; gap: 6px; }
+.brand .bmark svg { width: 15px; height: 15px; stroke-width: 1.8; fill: rgba(255,255,255,.22); }
+.brand .bname { font-size: 14px; font-weight: 800; letter-spacing: -.4px; }
 .gl {
-  height: 38px; display: inline-flex; align-items: center; gap: 5px; padding: 0 11px;
-  border-radius: var(--r); background: var(--panel-2); border: var(--hard);
-  color: var(--ink); font-size: 12px; font-weight: 650;
+  height: 36px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px;
+  border-radius: 12px; background: var(--panel-2); border: var(--hard);
+  color: var(--ink); font-size: 12px; font-weight: 700;
 }
-.gl svg { width: 17px; height: 17px; }
-.gl.icon { width: 38px; padding: 0; justify-content: center; }
+.gl svg { width: 16px; height: 16px; }
 .gl em { font-style: normal; }
-#btnPhotoLock[aria-pressed="false"] { background: var(--acc); color: var(--acc-ink); border-color: transparent; }
-#btnPhotoLock .ic-lock { display: none; }
-#btnPhotoLock[aria-pressed="true"] .ic-lock { display: block; }
-#btnPhotoLock[aria-pressed="true"] .ic-unlock { display: none; }
 .gl:active, .brand:active { transform: scale(.97); }
-
+/* 사진 조정 토글 — 켜져 있으면(사진을 움직일 수 있으면) 강조 */
+.gl.adj { flex: none; font-size: 11.5px; padding: 0 9px; gap: 4px; }
+.gl.adj[aria-pressed="true"] { background: var(--acc); color: var(--acc-ink); border-color: transparent; }
 /* 두 가지 배경만 — 도로 / 사진 */
 #modeSeg {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px;
-  background: var(--panel-2); border: var(--hard); border-radius: 13px;
+  margin-left: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px;
+  background: var(--panel-2); border: var(--hard); border-radius: 12px;
+  flex: 0 1 164px; min-width: 0; height: 36px;
 }
 #modeSeg button {
-  height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  border-radius: 10px; font-size: 13px; font-weight: 800; letter-spacing: -.3px;
+  height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 0;
+  border-radius: 9px; font-size: 12.5px; font-weight: 800; letter-spacing: -.3px;
   color: var(--ink2); background: transparent; transition: background .14s ease, color .14s ease;
 }
-#modeSeg button svg { width: 17px; height: 17px; }
+#modeSeg button svg { width: 15px; height: 15px; flex: none; }
 body[data-theme="D"] #modeSeg { border: 2px solid #2B2724; }
 #modeSeg button.on { background: var(--acc); color: var(--acc-ink); box-shadow: var(--shadow-s); }
 
-/* 사진 모드 전용 — 2줄: (고정·원본·교체) / (사진 크기 − 슬라이더 ＋) */
-#photoBar { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-#photoBar .prow { display: flex; align-items: center; gap: 5px; min-width: 0; }
-#photoBar .prow:first-child { flex-wrap: wrap; }
+/* 사진 조정 바 — 평소 숨김. 캔버스 위에 뜨는 슬림 1줄이라 작업 면적을 가리지 않는다 */
+#photoBar {
+  position: absolute; left: 8px; right: 8px; top: 8px; z-index: 9;
+  display: flex; align-items: center; gap: 4px; padding: 5px 6px; min-width: 0;
+  border-radius: 13px; background: var(--panel); border: var(--hard);
+  box-shadow: 0 6px 18px rgba(6,14,26,.16);
+  overflow-x: auto; scrollbar-width: none; animation: barIn .16s ease-out;
+}
+#photoBar::-webkit-scrollbar { display: none; }
+@keyframes barIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 .pchip {
-  flex: none; height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px;
-  border-radius: 9px; font-size: 11.5px; font-weight: 750; color: var(--ink);
-  background: var(--panel-2); border: var(--hard);
+  flex: none; height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 8px;
+  border-radius: 9px; font-size: 11px; font-weight: 750; color: var(--ink);
+  background: var(--panel-2); border: var(--hard); white-space: nowrap;
 }
 .pchip em { font-style: normal; }
-.pchip svg { width: 14px; height: 14px; stroke-width: 1.9; }
+.pchip.on { background: var(--acc); color: var(--acc-ink); border-color: transparent; }
 .pchip:active { transform: scale(.97); }
 
 /* 사진 크기 조절 — 불러온 사진(100%)보다 작게는 못 줄이고, 500%까지 키운다 */
-#photoBar .pzoom { gap: 7px; }
 .zbtn {
-  flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+  flex: none; width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
   background: var(--panel-2); border: var(--hard); color: var(--ink);
 }
-.zbtn svg { width: 15px; height: 15px; stroke-width: 2.3; }
+.zbtn svg { width: 14px; height: 14px; stroke-width: 2.3; }
 .zbtn:active { transform: scale(.94); }
 .zbtn:disabled { opacity: .35; }
 #photoZoom, #impZoom, #impRot, #sbRange {
   flex: 1 1 auto; min-width: 84px; width: auto; height: 30px; margin: 0; padding: 0;
   background: none; -webkit-appearance: none; appearance: none; touch-action: pan-y;
 }
+#photoZoom { height: 26px; min-width: 40px; flex: 1 1 40px; }
 #photoZoom::-webkit-slider-runnable-track, #impZoom::-webkit-slider-runnable-track,
 #impRot::-webkit-slider-runnable-track, #sbRange::-webkit-slider-runnable-track {
   height: 6px; border-radius: 999px;
@@ -259,7 +266,7 @@ body[data-theme="D"] #modeSeg { border: 2px solid #2B2724; }
 }
 #photoZoom::-webkit-slider-thumb, #impZoom::-webkit-slider-thumb,
 #impRot::-webkit-slider-thumb, #sbRange::-webkit-slider-thumb {
-  -webkit-appearance: none; appearance: none; width: 20px; height: 20px; margin-top: -7px;
+  -webkit-appearance: none; appearance: none; width: 18px; height: 18px; margin-top: -6px;
   border-radius: 50%; background: var(--panel-solid); border: 2.5px solid var(--acc);
   box-shadow: var(--shadow-s);
 }
@@ -269,62 +276,48 @@ body[data-theme="D"] #modeSeg { border: 2px solid #2B2724; }
 #impRot::-moz-range-progress, #sbRange::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--acc); }
 #photoZoom::-moz-range-thumb, #impZoom::-moz-range-thumb,
 #impRot::-moz-range-thumb, #sbRange::-moz-range-thumb {
-  width: 20px; height: 20px; border-radius: 50%; background: var(--panel-solid);
+  width: 18px; height: 18px; border-radius: 50%; background: var(--panel-solid);
   border: 2.5px solid var(--acc); box-shadow: var(--shadow-s);
 }
 #sbRange:disabled { opacity: .38; }
 #photoZoomVal {
-  flex: none; min-width: 44px; text-align: center; font-size: 11.5px; font-weight: 800;
+  flex: none; min-width: 34px; text-align: center; font-size: 11px; font-weight: 800;
   color: var(--ink); font-variant-numeric: tabular-nums;
 }
 
-/* 좁은 화면 — 칩 4개가 한 줄에 들어가도록 살짝 죄인다 (줄바꿈으로 캔버스가 좁아지지 않게) */
-@media (max-width: 430px) {
-  #photoBar .pchip { padding: 0 7px; font-size: 11px; gap: 4px; }
-  #photoBar .pchip svg { width: 13px; height: 13px; }
+/* 그리기 — 독 바로 위 1줄 플로팅 바 (자유선·화살표·메모 + 색 5 + 완료) */
+#drawBar {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 9;
+  display: flex; align-items: center; gap: 5px; padding: 5px 6px;
+  border-radius: 14px; background: var(--panel); border: var(--hard);
+  box-shadow: 0 8px 22px rgba(6,14,26,.2); animation: barIn .16s ease-out;
 }
-
-/* 넓은 화면(가로 모드·태블릿)은 한 줄로 — 세로 캔버스를 더 넓게 쓴다 */
-@media (min-width: 560px) {
-  #photoBar { flex-direction: row; align-items: center; }
-  #photoBar .prow { flex: 0 0 auto; }
-  #photoBar .pzoom { flex: 1 1 240px; min-width: 220px; }
+/* 아주 좁은 화면(360~400px) — 사진 조정 바가 스크롤 없이 한 줄에 다 들어가게 조인다 */
+@media (max-width: 400px) {
+  #photoBar { gap: 3px; padding: 5px; }
+  #photoBar .pchip { padding: 0 6px; font-size: 10.5px; }
+  #photoBar .zbtn { width: 26px; }
+  #photoZoom { min-width: 34px; }
+  #photoZoomVal { min-width: 30px; font-size: 10.5px; }
+  #drawBar { gap: 4px; padding: 5px; }
+  #drawBar .dseg button { padding: 0 7px; font-size: 10.5px; }
+  #drawBar .ddots { gap: 5px; }
+  #drawBar .ddots button { width: 18px; height: 18px; }
+  #drawBar .ddone { padding: 0 10px; }
 }
-
-#btnPen[aria-pressed="true"] {
-  background: var(--acc); color: var(--acc-ink); border-color: transparent;
-  box-shadow: 0 0 0 3px var(--acc-soft);
+#drawBar .dseg { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--panel-2); flex: 0 0 auto; }
+#drawBar .dseg button {
+  height: 28px; padding: 0 8px; border-radius: 8px; font-size: 11px; font-weight: 800;
+  color: var(--ink2); white-space: nowrap;
 }
-
-/* 그리기 중 고대비 플로팅 배너 */
-#toolChip {
-  position: absolute; left: 10px; right: 10px; top: 8px; z-index: 8;
-  display: flex; align-items: center; gap: 9px; text-align: left;
-  padding: 8px 10px 8px 11px; border-radius: 13px;
-  background: linear-gradient(160deg, #101B2C, #1B2B44);
-  color: #FFFFFF; border: 2px solid var(--acc);
-  box-shadow: 0 6px 20px rgba(6,14,26,.38), 0 0 0 3px rgba(255,107,44,.16);
-  animation: toolIn .18s ease-out;
+#drawBar .dseg button.on { background: var(--acc); color: var(--acc-ink); }
+#drawBar .ddots { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1 1 auto; }
+#drawBar .ddots button { width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 2px var(--panel), 0 1px 4px rgba(0,0,0,.22); }
+#drawBar .ddots button.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--acc); }
+#drawBar .ddone {
+  flex: none; height: 30px; padding: 0 12px; border-radius: 9px;
+  background: var(--acc); color: var(--acc-ink); font-size: 11.5px; font-weight: 800;
 }
-@keyframes toolIn { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
-#toolChip .tp-ic { font-size: 19px; line-height: 1; flex: none; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
-#toolChip .tp-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-#toolChip .tp-tx b { font-size: 12.5px; font-weight: 800; letter-spacing: -.2px; color: #fff; }
-#toolChip .tp-tx i { font-style: normal; font-size: 10px; font-weight: 600; color: #B9CBDE; line-height: 1.25; }
-#toolChip .tp-x {
-  flex: none; font-size: 11px; font-weight: 800; padding: 6px 9px; border-radius: 9px;
-  background: var(--acc); color: var(--acc-ink); white-space: nowrap;
-}
-#toolChip:active { transform: scale(.99); }
-
-/* 사진 교체 칩은 #photoBar 안에서 흐름으로 놓인다 */
-#capSwap svg { width: 15px; height: 15px; stroke-width: 1.8; }
-#capSwap:active { transform: scale(.97); }
-body[data-drawing="1"] #capSwap { display: none; }
-/* 붙여넣기 칩 — 사진 교체 옆, 좁은 화면에서도 한 줄에 들어가게 */
-#capPaste svg { width: 15px; height: 15px; stroke-width: 1.85; }
-#capPaste:active { transform: scale(.97); }
-body[data-drawing="1"] #capPaste { display: none; }
 
 /* ───────────────────────────────── 사진 크기·영역 맞춰 붙여넣기 (v4.2) */
 #impPhoto { position: fixed; inset: 0; z-index: 42; display: flex; align-items: center; justify-content: center; padding: 10px; }
@@ -411,23 +404,20 @@ body[data-drawing="1"] #capPaste { display: none; }
 #sheetBody .rsearch .rhint { font-size: 10.5px; color: var(--ink3); padding: 0 2px; }
 #sheetBody .rsearch .rhint b { color: var(--acc); font-weight: 800; }
 
-/* ───────────────────────────────── 하단 편집 바 */
+/* ───────────────────────────────── 하단 편집 바 (v5.0 · 6개 큰 버튼) */
 #dock {
-  height: 54px; display: flex; align-items: stretch; gap: 2px;
+  height: 56px; display: flex; align-items: stretch; gap: 3px;
 }
 .dk {
-  flex: 1 1 0; min-width: 0; border-radius: 11px; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 2px; color: var(--ink2); font-size: 9.5px; font-weight: 650;
+  flex: 1 1 0; min-width: 0; border-radius: 12px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px; color: var(--ink2); font-size: 10px; font-weight: 700;
 }
-.dk svg { width: 19px; height: 19px; }
+.dk svg { width: 20px; height: 20px; }
 .dk span { white-space: nowrap; }
-#btnClear { flex: 1.05 1 0; }
 .dk.on { background: var(--acc-soft); color: var(--acc); }
-.dk.act { flex: .72 1 0; }
 .dk.act:disabled { opacity: .3; }
-.dksep { width: 1px; margin: 7px 2px; background: var(--line); }
 .dk.save {
-  flex: 1.15 1 0; border-radius: 11px; color: var(--acc-ink); font-weight: 750; font-size: 10.5px;
+  flex: 1.1 1 0; border-radius: 12px; color: var(--acc-ink); font-weight: 800; font-size: 10.5px;
   background: linear-gradient(150deg, var(--acc), color-mix(in srgb, var(--acc) 70%, #1b1b1b));
 }
 body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
@@ -447,12 +437,10 @@ body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
   border-radius: 13px; background: var(--panel-2); border: var(--hard);
   box-shadow: 0 6px 18px rgba(6,14,26,.16);
 }
-#selBar .sbr { display: grid; align-items: center; gap: 4px; min-width: 0; }
-#selBar .sbrA { grid-template-columns: auto var(--sb) minmax(0, 1fr) var(--sb) 46px; }
-#selBar .sbrB { grid-template-columns: minmax(0, 1fr) auto; }
-#selBar .sbmiddle { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; min-height: calc(var(--sb) + 2px); }
-#selBar .sbmiddle .roles { flex: 1 1 auto; min-width: 0; }
-#selBar .sbacts { display: flex; align-items: center; gap: 4px; flex: none; }
+#selBar .sbr { display: flex; align-items: center; gap: 4px; min-width: 0; }
+/* 역할 줄 — 폭을 꽉 나눠 쓰는 칩 전용 한 줄이라 390px 에서도 잘리지 않는다 */
+#selBar .sbrRoles .roles { flex: 1 1 auto; min-width: 0; overflow-x: auto; }
+#selBar .sbrMain #sbRange { flex: 1 1 40px; min-width: 40px; }
 .sbseg { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--panel-solid); }
 .sbseg button {
   height: calc(var(--sb) - 4px); padding: 0 7px; border-radius: 8px;
@@ -460,7 +448,7 @@ body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
 }
 .sbseg button.on { background: var(--acc); color: var(--acc-ink); }
 .sbseg button:disabled { opacity: .3; }
-#selBar .sbval { min-width: 46px; text-align: center; font-size: 11px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+#selBar .sbval { min-width: 42px; flex: none; text-align: center; font-size: 11px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
 #selBar .sb {
   width: var(--sb); height: var(--sb); border-radius: 9px; display: grid; place-items: center;
   background: var(--panel-solid); color: var(--ink); font-size: 16px; font-weight: 700; flex: none;
@@ -474,24 +462,26 @@ body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
 #selBar .sb.subt { width: 34px; font-size: 10px; font-weight: 800; color: var(--ink2); }
 #selBar .sb.danger { color: var(--red); }
 #selBar .sb:active { transform: scale(.93); }
+#selBar.penmode .sbseg, #selBar.penmode #sbRange, #selBar.penmode [data-act="zin"],
+#selBar.penmode [data-act="zout"], #selBar.penmode .sbval { display: none; }
+#selBar.penmode .sb.arrowbtn { flex: 1 1 auto; height: var(--sb); }
 #selBar .sb.arrowbtn { width: auto; padding: 0 9px; font-size: 11px; font-weight: 700; white-space: nowrap; }
 #selBar .sb.arrowbtn.on { background: var(--acc); color: var(--acc-ink); }
 .sbsep { width: 1px; height: 22px; background: var(--line); margin: 0 1px; flex: none; }
 .roles { display: flex; gap: 3px; background: var(--panel-solid); padding: 2px; border-radius: 10px; overflow-x: auto; scrollbar-width: none; max-width: 100%; min-width: 0; flex: 1 1 auto; }
 .roles::-webkit-scrollbar { display: none; }
 .roles button {
-  flex: none; height: 30px; padding: 0 8px; border-radius: 8px; font-size: 11px; font-weight: 650; color: var(--ink2);
+  flex: 1 1 0; min-width: 40px; height: 30px; padding: 0 6px; border-radius: 8px; font-size: 11px; font-weight: 700; color: var(--ink2);
   white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
 }
-.roles button i.rdot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+/* 선택 패널의 역할 칩은 폭을 똑같이 나누어 쓴다 — [자차][대차1][대차2][+대차3][없음] 이 390px 에 다 들어간다 */
+#roleSeg button { flex: 1 1 0; min-width: 0; overflow: hidden; }
+.roles button i.rdot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
 .roles button.on { background: var(--acc); color: var(--acc-ink); }
 .roles button.on i.rdot { box-shadow: 0 0 0 1.5px rgba(255,255,255,.85); }
 .roles button.addrole { color: var(--acc); border: 1px dashed color-mix(in srgb, var(--acc) 55%, transparent); background: var(--acc-soft); }
-.roles.big { margin: 0 2px 10px; padding: 4px; border-radius: 14px; background: var(--panel-2); flex: none; }
+.roles.big { margin: 0 2px 8px; padding: 4px; border-radius: 14px; background: var(--panel-2); flex: none; }
 .roles.big button { flex: 1 0 auto; min-width: 58px; height: 38px; font-size: 12.5px; border-radius: 10px; }
-#selInfo { width: 48px; text-align: right; padding-right: 2px; font-size: 10px; font-weight: 650; color: var(--ink3); white-space: nowrap; overflow: hidden; flex: none; }
-/* 버튼 크게에서는 각도·배율 표기를 숨기되 자리는 비워 둔다(다른 버튼이 움직이지 않게) */
-body[data-btnsz="lg"] #selInfo { visibility: hidden; }
 .roles { min-width: 56px; }
 
 /* ───────────────────────────────── 시트 */
@@ -516,6 +506,15 @@ body[data-btnsz="lg"] #selInfo { visibility: hidden; }
 .sheetwrap header h2 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
 .sheetwrap header p { margin: 3px 0 0; font-size: 11.5px; color: var(--ink3); }
 .xbtn { width: 32px; height: 32px; border-radius: 50%; background: var(--panel-2); color: var(--ink2); font-size: 14px; }
+
+/* 시트 탭 — 차량 · 사람 · 파손·충격 · 신호·도로 를 한 곳에서 */
+#sheet .stabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; padding: 0 2px 8px; }
+#sheet .stabs button {
+  height: 34px; border-radius: 10px; background: var(--panel-2); border: var(--hard);
+  font-size: 11.5px; font-weight: 800; letter-spacing: -.3px; color: var(--ink2); white-space: nowrap;
+  padding: 0 2px; overflow: hidden; text-overflow: ellipsis;
+}
+#sheet .stabs button.on { background: var(--acc); color: var(--acc-ink); border-color: transparent; }
 
 #sheetBody { overflow-y: auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 2px 2px 8px; -webkit-overflow-scrolling: touch; }
 #sheetBody .grp { grid-column: 1 / -1; font-size: 11px; font-weight: 700; color: var(--ink3); padding: 8px 2px 0; letter-spacing: .2px; }
@@ -607,18 +606,19 @@ body[data-theme="D"] .card { border: 1.6px solid #2B2724; box-shadow: 0 2px 0 #2
 .labcard span { display: block; font-size: 10.5px; color: var(--ink3); margin-top: 2px; line-height: 1.3; }
 .labcard .mini { height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px; overflow: hidden; }
 
-/* 토스트 */
+/* 토스트 — 하단 독 바로 위 작은 1줄 알약 (v5.0). 상단·중앙을 가리지 않는다 */
 #toast {
-  position: fixed; z-index: 50; left: 50%; top: 146px;
-  transform: translateX(-50%); max-width: 82vw; padding: 8px 14px; border-radius: 999px;
-  background: var(--panel-solid); color: var(--ink); font-size: 12px; font-weight: 650;
-  border: var(--hard); box-shadow: var(--shadow); text-align: center; pointer-events: none;
-  animation: tin .22s ease;
+  position: absolute; z-index: 12; left: 50%; bottom: 12px;
+  transform: translateX(-50%); max-width: 84%; padding: 6px 13px; border-radius: 15px;
+  background: rgba(12,20,32,.92); color: #FFFFFF; font-size: 11.5px; font-weight: 700;
+  line-height: 1.35; text-align: center; pointer-events: none; white-space: normal;
+  word-break: keep-all;
+  box-shadow: 0 4px 14px rgba(6,12,20,.28); animation: tin .18s ease;
 }
-body[data-drawing="1"] #toast { top: 214px; }
+body[data-drawing="1"] #toast { bottom: 54px; }
 /* 사진 붙여넣기 편집 중에는 토스트가 미리보기를 가리지 않게 */
 body.impopen #toast { display: none; }
-@keyframes tin { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translateX(-50%); } }
+@keyframes tin { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translateX(-50%); } }
 
 /* 메모 입력 */
 #memoWrap { position: fixed; inset: 0; z-index: 45; display: flex; align-items: flex-end; justify-content: center; padding: 0 12px calc(env(safe-area-inset-bottom, 0px) + 74px); background: rgba(6,12,20,.18); }
@@ -647,7 +647,22 @@ body.impopen #toast { display: none; }
 }
 
 @media (min-width: 720px) {
-  #topbar, #modeSeg, #photoBar, #dock, #selBar { max-width: 660px; margin-left: auto; margin-right: auto; width: 100%; }
+  #topbar, #modeSeg, #dock, #selBar { max-width: 660px; margin-left: auto; margin-right: auto; width: 100%; }
+  #modeSeg { margin-left: auto; }
+  #photoBar, #drawBar { max-width: 644px; margin-left: auto; margin-right: auto; }
+  #sheet .stabs { grid-template-columns: repeat(5, minmax(0, 160px)); justify-content: start; }
   #sheetBody { grid-template-columns: repeat(5, 1fr); }
   .card.wide, .card.preset { grid-column: span 5; }
+}
+/* 가로가 짧은 화면(가로 모드 폰) — 상·하단 높이를 더 줄여 캔버스를 살린다 */
+@media (max-height: 480px) {
+  #topBarWrap { padding-top: calc(env(safe-area-inset-top, 0px) + 4px); padding-bottom: 4px; }
+  #topbar { min-height: 32px; }
+  .brand, #modeSeg, .gl.adj { height: 32px; }
+  #modeSeg { height: 32px; }
+  #modeSeg button { height: 26px; font-size: 12px; }
+  #bottomWrap { padding-top: 4px; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px); }
+  #dock { height: 46px; }
+  .dk svg { width: 17px; height: 17px; }
+  .dk { font-size: 9px; gap: 1px; }
 }

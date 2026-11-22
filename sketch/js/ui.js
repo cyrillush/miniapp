@@ -1,11 +1,18 @@
 /* ==========================================================================
-   ui.js — 상단바 · 배경칩 · 독 · 피커시트 · 선택바 · 검색 · 비밀 테마 연구실
+   ui.js — 상단바 · 독 · 시트(탭) · 선택바 · 그리기 바 · 검색 · 비밀 테마 연구실
+   ==========================================================================
+   v5.0 — 화면을 최대한 비우고 손이 가는 순서대로 다시 짰다.
+     · 상단 1줄: 사고약도 · [도로|사진] · (사진 조정)
+     · 하단 독 6개: 도로·상황 · 차량 · 요소 · 그리기 · 되돌리기 · 저장
+     · [그리기] 는 시트 없이 바로 켜지고, 캔버스 아래 1줄 바에서 도구·색·완료
+     · 요소 시트는 [차량|사람|파손·충격|신호·도로] 탭 한 곳에서
+     · 선택 패널 : 역할 칩 전용 줄 + 크기 조절 줄 (잘림 없음, 중복 표기 없음)
    ========================================================================== */
 window.AS = window.AS || {};
 (function (AS) {
   'use strict';
   var C = AS.core, $ = C.$, $$ = C.$$, S = AS.S;
-  var sheetCat = null, toastTimer = null, qTimer = null, pvN = 0;
+  var sheetCat = null, toastTimer = null, pvN = 0, lastElemCat = 'person';
 
   function toast(msg, ms) {
     var el = $('#toast');
@@ -15,7 +22,7 @@ window.AS = window.AS || {};
     void el.offsetWidth;
     el.style.animation = '';
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.hidden = true; }, ms || 1900);
+    toastTimer = setTimeout(function () { el.hidden = true; }, ms || 1200);
   }
 
   /* ────────── 미리보기 ────────── */
@@ -71,7 +78,6 @@ window.AS = window.AS || {};
     AS.view.setRoad(pr.bg);
     var w = S.stage.w || 390, h = S.stage.h || 600;
     var geo = AS.roads.presetGeo ? AS.roads.presetGeo(pr, w, h) : null;
-    /* 고정 비율(px) → 도로 함수와 동일한 차로 좌표로 배치 */
     var data = geo ? geo : {
       cars: (pr.cars || []).map(function (c) { return { kind: c.kind, role: c.role, x: c.x * w, y: c.y * h, rot: c.rot || 0 }; }),
       arrows: (pr.arrows || []).map(function (a) { return { color: a.color, pts: (a.pts || []).map(function (q) { return [q[0] * w, q[1] * h]; }) }; }),
@@ -98,28 +104,36 @@ window.AS = window.AS || {};
     S.newRole = C.nextCarRole();
     AS.objs.render(); selbar(); C.save();
     closeSheet();
-    toast('[' + pr.no + '] ' + pr.label + ' 적용');
+    toast('[' + pr.no + '] ' + pr.label + ' 적용', 1600);
   }
 
-  /* ────────── 시트 ────────── */
+  /* ────────── 시트 — 탭 한 곳에서 모든 요소 ────────── */
+  var TABS = [
+    ['road', '도로·상황'],
+    ['car', '차량'],
+    ['person', '사람'],
+    ['dmg', '파손'],
+    ['etc', '신호·표지']
+  ];
   var TITLES = {
-    road: ['', ''],
-    car: ['차량 (연속추돌 지원)', '자차 · 대차1 · 대차2 · 대차3 순으로 자동 배정돼요'],
-    person: ['사람 · 이동수단', '전원 흰색 · 배경판 없이 깔끔하게 배치돼요'],
-    dmg: ['파손부위 · 충격', '배경판 없이 테두리·글자만 깔끔하게 올라갑니다'],
-    etc: ['기타 요소 (신호·표지·선)', '배경 없이 신호등 · 횡단보도 · 차선 · 표지판 추가'],
-    draw: ['그리기 · 메모', '펜으로 긋고 1초 누르면 화살표·도형이 반듯해져요']
+    road: ['도로 · 사고 상황', '도로 배경 12종과 자주 쓰는 사고 상황을 한 번에 고릅니다'],
+    car: ['차량', '놓을 때마다 자차 → 대차1 → 대차2 … 순으로 자동 지정'],
+    person: ['사람 · 이동수단', '전원 흰색 · 배경판 없이 깔끔하게 배치'],
+    dmg: ['파손 · 충격', '배경판 없이 테두리·글자만 깔끔하게'],
+    etc: ['신호 · 표지', '신호등 · 횡단보도 · 차선 · 표지판 · 텍스트']
   };
 
   function openSheet(cat) {
     sheetCat = cat;
+    if (cat === 'person' || cat === 'dmg' || cat === 'etc') lastElemCat = cat;
     var t = TITLES[cat] || ['항목', ''];
     var head = $('#sheet .sheetwrap > header');
     var title = $('#sheetTitle'), sub = $('#sheetSub');
     title.textContent = t[0];
     sub.textContent = t[1];
-    /* 도로는 제목 없이 깔끔하게 — 닫기 버튼만 남긴다 */
-    if (head) head.classList.toggle('bare', cat === 'road');
+    if (head) head.classList.toggle('bare', false);
+    renderTabs(cat);
+
     var body = $('#sheetBody');
     body.innerHTML = '';
     var roleWrap = $('#sheetRole');
@@ -132,87 +146,111 @@ window.AS = window.AS || {};
       roleWrap.hidden = true;
     }
 
-    if (cat === 'road') {
-      var rs = roadSearchUI(body);
-      rs.group('자주 쓰는 사고 상황');
-      AS.roads.PRESETS.forEach(function (pr) {
-        var b = document.createElement('button');
-        b.type = 'button'; b.className = 'card preset';
-        b.innerHTML = '<div class="pthumb">' + AS.roads.thumb(pr.bg) + '</div>' +
-          '<div class="ptxt"><b>[' + pr.no + '] ' + pr.label + '</b><span>' + pr.summary + '</span></div>';
-        b.addEventListener('click', function () { applyPreset(pr); });
-        rs.add(b, '[' + pr.no + '] ' + pr.label + ' ' + pr.summary + ' ' + (pr.tags || '') + ' 과실도표 프리셋 빠른불러오기 ' + pr.bg);
-      });
-      [1, 2, 3, 4].forEach(function (g) {
-        rs.group(AS.roads.GROUP_LABEL[g]);
-        AS.roads.LIST.filter(function (r) { return r.g === g; }).forEach(function (r) {
-          var b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'card roadthumb' + (S.mode === 'road' && S.roadId === r.id ? ' on' : '');
-          b.innerHTML = '<div class="rbox">' + AS.roads.thumb(r.id) + '</div><b>' + r.label + '</b>';
-          b.addEventListener('click', function () {
-            AS.view.setRoad(r.id);
-            closeSheet();
-            toast(r.label + ' 도로 배경 적용');
-          });
-          rs.add(b, r.label + ' ' + r.id + ' ' + (r.tags || '') + ' 도로배경 배경');
-        });
-      });
-    }
+    if (cat === 'road') fillRoad(body);
+    else if (cat === 'car') fillCar(body);
+    else if (cat === 'person') fillPerson(body);
+    else if (cat === 'dmg') fillDmg(body);
+    else if (cat === 'etc') fillEtc(body);
 
-    if (cat === 'car') {
-      C.CARS.forEach(function (it) {
-        var card = document.createElement('button');
-        card.type = 'button'; card.className = 'card';
-        card.innerHTML = '<span class="art">' + previewSVG('car', it.k, { h: 66 }) + '</span><b>' + it.n + '</b>';
-        card.addEventListener('click', function () { place({ type: 'car', kind: it.k, w: it.w }); });
-        body.appendChild(card);
-      });
-      addGroup(body, '놓을 때마다 자차 → 대차1 → 대차2 → 대차3… 순으로 자동 지정되며, 선택 후 복제로도 이어 붙어요');
-    }
-
-    if (cat === 'person') {
-      C.PEOPLE.forEach(function (it) {
-        var card = document.createElement('button');
-        card.type = 'button'; card.className = 'card';
-        card.innerHTML = '<span class="art">' + previewSVG('person', it.k, { h: 52 }) + '</span><b>' + it.n + '</b>';
-        card.addEventListener('click', function () { place({ type: 'person', kind: it.k, w: it.w }); });
-        body.appendChild(card);
-      });
-    }
-
-    if (cat === 'dmg') {
-      addGroup(body, '파손 상태 · 충격지점 (투명 배경)');
-      symCards(body, ['damage', 'damage_dash', 'nodamage', 'nodamage_dash', 'existing', 'existing_dash', 'damage_legend', 'impact']);
-    }
-
-    if (cat === 'etc') {
-      addGroup(body, '경로 화살표 (흰색 노면 도색)');
-      symCards(body, ['arrow', 'turn@0', 'turn@1', 'uturn']);
-      addGroup(body, '신호등 (좌회전·우회전·직진 구분)');
-      symCards(body, ['s4_go', 's4_left', 's4_go_left', 's4_red_left', 'sr_go', 'sr_stop', 's3_red', 's3_amber', 's3_green', 'ped_g', 'ped_r']);
-      addGroup(body, '건물 · 횡단보도 · 차선 (배경 없음)');
-      symCards(body, ['building', 'building_s', 'crosswalk', 'crosswalk_s', 'lane_dash', 'lane_solid', 'lane_center', 'lane_bus']);
-      addGroup(body, '지시 · 규제 표지 (14종)');
-      symCards(body, [
-        'sign_straight', 'sign_left', 'sign_right', 'sign_uturn', 'sign_left_uturn',
-        'sign_straight_right', 'sign_straight_left', 'sign_x',
-        'chip_stop', 'chip_lane', 'chip_oneway', 'chip_unprot', 'chip_big', 'chip_small'
-      ]);
-      addGroup(body, '텍스트');
-      var mc = document.createElement('button');
-      mc.type = 'button'; mc.className = 'card tool';
-      mc.innerHTML = '<span class="art">' + previewSVG('memo') + '</span><b>텍스트 메모</b>';
-      mc.addEventListener('click', function () {
-        closeSheet(); S.tool = 'memo'; syncTool(); toast('약도에서 메모할 곳을 톡 누르세요');
-      });
-      body.appendChild(mc);
-    }
-
-    if (cat === 'draw') buildDraw(body);
+    body.scrollTop = 0;
     $('#sheet').classList.add('open');
     $('#sheet').setAttribute('aria-hidden', 'false');
     syncDock(cat);
+  }
+
+  function renderTabs(cat) {
+    var tabs = $('#sheetTabs');
+    if (!tabs) return;
+    tabs.hidden = false;
+    tabs.innerHTML = '';
+    TABS.forEach(function (t) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.textContent = t[1];
+      if (t[0] === cat) { b.classList.add('on'); b.setAttribute('aria-selected', 'true'); }
+      else b.setAttribute('aria-selected', 'false');
+      b.addEventListener('click', function () { if (sheetCat !== t[0]) openSheet(t[0]); });
+      tabs.appendChild(b);
+    });
+  }
+
+  function fillRoad(body) {
+    var rs = roadSearchUI(body);
+    rs.group('자주 쓰는 사고 상황');
+    AS.roads.PRESETS.forEach(function (pr) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'card preset';
+      b.innerHTML = '<div class="pthumb">' + AS.roads.thumb(pr.bg) + '</div>' +
+        '<div class="ptxt"><b>[' + pr.no + '] ' + pr.label + '</b><span>' + pr.summary + '</span></div>';
+      b.addEventListener('click', function () { applyPreset(pr); });
+      rs.add(b, '[' + pr.no + '] ' + pr.label + ' ' + pr.summary + ' ' + (pr.tags || '') + ' 과실도표 프리셋 빠른불러오기 ' + pr.bg);
+    });
+    [1, 2, 3, 4].forEach(function (g) {
+      rs.group(AS.roads.GROUP_LABEL[g]);
+      AS.roads.LIST.filter(function (r) { return r.g === g; }).forEach(function (r) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'card roadthumb' + (S.mode === 'road' && S.roadId === r.id ? ' on' : '');
+        b.innerHTML = '<div class="rbox">' + AS.roads.thumb(r.id) + '</div><b>' + r.label + '</b>';
+        b.addEventListener('click', function () {
+          AS.view.setRoad(r.id);
+          closeSheet();
+          toast(r.label + ' 도로 적용');
+        });
+        rs.add(b, r.label + ' ' + r.id + ' ' + (r.tags || '') + ' 도로배경 배경');
+      });
+    });
+  }
+
+  function fillCar(body) {
+    C.CARS.forEach(function (it) {
+      var card = document.createElement('button');
+      card.type = 'button'; card.className = 'card';
+      card.innerHTML = '<span class="art">' + previewSVG('car', it.k, { h: 66 }) + '</span><b>' + it.n + '</b>';
+      card.addEventListener('click', function () { place({ type: 'car', kind: it.k, w: it.w }); });
+      body.appendChild(card);
+    });
+    addGroup(body, '놓을 때마다 자차 → 대차1 → 대차2 → 대차3… 순으로 자동 지정되며, 선택 후 복제로도 이어 붙어요');
+  }
+
+  function fillPerson(body) {
+    C.PEOPLE.forEach(function (it) {
+      var card = document.createElement('button');
+      card.type = 'button'; card.className = 'card';
+      card.innerHTML = '<span class="art">' + previewSVG('person', it.k, { h: 52 }) + '</span><b>' + it.n + '</b>';
+      card.addEventListener('click', function () { place({ type: 'person', kind: it.k, w: it.w }); });
+      body.appendChild(card);
+    });
+  }
+
+  function fillDmg(body) {
+    addGroup(body, '파손 상태 · 충격지점 (투명 배경)');
+    symCards(body, ['damage', 'damage_dash', 'nodamage', 'nodamage_dash', 'existing', 'existing_dash', 'damage_legend', 'impact']);
+  }
+
+  function fillEtc(body) {
+    addGroup(body, '경로 화살표 (흰색 노면 도색)');
+    symCards(body, ['arrow', 'turn@0', 'turn@1', 'uturn']);
+    addGroup(body, '신호등 (좌회전·우회전·직진 구분)');
+    symCards(body, ['s4_go', 's4_left', 's4_go_left', 's4_red_left', 'sr_go', 'sr_stop', 's3_red', 's3_amber', 's3_green', 'ped_g', 'ped_r']);
+    addGroup(body, '건물 · 횡단보도 · 차선 (배경 없음)');
+    symCards(body, ['building', 'building_s', 'crosswalk', 'crosswalk_s', 'lane_dash', 'lane_solid', 'lane_center', 'lane_bus']);
+    addGroup(body, '지시 · 규제 표지 (14종)');
+    symCards(body, [
+      'sign_straight', 'sign_left', 'sign_right', 'sign_uturn', 'sign_left_uturn',
+      'sign_straight_right', 'sign_straight_left', 'sign_x',
+      'chip_stop', 'chip_lane', 'chip_oneway', 'chip_unprot', 'chip_big', 'chip_small'
+    ]);
+    addGroup(body, '텍스트');
+    var mc = document.createElement('button');
+    mc.type = 'button'; mc.className = 'card tool';
+    mc.innerHTML = '<span class="art">' + previewSVG('memo') + '</span><b>텍스트 메모</b>';
+    mc.addEventListener('click', function () {
+      closeSheet();
+      setTool('memo');
+    });
+    body.appendChild(mc);
   }
 
   function addGroup(body, text) {
@@ -243,25 +281,22 @@ window.AS = window.AS || {};
         g.hidden = !any;
       });
     };
-    var count = function (q) {
+    var count = function () {
       var n = 0;
       for (var i = 0; i < entries.length; i++) if (!entries[i].el.hidden) n += 1;
       return n;
     };
     var filter = function () {
       var q = input.value.trim().toLowerCase();
-      entries.forEach(function (e) {
-        e.el.hidden = !!q && e.text.indexOf(q) < 0;
-      });
+      entries.forEach(function (e) { e.el.hidden = !!q && e.text.indexOf(q) < 0; });
       sync();
       if (!q) { hint.innerHTML = '도로 배경·과실도표 카드를 이름으로 바로 걸러 줍니다.'; return; }
-      var n = count(q);
+      var n = count();
       hint.innerHTML = n
         ? '<b>' + n + '개</b> 도로 카드 · “' + AS.objs.esc(input.value.trim()) + '”'
         : '“' + AS.objs.esc(input.value.trim()) + '” 에 맞는 도로 카드가 없어요 — 사거리·골목·고가·톨게이트·유턴·버스전용 처럼 넣어 보세요';
     };
     input.addEventListener('input', filter);
-    /* Enter 는 지도로 넘어가지 않고 현재 검색 결과 개수만 보여 준다 */
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); filter(); }
     });
@@ -288,68 +323,6 @@ window.AS = window.AS || {};
     });
   }
 
-  function buildDraw(body) {
-    var colors = [
-      ['#E9413B', '빨강'], ['#2F6BFF', '파랑'], ['#0F172A', '검정'],
-      ['#2E8A63', '초록'], ['#F2A93B', '주황']
-    ];
-    addGroup(body, '펜 색');
-    var row = document.createElement('div');
-    row.style.cssText = 'grid-column:1/-1;display:flex;gap:10px;padding:4px 2px 8px';
-    colors.forEach(function (c) {
-      var b = document.createElement('button');
-      b.type = 'button'; b.className = 'card';
-      b.style.cssText = 'flex:1;min-height:54px;padding:8px 4px;border-color:' + (S.pen.color === c[0] ? 'var(--acc)' : 'transparent');
-      b.innerHTML = '<span class="dot" style="background:' + c[0] + '"></span><b style="font-size:10px">' + c[1] + '</b>';
-      b.addEventListener('click', function () {
-        S.pen.color = c[0];
-        if (S.tool === 'pen') toast(c[1] + ' 펜으로 그리는 중');
-        buildDrawBodyRefresh();
-      });
-      row.appendChild(b);
-    });
-    body.appendChild(row);
-
-    addGroup(body, '도구');
-    var tools = [['pen', '자유 펜'], ['vec', '직선 화살표'], ['memo', '텍스트 메모']];
-    tools.forEach(function (t) {
-      var card = document.createElement('button');
-      card.type = 'button'; card.className = 'card tool';
-      var icon = t[0] === 'pen'
-        ? '<svg viewBox="0 0 24 24" width="28" height="28" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><path d="M4 17c3-1 4-6 7-6s3 4 6 3"/><circle cx="5" cy="17.5" r="1.4"/></svg>'
-        : t[0] === 'vec'
-          ? '<svg viewBox="0 0 24 24" width="28" height="28" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"><path d="M5 19 17.5 6.5"/><path d="M12.4 5.4h6.4v6.4"/></svg>'
-          : previewSVG('memo');
-      card.innerHTML = '<span class="art">' + icon + '</span><b>' + t[1] + '</b>';
-      if (S.tool === t[0]) card.classList.add('on');
-      card.addEventListener('click', function () {
-        S.tool = S.tool === t[0] ? 'idle' : t[0];
-        syncTool();
-        closeSheet();
-        if (S.tool === 'memo') toast('약도에서 메모할 곳을 톡 누르세요');
-        else if (S.tool === 'pen') toast('그은 뒤 1초 누르면 화살표·도형이 반듯해져요');
-        else if (S.tool === 'vec') toast('끌어서 화살표를 그리세요');
-      });
-      body.appendChild(card);
-    });
-
-    addGroup(body, '정리');
-    var u = document.createElement('button');
-    u.type = 'button'; u.className = 'card wide';
-    u.innerHTML = '<b>↶ 실행취소</b>';
-    u.addEventListener('click', function () { C.undo(); });
-    body.appendChild(u);
-    var clr = document.createElement('button');
-    clr.type = 'button'; clr.className = 'card wide';
-    clr.innerHTML = '<b style="color:var(--red)">✕ 전체 초기화</b>';
-    clr.addEventListener('click', function () { closeSheet(); AS.exportx.confirmNew(); });
-    body.appendChild(clr);
-  }
-
-  function buildDrawBodyRefresh() {
-    var body = $('#sheetBody'); body.innerHTML = ''; buildDraw(body);
-  }
-
   function place(spec) {
     S.tool = 'idle'; syncTool(); closeSheet();
     AS.objs.add(spec);
@@ -368,8 +341,10 @@ window.AS = window.AS || {};
     syncDock(null);
   }
 
+  var DOCK_OF = { car: 'car', person: 'person', dmg: 'person', etc: 'person', road: 'road' };
   function syncDock(cat) {
-    $$('#dock .dk[data-cat]').forEach(function (b) { b.classList.toggle('on', b.dataset.cat === cat); });
+    var active = cat ? DOCK_OF[cat] : null;
+    $$('#dock .dk[data-cat]').forEach(function (b) { b.classList.toggle('on', b.dataset.cat === active); });
   }
 
   /* ────────── 역할 세그먼트 (자차 · 대차1 · 대차2 · 대차3 · +대차4) ────────── */
@@ -415,8 +390,6 @@ window.AS = window.AS || {};
       wrap.appendChild(b);
     });
     var onBtn = wrap.querySelector('button.on');
-    /* 이 칸 안에서만 가운데로 스크롤한다 — scrollIntoView 는 페이지까지 끌어당겨
-       패널이 잠깐 움직이는 원인이 됐다 */
     if (onBtn) {
       try { wrap.scrollLeft = Math.max(0, onBtn.offsetLeft - (wrap.clientWidth - onBtn.offsetWidth) / 2); } catch (e) {}
     }
@@ -432,14 +405,11 @@ window.AS = window.AS || {};
     });
   }
 
-  /* ────────── 선택 패널 (v4.3) ──────────
-     요청 4: 크기 조절 패널은 하단 툴바 바로 위 고정 슬롯에 붙박이로 뜬다.
-     - 바깥 위치: #selBar 는 #bottomWrap 기준 bottom:100%+6px — 툴바 높이가 변해도
-       항상 '툴바 바로 위' 같은 자리다(요소 선택·해제로 캔버스가 밀리지 않는다).
-     - 안쪽 위치: 두 줄짜리 고정 그리드라, 요소 종류(차량/사람/기호)·역할 개수·글씨
-       모드가 바뀌어도 ＋/−·슬라이더·복제/삭제 버튼 좌표가 움직이지 않는다.
-     - 맨 윗줄은 [크기 | 글씨] 두 모드의 공용 슬라이더 줄이다(같은 칸을 그대로 쓴다). */
-  var sbModeSel = 'size';      /* 'size' 요소 크기 | 'label' 글씨 크기 */
+  /* ────────── 선택 패널 (v5.0) ──────────
+     두 줄로 나눴다. 첫 줄은 차량 역할 칩 전용(폭을 똑같이 나눠 써서 390px 에서도
+     잘리지 않는다), 둘째 줄은 [크기|글씨] + −슬라이더+ + 값 + 복제 + 삭제.
+     '버튼 크기' 토글과 중복 각도·배율 표기는 디자인 연구실로 옮기고 지웠다. */
+  var sbModeSel = 'size';
   var sbDirty = false;
 
   function labMultOf(o) {
@@ -494,8 +464,6 @@ window.AS = window.AS || {};
       var lb = $('#sbModeLab');
       if (lb) lb.disabled = !AS.objs.hasLabel(o);
     }
-    var la = $('#btnLabAuto');
-    if (la) la.style.visibility = (AS.objs.hasLabel(o) && Math.abs(labMultOf(o) - 1) > 0.005) ? 'visible' : 'hidden';
   }
 
   function applySbVal(v, commit) {
@@ -523,50 +491,74 @@ window.AS = window.AS || {};
     if (!hasLab && sbModeSel === 'label') sbModeSel = 'size';
     var pa = $('#btnPenArrow');
     if (pa) { pa.hidden = !isPen; pa.classList.toggle('on', !!(isPen && o.arrowEnd)); }
-    /* 역할 칸은 자리를 늘 비워 둔다 — 차량이 아닌 요소를 골라도 오른쪽 버튼이 움직이지 않게 */
+    /* 펜은 크기·글씨 슬라이더가 의미 없어 줄을 비운다 — 그 자리에 [화살표]·복제·삭제만 크게 */
+    bar.classList.toggle('penmode', isPen);
+    /* 역할 줄은 차량일 때만 — 다른 요소에서는 줄 자체를 접어 슬라이더를 크게 쓴다 */
+    var rolesRow = $('#sbRolesRow');
+    if (rolesRow) rolesRow.hidden = !isCar;
     var roleSeg = $('#roleSeg');
     if (roleSeg) {
-      roleSeg.style.visibility = isCar ? 'visible' : 'hidden';
       if (isCar) renderRoles(roleSeg, false);
       else roleSeg.innerHTML = '';
     }
-    var info = [];
-    if (!isPen) { info.push(Math.round(o.rot) + '°'); info.push(o.sc.toFixed(2) + '×'); }
-    else info.push(o.snapped || '펜');
-    $('#selInfo').textContent = info.join(' · ');
     syncSb();
   }
 
+  /* ────────── 그리기 바 (v5.0) ────────── */
+  var PEN_COLORS = [['#E9413B', '빨강'], ['#2F6BFF', '파랑'], ['#0F172A', '검정'], ['#2E8A63', '초록'], ['#F2A93B', '주황']];
+
+  function renderDrawColors() {
+    var wrap = $('#drawColors');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    PEN_COLORS.forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.style.background = c[0];
+      b.setAttribute('aria-label', c[1] + ' 펜');
+      if (S.pen.color === c[0]) b.classList.add('on');
+      b.addEventListener('click', function () {
+        S.pen.color = c[0];
+        var o = AS.objs.selObj();
+        if (o && o.type === 'pen') { o.color = c[0]; AS.objs.render(); C.pushUndo(); C.save(); }
+        renderDrawColors();
+        toast(c[1] + ' 펜');
+      });
+      wrap.appendChild(b);
+    });
+  }
+
   function syncTool() {
-    var c = $('#toolChip');
-    var bp = $('#btnPen');
-    var drawing = S.tool === 'pen' || S.tool === 'vec';
-    if (bp) bp.setAttribute('aria-pressed', drawing ? 'true' : 'false');
+    var bar = $('#drawBar'), dk = $('#btnDraw');
+    var drawing = S.tool === 'pen' || S.tool === 'vec' || S.tool === 'memo';
     document.body.setAttribute('data-drawing', drawing ? '1' : '0');
-    if (!c) return;
-    if (!S.tool || S.tool === 'idle') { c.hidden = true; c.innerHTML = ''; return; }
-    var pinchHint = (S.mode === 'photo' && !(S.photo && S.photo.locked))
-      ? '한 손가락 긋기 · 두 손가락 사진 조정'
-      : '한 손가락으로 긋기 · 짧은 획은 취소';
-    var t = S.tool === 'pen'
-      ? { ic: '✏️', title: '그리기 중 — 선 긋기', sub: pinchHint }
-      : S.tool === 'vec'
-        ? { ic: '↗️', title: '화살표 긋는 중', sub: pinchHint }
-        : { ic: '💬', title: '메모 위치 선택', sub: '약도에서 메모할 곳을 톡 누르세요' };
-    c.innerHTML = '<span class="tp-ic">' + t.ic + '</span>' +
-      '<span class="tp-tx"><b>' + t.title + '</b><i>' + t.sub + '</i></span>' +
-      '<span class="tp-x">' + (S.tool === 'memo' ? '취소' : '✕ 끄기') + '</span>';
-    c.hidden = false;
+    if (dk) dk.classList.toggle('on', drawing);
+    if (!bar) return;
+    bar.hidden = !drawing;
+    if (!drawing) return;
+    $$('#drawTools button').forEach(function (b) {
+      b.classList.toggle('on', b.dataset.tool === S.tool);
+    });
+    renderDrawColors();
+  }
+
+  function setTool(t) {
+    var on = S.tool !== t;
+    S.tool = on ? t : 'idle';
+    /* 그리기를 켜면 선택을 풀어 — 선택 패널과 그리기 바가 같은 자리에서 겹치지 않는다 */
+    if (on && AS.objs.selObj && AS.objs.selObj()) AS.objs.deselect();
+    syncTool();
+    if (S.tool === 'pen') toast('그어서 선을 긋고, 1초 누르면 반듯해져요', 1800);
+    else if (S.tool === 'vec') toast('끌어서 화살표를 그으세요', 1800);
+    else if (S.tool === 'memo') toast('약도에서 메모할 곳을 톡 누르세요', 1800);
   }
 
   function bgchips() {
-    /* 배경 선택은 상단 [도로] / [사진] 두 칸이 전부다 */
     AS.view.syncMode();
   }
 
   /* ────────── 사진 크기 조절 ──────────
-     100% = 불러온 사진 그대로(전체가 다 보이는 상태). 그 아래로는 절대 줄지 않는다.
-     슬라이더·＋·− 와 두 손가락 핀치가 모두 같은 값을 함께 본다. */
+     100% = 불러온 사진 그대로(전체가 다 보이는 상태). 그 아래로는 절대 줄지 않는다. */
   function zoomPct(k) { return Math.round((isFinite(k) ? k : 1) * 100); }
 
   function syncPhotoZoom() {
@@ -604,7 +596,6 @@ window.AS = window.AS || {};
     if (inp) inp.click();
   }
 
-  /* 갤러리에서 고른 사진도 바로 얹지 않고, 크기·위치·영역을 맞추는 편집 모달을 거친다 */
   function applyPhotoFile(file) {
     if (!file) return;
     if (AS.importx && AS.importx.openFile) { AS.importx.openFile(file); return; }
@@ -621,23 +612,8 @@ window.AS = window.AS || {};
   function putPhoto(dataUrl, msg) {
     closeModal();
     AS.view.setPhoto(dataUrl);
-    toast(msg || '사진을 배경으로 넣었습니다 — 두 손가락으로 맞추고 바로 그리세요', 3000);
+    toast(msg || '사진을 넣었습니다 — 사진 조정에서 맞추고 바로 그리세요', 2200);
     C.save();
-  }
-
-  /* 사진이 없을 때 안내 — 카카오맵 스카이뷰 캡처를 공유로 넘기는 방법 + 갤러리 선택 */
-  function openPhotoHelp() {
-    var body = $('#modalBody');
-    delete body.dataset.lab;
-    body.innerHTML =
-      '<button class="mclose" data-close="1" aria-label="닫기">✕</button>' +
-      '<h3>갤러리 사진</h3>' +
-      '<p class="mhint">카카오맵에서 <b>스카이뷰</b>를 켜고 캡처한 사진을 쓰면 현장 모습 그대로 약도를 그릴 수 있습니다.<br>' +
-      '공유 → 사고약도로 넘기면 바로 배경이 되고, 갤러리에서 직접 골라도 됩니다.</p>' +
-      '<div class="mrow"><button class="btn ghost" data-close="1">닫기</button>' +
-      '<button class="btn primary" id="btnPickPhoto">갤러리에서 고르기</button></div>';
-    $('#modal').hidden = false;
-    $('#btnPickPhoto').addEventListener('click', function () { closeModal(); pickPhoto(); });
   }
 
   /* ────────── 비밀 테마 연구실 ────────── */
@@ -664,6 +640,11 @@ window.AS = window.AS || {};
       '<div class="roles big" id="labCarMode" style="margin:8px 0 4px">' +
       '<button type="button" data-cm="real" class="' + (S.carMode !== 'vector' ? 'on' : '') + '">✨ 실사 미니어처</button>' +
       '<button type="button" data-cm="vector" class="' + (S.carMode === 'vector' ? 'on' : '') + '">📐 플랫 벡터</button></div>' +
+      '<p class="mhint" style="margin:10px 0 3px">요소 조작 버튼 크기 (핸들·선택 패널)</p>' +
+      '<div class="roles big" id="labBtnSize" style="margin:0 0 4px">' +
+      '<button type="button" data-bs="sm" class="' + (S.btnSize === 'sm' ? 'on' : '') + '">작게</button>' +
+      '<button type="button" data-bs="md" class="' + (S.btnSize === 'md' || !S.btnSize ? 'on' : '') + '">보통</button>' +
+      '<button type="button" data-bs="lg" class="' + (S.btnSize === 'lg' ? 'on' : '') + '">크게</button></div>' +
       '<p class="tip">제목 “사고약도”를 5번 두드리거나 0.6초 길게 누르면 언제든 열려요.</p>' +
       '<div class="mrow"><button class="btn primary" data-close="1">닫기</button></div>';
     $('#modal').hidden = false;
@@ -678,7 +659,13 @@ window.AS = window.AS || {};
         toast(S.carMode === 'real' ? '실사 미니어처 차량 적용' : '플랫 벡터 차량 적용');
       });
     });
-    if (first) toast('디자인 연구실이 열렸어요', 2200);
+    $$('#labBtnSize button', body).forEach(function (b) {
+      b.addEventListener('click', function () {
+        applyBtnSize(b.dataset.bs);
+        $$('#labBtnSize button', body).forEach(function (x) { x.classList.toggle('on', x === b); });
+      });
+    });
+    if (first) toast('디자인 연구실이 열렸어요', 1800);
   }
 
   function labMini(t) {
@@ -713,21 +700,29 @@ window.AS = window.AS || {};
   }
 
   function bind() {
+    /* 독 — [도로·상황] · [차량] · [요소] 는 같은 시트의 탭으로 이어진다 */
     $$('#dock .dk[data-cat]').forEach(function (b) {
       b.addEventListener('click', function () {
-        if (sheetCat === b.dataset.cat && $('#sheet').classList.contains('open')) closeSheet();
-        else openSheet(b.dataset.cat);
+        var cat = b.dataset.cat;
+        if (cat === 'person') cat = lastElemCat;
+        if (sheetCat === cat && $('#sheet').classList.contains('open')) closeSheet();
+        else openSheet(cat);
       });
     });
     $('#sheetClose').addEventListener('click', closeSheet);
-    $('#toolChip').addEventListener('click', function () { S.tool = 'idle'; syncTool(); toast('그리기를 끝냈어요'); });
-    var bp = $('#btnPen');
-    if (bp) bp.addEventListener('click', function () {
-      if (S.tool === 'pen' || S.tool === 'vec') { S.tool = 'idle'; syncTool(); toast('그리기를 끝냈어요'); }
-      else {
-        S.tool = 'pen'; syncTool();
-        toast('그리기 켜짐 — 한 손가락으로 긋고, 두 손가락으로 맞춰요');
-      }
+
+    /* 그리기 — 시트를 열었다 닫는 대신 곧바로 켜진다 */
+    var bd = $('#btnDraw');
+    if (bd) bd.addEventListener('click', function () {
+      setTool('pen');
+      if (S.tool !== 'pen') toast('그리기를 끝냈어요');
+    });
+    var dd = $('#drawDone');
+    if (dd) dd.addEventListener('click', function () {
+      S.tool = 'idle'; syncTool(); toast('그리기를 끝냈어요');
+    });
+    $$('#drawTools button').forEach(function (b) {
+      b.addEventListener('click', function () { setTool(b.dataset.tool); });
     });
 
     /* 배경은 딱 두 가지 — 도로 / 사진 */
@@ -739,35 +734,37 @@ window.AS = window.AS || {};
           else pickPhoto();
           return;
         }
-        if (m === 'road') { AS.view.setMode('road'); toast('도로 도면 — 아래 [도로]에서 종류를 고르세요'); }
+        if (m === 'road') { AS.view.setMode('road'); toast('아래 [도로·상황]에서 도로를 고르세요', 1600); }
         else {
           AS.view.setMode('photo');
-          if (!AS.view.hasPhoto()) toast('갤러리에서 사진을 골라 주세요');
+          if (!AS.view.hasPhoto()) toast('갤러리에서 사진을 골라 주세요', 1600);
         }
       });
     });
 
+    /* 사진 조정 — 켜면 사진을 움직일 수 있고, 캔버스 위 1줄 바가 뜬다 */
+    var adj = $('#btnPhotoAdj');
+    if (adj) adj.addEventListener('click', function () {
+      AS.view.setLock(!(S.photo && S.photo.locked));
+    });
+    var doneB = $('#capDone');
+    if (doneB) doneB.addEventListener('click', function () { AS.view.setLock(true); });
+
     var cs = $('#capSwap');
     if (cs) cs.addEventListener('click', pickPhoto);
-    /* 사진을 다시 맞추기 — 지금린 사진으로 편집 창을 다시 연다(위치·배율·각도·꽉 채우기) */
     var ce = $('#capEdit');
     if (ce) ce.addEventListener('click', function () {
       if (AS.importx && AS.importx.editCurrent) AS.importx.editCurrent();
     });
     var cta = $('#btnPickPhoto');
     if (cta) cta.addEventListener('click', function (e) { e.stopPropagation(); pickPhoto(); });
-    var lp = $('#btnPhotoLock');
-    if (lp) lp.addEventListener('click', function () {
-      AS.view.setLock(!(S.photo && S.photo.locked));
-    });
     var ft = $('#btnPhotoFit');
     if (ft) ft.addEventListener('click', function () {
       AS.view.fitPhoto();
       syncPhotoZoom();
-      toast('사진을 꽉 찬 원본(100%)으로 되돌렸어요');
+      toast('사진을 원본(100%)으로 되돌렸어요');
     });
 
-    /* 사진 크기 — 한 손으로 바로: −  /  슬라이더  /  ＋ */
     var zout = $('#btnZoomOut'), zin = $('#btnZoomIn'), zr = $('#photoZoom');
     if (zout) zout.addEventListener('click', function () { zoomStep(-1); });
     if (zin) zin.addEventListener('click', function () { zoomStep(1); });
@@ -784,10 +781,6 @@ window.AS = window.AS || {};
     $('#sheet').addEventListener('click', function (e) { if (e.target === $('#sheet')) closeSheet(); });
     $('#btnUndo').addEventListener('click', function () { C.undo(); });
     $('#btnSave').addEventListener('click', function () { AS.exportx.openSave(); });
-    var rb = $('#btnClear');
-    if (rb) rb.addEventListener('click', openReset);
-    var szb = $('#btnSize');
-    if (szb) szb.addEventListener('click', cycleBtnSize);
 
     $('#selBar').addEventListener('click', function (e) {
       var b = e.target.closest('[data-act]'); if (!b) return;
@@ -797,13 +790,9 @@ window.AS = window.AS || {};
       else if (a === 'arrow') AS.objs.togglePenArrow();
       else if (a === 'del') AS.objs.del();
       else if (a === 'dup') AS.objs.dup();
-      else if (a === 'labauto') {
-        var o = AS.objs.selObj();
-        if (o) { delete o.lfs; AS.objs.render(); C.pushUndo(); C.save(); selbar(); }
-      }
     });
 
-    /* 슬라이더 — 크기/글씨 공용. 끄는 동안은 화면만 갱신, 손을 때면 한 단계만 undo 에 쌓는다 */
+    /* 슬라이더 — 크기/글씨 공용. 끄는 동안은 화면만 갱신, 손을 때면 한 단계만 undo */
     var sbr = $('#sbRange');
     if (sbr) {
       sbr.addEventListener('input', function () {
@@ -822,10 +811,17 @@ window.AS = window.AS || {};
       Array.prototype.forEach.call(sbm.querySelectorAll('button[data-smode]'), function (b) {
         b.addEventListener('click', function () {
           if (b.disabled) return;
-          sbModeSel = b.getAttribute('data-smode') === 'label' ? 'label' : 'size';
+          var want = b.getAttribute('data-smode') === 'label' ? 'label' : 'size';
+          /* 이미 켜진 '글씨'를 한 번 더 누르면 글씨 크기를 기본(100%)으로 되돌린다 */
+          if (want === 'label' && sbModeSel === 'label') {
+            var o = AS.objs.selObj();
+            if (o) { delete o.lfs; AS.objs.render(); C.pushUndo(); C.save(); selbar(); }
+            toast('글씨 크기를 기본으로 되돌렸어요');
+            return;
+          }
+          sbModeSel = want;
           selbar();
-          var o = AS.objs.selObj();
-          if (o) toast(sbModeSel === 'label' ? '글씨 크기 조절 — 요소 크기에 비례해 같이 커지고 작아져요' : '요소 크기 조절');
+          toast(sbModeSel === 'label' ? '글씨 크기 — 요소에 비례해 같이 커지고 작아져요' : '요소 크기 조절');
         });
       });
     }
@@ -850,12 +846,12 @@ window.AS = window.AS || {};
     $('#memoInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); commitMemo(); } });
     $('#memoWrap').addEventListener('click', function (e) { if (e.target === $('#memoWrap')) closeMemo(); });
     $('#modal').addEventListener('click', function (e) {
+      if (e.target.closest('#btnClear')) { openReset(); return; }
       if (e.target.closest('[data-close]') || e.target.classList.contains('mscrim')) closeModal();
     });
 
     window.addEventListener('keydown', function (e) {
       if (document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
-      /* 사진 붙여넣기 편집 모달이 열려 있으면 그쪽 키 처리(Esc·Enter)에 맡긴다 */
       var impEl = $('#impPhoto');
       if (impEl && !impEl.hidden) return;
       if (e.key === 'Escape') { closeSheet(); closeModal(); closeMemo(); }
@@ -879,25 +875,15 @@ window.AS = window.AS || {};
 
   function closeModal() { $('#modal').hidden = true; var b = $('#modalBody'); b.innerHTML = ''; delete b.dataset.lab; }
 
-  /* ────────── 요소 조작 버튼 크기 (작게 · 보통 · 크게) ────────── */
+  /* ────────── 요소 조작 버튼 크기 (디자인 연구실에서) ────────── */
   var BTNSZ = ['sm', 'md', 'lg'];
-  var BTN_LABEL = { sm: '버튼 작게', md: '버튼 보통', lg: '버튼 크게' };
   function applyBtnSize(v, silent) {
     S.btnSize = BTNSZ.indexOf(v) >= 0 ? v : 'md';
     document.body.setAttribute('data-btnsz', S.btnSize);
-    var b = $('#btnSize');
-    if (b) {
-      b.textContent = BTN_LABEL[S.btnSize];
-      b.setAttribute('aria-label', '요소 조작 버튼 크기 — ' + BTN_LABEL[S.btnSize] + ' (누를 때마다 작게·보통·크게 순환)');
-    }
+    $$('#labBtnSize button').forEach(function (b) { b.classList.toggle('on', b.dataset.bs === S.btnSize); });
     AS.objs.chrome();
     C.save();
-    if (!silent) toast(S.btnSize === 'sm' ? '조작 버튼 작게 — 손이 작은 화면용'
-      : S.btnSize === 'lg' ? '조작 버튼 크게 — 한 손·장갑 조작용'
-      : '조작 버튼 보통 크기');
-  }
-  function cycleBtnSize() {
-    applyBtnSize(BTNSZ[(BTNSZ.indexOf(S.btnSize) + 1) % BTNSZ.length]);
+    if (!silent) toast(S.btnSize === 'sm' ? '조작 버튼 작게' : S.btnSize === 'lg' ? '조작 버튼 크게 — 장갑·한 손 조작' : '조작 버튼 보통 크기');
   }
 
   /* ────────── 화면 요소 전체 지우기 ────────── */
@@ -907,18 +893,18 @@ window.AS = window.AS || {};
     body.innerHTML =
       '<button class="mclose" data-close="1" aria-label="닫기">✕</button>' +
       '<h3>화면 요소 전체 지우기</h3>' +
-      '<p class="mhint">약도에 놓은 차량·사람·표시를 모두 지웁니다. 배경(도로·사진)은 그대로 남고, 실행취소(↶)로 되돌릴 수 있어요.</p>' +
+      '<p class="mhint">약도에 놓은 차량·사람·표시를 모두 지웁니다. 배경(도로·사진)은 그대로 남고, 되돌리기(↶)로 되돌릴 수 있어요.</p>' +
       '<div class="mrow"><button class="btn ghost" data-close="1">취소</button>' +
       '<button class="btn primary" id="btnDoClear">초기화</button></div>';
     $('#modal').hidden = false;
     $('#btnDoClear').addEventListener('click', function () {
       C.clearElements();
       closeModal();
-      toast('화면 요소를 모두 지웠어요 — ↶로 되돌릴 수 있어요', 2400);
+      toast('화면 요소를 모두 지웠어요 — ↶로 되돌릴 수 있어요', 1600);
     });
   }
 
-  /* 배경 사진 안내 — 카카오맵 스카이뷰 캡처를 공유로 넘기는 방법 + 갤러리 선택 */
+  /* 사진이 없을 때 안내용 (다른 화면에서 부를 수 있게 남겨 둔다) */
   function openPhotoHelp() {
     var body = $('#modalBody');
     delete body.dataset.lab;
@@ -933,24 +919,15 @@ window.AS = window.AS || {};
     $('#btnPickPhoto').addEventListener('click', function () { closeModal(); $('#fileInput').click(); });
   }
 
-  /* 사진 모드일 때만 '사진 교체' 버튼 노출 */
-  function syncCapture() {
-    var b = $('#capSwap');
-    if (b) b.hidden = S.mode !== 'photo';
-    var p = $('#capPaste');
-    if (p) p.hidden = S.mode !== 'photo';
-  }
-
   function measure() { AS.view.measure(); }
 
   AS.toast = toast;
   AS.ui = {
-    toast: toast, bind: bind, syncTool: syncTool, openSheet: openSheet, closeSheet: closeSheet, selbar: selbar, bgchips: bgchips,
-    openLab: openLab, setTheme: setTheme,
+    toast: toast, bind: bind, syncTool: syncTool, setTool: setTool, openSheet: openSheet, closeSheet: closeSheet,
+    selbar: selbar, bgchips: bgchips, openLab: openLab, setTheme: setTheme,
     memo: openMemo, closeModal: closeModal, measure: measure, previewSVG: previewSVG,
     renderRoles: renderRoles, syncDock: syncDock, THEMES: THEMES,
-    openReset: openReset, applyBtnSize: applyBtnSize, cycleBtnSize: cycleBtnSize, syncCapture: syncCapture,
-    syncPhotoZoom: syncPhotoZoom,
+    openReset: openReset, applyBtnSize: applyBtnSize, syncPhotoZoom: syncPhotoZoom,
     pickPhoto: pickPhoto, applyPhotoFile: applyPhotoFile, putPhoto: putPhoto, openPhotoHelp: openPhotoHelp
   };
 })(window.AS);

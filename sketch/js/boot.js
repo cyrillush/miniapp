@@ -26,7 +26,6 @@
     AS.view.applyTransform();
     AS.objs.render();
     AS.ui.syncTool();
-    AS.ui.syncCapture();
     AS.ui.bgchips();
 
     C.baseline();
@@ -41,7 +40,7 @@
       AS.view.applyTransform();
       AS.objs.render();
       if (!restored) {
-        AS.ui.toast('배경을 고르고 차량을 놓아 보세요 — 도로 도면 또는 갤러리 사진', 2800);
+        AS.ui.toast('배경을 고르고 차량을 놓아 보세요', 1800);
       } else if (S.objs.length) {
         AS.ui.toast('작업하던 약도를 불러왔어요', 1800);
       }

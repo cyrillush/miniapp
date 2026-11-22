@@ -35,7 +35,8 @@ window.AS = window.AS || {};
       '<div class="fld"><span>사고 경위 (한 줄)</span><input id="fNote" type="text" maxlength="70" placeholder="예) 2차로 주행 중 우측에서 진입한 차량과 충돌" value="' + esc(S.info.note || '') + '" /></div>' +
       '<div class="mrow"><button class="btn primary" id="btnPng">PNG 저장</button>' +
       '<button class="btn" id="btnRep">A4 보고서</button></div>' +
-      '<div class="mrow"><button class="btn ghost sm" id="btnNew">새 약도</button>' +
+      '<div class="mrow"><button class="btn ghost sm" id="btnClear">전체 지우기</button>' +
+      '<button class="btn ghost sm" id="btnNew">새 약도</button>' +
       '<button class="btn ghost sm" data-close="1">닫기</button></div>' +
       '<p class="tip">PNG는 배경 + 배치 요소만 담깁니다(글자·워터마크 없음). 일시·장소·경위는 A4 보고서에 들어갑니다.</p>';
     $('#modal').hidden = false;

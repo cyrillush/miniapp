@@ -22,22 +22,34 @@ window.AS = window.AS || {};
   }
 
   /* ─────────────────────────── 아트 마크업 ─────────────────────────── */
-  function carSpriteSVG(kind, role) {
+  /* 실사 스프라이트가 vb(120×200) 안에서 차지하는 사각형 — 라벨·선택·히트가
+     모두 이 값 하나를 기준으로 삼아, 그림과 배지가 따로 놀지 않는다 */
+  function spriteBox(kind) {
     var sp = window.CAR_SPRITES && window.CAR_SPRITES[kind];
     if (!sp) return null;
-    var rm = C.roleMeta(role);
-    var col = rm.color;
     var pad = 6, maxW = 120 - pad * 2, maxH = 200 - pad * 2;
     var aspect = sp.w / sp.h;
     var iw = maxH * aspect, ih = maxH;
     if (iw > maxW) { iw = maxW; ih = maxW / aspect; }
-    var x = (120 - iw) / 2, y = (200 - ih) / 2;
-    var ring = rm.key === 'none' ? '' :
-      '<rect x="' + fmt(x - 4) + '" y="' + fmt(y - 4) + '" width="' + fmt(iw + 8) + '" height="' + fmt(ih + 8) +
-      '" rx="' + fmt(Math.min(24, iw * .38)) + '" fill="' + col + '" fill-opacity=".10" stroke="' + col +
-      '" stroke-width="2.6" stroke-opacity=".85"/>' +
-      '<path d="M60 ' + fmt(Math.max(2, y - 9)) + ' L53 ' + fmt(Math.max(8, y - 1)) + ' L67 ' + fmt(Math.max(8, y - 1)) + ' Z" fill="' + col + '"/>';
-    return ring + '<image href="' + sp.src + '" x="' + fmt(x) + '" y="' + fmt(y) + '" width="' + fmt(iw) + '" height="' + fmt(ih) + '" preserveAspectRatio="xMidYMid meet"/>';
+    return { x: (120 - iw) / 2, y: (200 - ih) / 2, w: iw, h: ih };
+  }
+
+  /* 차량 그림 — v5.0: 거추장스러운 둥근 사각 케이지를 없애고, 차 앞쪽 끝에만
+     조그맣고 또렷한 진행방향 포인터(삼각형)를 붙였다. 역할 구분은 차체에 붙는
+     배지가 맡는다 — 차가 작아도 그림을 가리지 않고 깔끔하다. */
+  function carSpriteSVG(kind, role) {
+    var sp = window.CAR_SPRITES && window.CAR_SPRITES[kind];
+    if (!sp) return null;
+    var b = spriteBox(kind);
+    var rm = C.roleMeta(role);
+    var out = '<image href="' + sp.src + '" x="' + fmt(b.x) + '" y="' + fmt(b.y) +
+      '" width="' + fmt(b.w) + '" height="' + fmt(b.h) + '" preserveAspectRatio="xMidYMid meet"/>';
+    if (rm.key !== 'none') {
+      var tip = Math.max(0.5, b.y - 6), base = tip + 7, hw = b.w * 0.14;
+      out += '<path d="M60 ' + fmt(tip) + ' L' + fmt(60 - hw) + ' ' + fmt(base) + ' L' + fmt(60 + hw) + ' ' + fmt(base) +
+        ' Z" fill="' + rm.color + '" stroke="#FFFFFF" stroke-width="1.1" stroke-opacity=".92" stroke-linejoin="round"/>';
+    }
+    return out;
   }
 
   function artInner(o) {
@@ -236,21 +248,14 @@ window.AS = window.AS || {};
     }
   }
 
-  /* 실사 스프라이트 차량 — carSpriteSVG 와 같은 배치 계산으로 링 사각형을 구한다 */
+  /* 실사 스프라이트 차량 — carSpriteSVG 와 같은 배치 계산으로 잉크 사각형을 구한다
+     (스프라이트 그림 + 차 앞쪽 포인터까지가 이 요소가 실제로 칠하는 영역) */
   function spriteRingBox(o) {
-    var sp = window.CAR_SPRITES && window.CAR_SPRITES[o.kind];
-    if (!sp) return null;
-    var pad = 6, maxW = 120 - pad * 2, maxH = 200 - pad * 2;
-    var aspect = sp.w / sp.h;
-    var iw = maxH * aspect, ih = maxH;
-    if (iw > maxW) { iw = maxW; ih = maxW / aspect; }
-    var x = (120 - iw) / 2, y = (200 - ih) / 2;
-    var ringed = o.role && o.role !== 'none';
-    var x0 = x - 5.4, y0 = y - 5.4, x1 = x + iw + 5.4, y1 = y + ih + 5.4;
-    var top = y0;
-    if (ringed) top = Math.min(top, y - 10);          /* 역할 화살표 꼭짓점 */
-    if (!ringed) { x0 = x; y0 = y - 2; x1 = x + iw; y1 = y + ih; }   /* 링 없으면 그림 사각형 */
-    return { x: x0, y: top, w: x1 - x0, h: y1 - top };
+    var b = spriteBox(o.kind);
+    if (!b) return null;
+    var x0 = b.x, y0 = b.y, x1 = b.x + b.w, y1 = b.y + b.h;
+    if (o.role && o.role !== 'none') y0 = Math.min(y0, Math.max(0, b.y - 6));
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
 
   function inkGeom(o) {
@@ -307,11 +312,15 @@ window.AS = window.AS || {};
     return Math.max(1.2, W * 0.26 * LAB_DEF * labelMult(o));
   }
 
-  function badgeSize(o) {
-    var rm = C.roleMeta(o.role), L = rm.short || '';
-    var h = Math.max(1.2, Math.max(1, o.w * o.sc) * 0.26 * LAB_DEF * labelMult(o));
-    var w = Math.max(h * 1.2, L.length * h * 0.62 + h * 0.62);
-    return { h: h, w: w, fs: h * 0.58, L: L, rm: rm };
+  function badgeSize(o, maxH, maxW) {
+    var rm = C.roleMeta(o.role);
+    var L = rm.short || '';
+    var h = Math.max(8, maxH || (o.w * o.sc) * 0.26 * LAB_DEF * labelMult(o));
+    var fs = h * 0.70;
+    var w = Math.max(h * 1.3, L.length * fs * 0.62 + h * 0.62);
+    var cap = maxW ? Math.max(maxW, h * 1.9) : 0;
+    if (cap && w > cap) { h *= cap / w; w = cap; if (h < 6) h = 6; fs = h * 0.70; }
+    return { h: h, w: w, fs: fs, L: L, rm: rm };
   }
 
   function labelText(txt, x, y, fs, anchor, strokePx) {
@@ -331,33 +340,52 @@ window.AS = window.AS || {};
     return '<g><rect x="' + x0 + '" y="' + y0 + '" width="' + fmt(w) + '" height="' + fmt(h) + '" rx="' + rx + '" fill="' + acc + '" stroke="#FFFFFF" stroke-width="1.4"/><text x="' + fmt(cx) + '" y="' + fmt(cy) + '" ' + txt + ' fill="#FFFFFF">' + L + '</text></g>';
   }
 
-  /* 차량(자차·대차 배지 + 오토바이·자전거 이름) — 아이콘 '아래 한 줄', 서로 겹치지 않게
-     라벨은 가로쓰기 그대로 두고, 회전한 아이콘의 AABB(화면 기준 바운딩박스) 아래에
-     띄워 놓는다. 회전 각도가 어떻든 라벨 사각형과 아이콘이 절대 겹치지 않는다. */
+  /* ────────── 차량 역할 배지 — 차체에 딱 붙는다 (v5.0) ──────────
+     v4.3까지는 배지를 회전한 차의 AABB '아래'로 띄워 놓아, 차를 돌리거나 여러 대를
+     바짝 붙이면 어느 차의 라벨인지 어긋나 보였다. 이제
+       · 일반 차량(sedan·suv·미니버스·버스·화물·특수·택시·덤프) : 배지를 차체 중앙
+         (지붕 위)에 붙인다. 차가 돌아가도 배지는 화면 기준 가로 정방향 그대로이고,
+         크기는 차체 폭에 맞춰 통째로 줄어들어 차체 밖으로 나가지 않는다.
+       · 좌우가 좁은 오토바이·자전거 : 차체 윤곽을 가리지 않게 바로 옆 가장자리에
+         1~2px 간격으로 붙이고, 역할이 없을 때만 이름을 다이 아래에 붙인다. */
+  var NARROW_CAR = { moto: 1, bike: 1 };
+
+  function carBodyW(o) {
+    var u = (o.w || 54) / 120 * (o.sc || 1);
+    var b = S.carMode !== 'vector' ? spriteBox(o.kind) : null;
+    return Math.max(6, (b ? b.w : 84) * u);
+  }
+
   function carLabelMarkup(o, nm) {
-    var bd = (o.role && o.role !== 'none') ? badgeSize(o) : null;
-    if (!bd && !nm) return '';
-    var fs = labelFont(o);
-    var tw = nm ? (nm.length * fs * 0.92 + fs * 0.3) : 0;
-    var rowH = Math.max(bd ? bd.h : 0, nm ? fs * 1.4 : 0);
-    var gapX = rowH * 0.32;
-    var totalW = (bd ? bd.w : 0) + (bd && nm ? gapX : 0) + tw;
-    var box = iconBox(o);
-    /* 글씨 외곽선(후광)까지 라벨 영역으로 보고, 아이콘 아래로 충분히 띄운다 */
-    var gapY = rowH * 0.3 + Math.max(1.2, box.W * 0.04) + fs * 0.5;
-    var stageW = (S.stage && S.stage.w) || 390, stageH = (S.stage && S.stage.h) || 640;
-    var cy = box.cy + box.hh + gapY + rowH / 2;
-    if (cy + rowH / 2 > stageH - 2) cy = box.cy - box.hh - gapY - rowH / 2;
-    var startX = box.cx - totalW / 2;
-    if (totalW < stageW - 4) startX = C.clamp(startX, 2, stageW - totalW - 2);
-    var out = '';
-    var cur = startX;
-    if (bd) {
-      out += badgePill(bd.rm, cur + bd.w / 2, cy, bd);
-      cur += bd.w + (nm ? gapX : 0);
+    var rm = C.roleMeta(o.role || 'none');
+    var hasRole = rm.key !== 'none' && !!rm.short;
+    var narrow = !!NARROW_CAR[o.kind];
+    var bw = carBodyW(o);
+
+    if (!narrow) {
+      if (!hasRole) return '';
+      var bd0 = badgeSize(o, bw * 0.30, bw * 0.94);
+      return badgePill(bd0.rm, o._cx, o._cy, bd0);
     }
-    if (nm) out += labelText(nm, cur, cy, fs, 'start', fs * 0.34);
-    return out;
+
+    var box = iconBox(o);
+    var stageW = (S.stage && S.stage.w) || 390, stageH = (S.stage && S.stage.h) || 640;
+    var gap = C.clamp(box.W * 0.05, 0.8, 2);
+
+    if (hasRole) {
+      var bd = badgeSize(o, C.clamp(bw * 0.42, 9, 16), 0);
+      var xr = box.cx + box.hw + gap + bd.w / 2;
+      var xl = box.cx - box.hw - gap - bd.w / 2;
+      var cx = (xr + bd.w / 2 <= stageW - 2) ? xr : xl;
+      var cy = C.clamp(box.cy, bd.h / 2 + 1, stageH - bd.h / 2 - 1);
+      return badgePill(bd.rm, cx, cy, bd);
+    }
+
+    /* 역할 표시없음 — 이름만 차체 아래 가장자리에 밀착 (자리를 벗어나면 위로) */
+    var fs = Math.max(8.5, Math.min(13, box.W * 0.62));
+    var y = box.cy + box.hh + gap + fs * 0.55;
+    if (y + fs * 0.7 > stageH - 1) y = box.cy - box.hh - gap - fs * 0.55;
+    return labelText(nm, box.cx, y, fs, 'middle', fs * 0.34);
   }
 
   /* 사람 이름 — 아이콘 오른쪽(자리가 없으면 왼쪽) 바깥, 아이콘을 덮지 않는다 */
@@ -591,7 +619,7 @@ window.AS = window.AS || {};
   function onDown(e) {
     if (e.button && e.button !== 0) return;
     var tg = e.target;
-    if (tg && tg.closest && (tg.closest('.hnd') || tg.closest('#toolChip') || tg.closest('#emptyPhoto') || tg.closest('#modeSeg') || tg.closest('#photoBar'))) return;
+    if (tg && tg.closest && (tg.closest('.hnd') || tg.closest('#drawBar') || tg.closest('#photoBar') || tg.closest('#emptyPhoto') || tg.closest('#modeSeg'))) return;
     /* 터치 순간의 캔버스 크기를 먼저 맞춘다 — 사진 바가 나타나는 등으로 레이아웃이
        막 바뀐 직후의 첫 터치가 옛 크기로 계산되면 손가락과 그림이 어긋난다 */
     if (pcount() === 0 && AS.view.syncStageBox) AS.view.syncStageBox();
@@ -769,8 +797,11 @@ window.AS = window.AS || {};
   }
 
   function snapAngle(v) {
-    var n = Math.round(v / 15) * 15;
-    return Math.abs(((v - n + 180) % 360) - 180) <= 4 ? ((n % 360) + 360) % 360 : ((v % 360) + 360) % 360;
+    /* v5.0 — 차로·진행방향에 반듯하게 맞추도록 45° 격자(0·45·90·…)에 ±4° 자석 스냅 */
+    var a = ((v % 360) + 360) % 360;
+    var n = (Math.round(a / 45) * 45) % 360;
+    var d = Math.abs((((a - n) % 360) + 540) % 360 - 180);
+    return d <= 4 ? n : a;
   }
 
   function showAngle(v) {
@@ -1153,12 +1184,20 @@ window.AS = window.AS || {};
   }
 
   /* ─────────────────────────── 추가/조작 API ─────────────────────────── */
+  /* 빈 자리 찾기 — 화면 가운데부터 조금씩 비켜 가며 이미 놓인 요소와 겹치지 않는
+     자리를 고른다. 같은 카드를 연세 놓아도 라벨·차체가 정확히 포개지지 않는다. */
+  var SPOTS = [[0, 0], [40, 0], [-40, 0], [0, 52], [0, -52], [40, 52], [40, -52], [-40, 52], [-40, -52],
+    [78, 0], [-78, 0], [78, 52], [-78, 52], [0, 104], [0, -104], [78, -52], [-78, -52], [0, 156], [0, -156]];
+
   function centerWorld() {
+    var cx = S.stage.w / 2, cy = S.stage.h / 2;
+    for (var i = 0; i < SPOTS.length; i++) {
+      var x = cx + SPOTS[i][0], y = cy + SPOTS[i][1];
+      if (x < 34 || x > S.stage.w - 34 || y < 52 || y > S.stage.h - 52) continue;
+      if (!hit(x, y)) return { x: x, y: y };
+    }
     var n = S.objs.length;
-    return {
-      x: S.stage.w / 2 + ((n % 3) - 1) * 26,
-      y: S.stage.h / 2 + (Math.floor(n / 3) % 3 - 1) * 22
-    };
+    return { x: cx + ((n % 3) - 1) * 34, y: cy + (Math.floor(n / 3) % 3 - 1) * 30 };
   }
 
   function add(spec, at) {

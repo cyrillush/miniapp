@@ -18,7 +18,7 @@
 <body data-theme="A" data-mode="road" data-btnsz="md">
 
 <div id="appShell">
-  <!-- 상단 편집 영역 (약도 캔버스와 완전 분리) -->
+  <!-- 상단 — 딱 1줄: 로고 · [도로|사진] · (사진 조정) -->
   <header id="topBarWrap">
     <div id="topbar">
       <button id="brandTap" class="brand" type="button" aria-label="사고약도">
@@ -27,64 +27,27 @@
         </span>
         <span class="bname">사고약도</span>
       </button>
-      <div class="topacts">
-        <button id="btnPen" class="gl" type="button" aria-pressed="false" aria-label="그리기 켜기/끄기">
-          <svg viewBox="0 0 24 24"><path d="M16.4 4.6 19.4 7.6 9.2 17.8 4.8 19.2l1.4-4.4z"/><path d="M14.2 6.8 17.2 9.8"/></svg>
-          <em>그리기</em>
-        </button>
-      </div>
-    </div>
 
-    <!-- 딱 두 가지 배경 — 도로 도면 / 갤러리 사진 -->
-    <div id="modeSeg" role="tablist" aria-label="약도 배경">
-      <button type="button" role="tab" data-mode="road" class="on" aria-selected="true">
-        <svg viewBox="0 0 24 24"><path d="M7.6 3.6v16.8M16.4 3.6v16.8" stroke-dasharray="4 3.4"/><path d="M3.4 4.6h17.2M3.4 19.4h17.2"/></svg>
-        <span>도로</span>
-      </button>
-      <button type="button" role="tab" data-mode="photo" aria-selected="false">
-        <svg viewBox="0 0 24 24"><rect x="3.2" y="5" width="17.6" height="14" rx="2.6"/><circle cx="8.6" cy="9.8" r="1.9"/><path d="m4.4 17.2 4.9-4 4.6 4.1 2.7-2.4 3 3.1"/></svg>
-        <span>사진</span>
-      </button>
-    </div>
+      <div id="modeSeg" role="tablist" aria-label="약도 배경">
+        <button type="button" role="tab" data-mode="road" class="on" aria-selected="true">
+          <svg viewBox="0 0 24 24"><path d="M7.6 3.6v16.8M16.4 3.6v16.8" stroke-dasharray="4 3.4"/><path d="M3.4 4.6h17.2M3.4 19.4h17.2"/></svg>
+          <span>도로</span>
+        </button>
+        <button type="button" role="tab" data-mode="photo" aria-selected="false">
+          <svg viewBox="0 0 24 24"><rect x="3.2" y="5" width="17.6" height="14" rx="2.6"/><circle cx="8.6" cy="9.8" r="1.9"/><path d="m4.4 17.2 4.9-4 4.6 4.1 2.7-2.4 3 3.1"/></svg>
+          <span>사진</span>
+        </button>
+      </div>
 
-    <!-- 사진 모드 전용 줄 — 사진 고정/조정 · 원본 복원 · 교체 + 사진 크기 조절 -->
-    <div id="photoBar" hidden>
-      <div class="prow">
-        <button id="btnPhotoLock" class="pchip" type="button" aria-pressed="true">
-          <svg class="ic-unlock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7-2.1"/></svg>
-          <svg class="ic-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7.6 0v2.5"/></svg>
-          <em id="photoLockTxt">사진 고정</em>
-        </button>
-        <button id="btnPhotoFit" class="pchip" type="button" aria-label="사진을 불러온 그대로(100%) 되돌리기">
-          <svg viewBox="0 0 24 24"><path d="M4.4 9.2V5.4a1 1 0 0 1 1-1h3.8M14.8 4.4h3.8a1 1 0 0 1 1 1v3.8M19.6 14.8v3.8a1 1 0 0 1-1 1h-3.8M9.2 19.6H5.4a1 1 0 0 1-1-1v-3.8"/></svg>
-          <em>원본 100%</em>
-        </button>
-        <button id="capSwap" class="pchip" type="button">
-          <svg viewBox="0 0 24 24"><rect x="3.4" y="5.4" width="17.2" height="13.2" rx="2.4"/><path d="M3.4 9.4h17.2M8 5.4v-2h8v2"/></svg>
-          <em>사진 교체</em>
-        </button>
-        <button id="capPaste" class="pchip" type="button" aria-label="클립보드에 복사한 사진 붙여넣기">
-          <svg viewBox="0 0 24 24"><path d="M9 4.8h6v2.4H9z"/><rect x="5.6" y="4.4" width="12.8" height="15.2" rx="2.4"/><path d="M9.2 11.6h5.6M9.2 15h3.6"/></svg>
-          <em>붙여넣기</em>
-        </button>
-      </div>
-      <div class="prow pzoom">
-        <button id="btnZoomOut" class="zbtn" type="button" aria-label="사진 축소 (100%보다 작게는 줄일 수 없어요)">
-          <svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
-        </button>
-        <input id="photoZoom" type="range" min="100" max="500" step="5" value="100" aria-label="사진 크기 (100%는 여백 없이 꽉 찬 크기)" />
-        <span id="photoZoomVal" aria-live="off">100%</span>
-        <button id="btnZoomIn" class="zbtn" type="button" aria-label="사진 확대">
-          <svg viewBox="0 0 24 24"><path d="M6 12h12M12 6v12"/></svg>
-        </button>
-        <button id="capEdit" class="zbtn" type="button" aria-label="사진을 다시 맞추기 — 위치·크기·각도 편집 창 열기">
-          <svg viewBox="0 0 24 24"><path d="M4.6 8.4h14.8M4.6 15.6h14.8"/><circle cx="9.4" cy="8.4" r="2.2"/><circle cx="15" cy="15.6" r="2.2"/></svg>
-        </button>
-      </div>
+      <!-- 사진 모드에 사진이 올라와 있을 때만 — 켜면 캔버스 위 1줄 조정 바가 뜬다 -->
+      <button id="btnPhotoAdj" class="gl adj" type="button" aria-pressed="false" hidden>
+        <svg viewBox="0 0 24 24"><rect x="4.6" y="10.6" width="14.8" height="9.4" rx="2.6"/><path d="M8.2 10.6V8.1a3.8 3.8 0 0 1 7-2.1"/></svg>
+        <em id="photoAdjTxt">사진 조정</em>
+      </button>
     </div>
   </header>
 
-  <!-- 중앙 순수 약도 캔버스 (버튼에 가리지 않음) -->
+  <!-- 중앙 순수 약도 캔버스 -->
   <main id="stage">
     <div id="roadLayer" hidden></div>
     <svg id="board" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -95,6 +58,25 @@
       <!-- 요소 레이어 — 화면 좌표 그대로(사진 배율·각도와 무관) -->
       <g id="artLayer"></g>
     </svg>
+
+    <!-- 사진 조정 — 평소 숨김. 켰을 때만 캔버스 위 슬림 1줄 -->
+    <div id="photoBar" hidden>
+      <button id="btnZoomOut" class="zbtn" type="button" aria-label="사진 축소 (100%보다 작게는 줄일 수 없어요)">
+        <svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
+      </button>
+      <input id="photoZoom" type="range" min="100" max="500" step="5" value="100" aria-label="사진 크기 (100%는 여백 없이 꽉 찬 크기)" />
+      <button id="btnZoomIn" class="zbtn" type="button" aria-label="사진 확대">
+        <svg viewBox="0 0 24 24"><path d="M6 12h12M12 6v12"/></svg>
+      </button>
+      <span id="photoZoomVal" aria-live="off">100%</span>
+      <button id="btnPhotoFit" class="pchip" type="button" aria-label="사진을 불러온 그대로(100%) 되돌리기">원본</button>
+      <button id="capSwap" class="pchip" type="button">교체</button>
+      <button id="capPaste" class="pchip" type="button" aria-label="클립보드에 복사한 사진 붙여넣기">붙이기</button>
+      <button id="capEdit" class="zbtn" type="button" aria-label="사진을 다시 맞추기 — 위치·크기·각도 편집 창 열기">
+        <svg viewBox="0 0 24 24"><path d="M4.6 8.4h14.8M4.6 15.6h14.8"/><circle cx="9.4" cy="8.4" r="2.2"/><circle cx="15" cy="15.6" r="2.2"/></svg>
+      </button>
+      <button id="capDone" class="pchip on" type="button">완료</button>
+    </div>
 
     <div id="emptyPhoto" hidden>
       <div class="pickwrap">
@@ -119,75 +101,66 @@
       <div class="angle" hidden>0°</div>
     </div>
     <div id="chipRot" hidden>0°</div>
-    <button id="toolChip" type="button" hidden aria-live="polite"></button>
+
+    <!-- 그리기 — 하단 독 위 1줄 플로팅 바 (자유선·화살표·메모 + 색 + 완료) -->
+    <div id="drawBar" hidden>
+      <div class="dseg" id="drawTools" role="group" aria-label="그리기 도구">
+        <button type="button" data-tool="pen" class="on">자유선</button>
+        <button type="button" data-tool="vec">화살표</button>
+        <button type="button" data-tool="memo">메모</button>
+      </div>
+      <div class="ddots" id="drawColors" role="group" aria-label="펜 색"></div>
+      <button id="drawDone" class="ddone" type="button">완료</button>
+    </div>
+
+    <div id="toast" hidden></div>
   </main>
 
-  <!-- 하단 편집 영역 (약도 캔버스와 완전 분리) -->
+  <!-- 하단 — 선택 패널 + 5~6개 핵심 버튼 독 -->
   <footer id="bottomWrap">
-    <!-- 선택 패널 — 요소 선택과 무관하게 언제나 같은 자리(하단 툴바 바로 위)에 붙박이로 뜬다.
-         안쪽 칸도 고정 슬롯이라 요소 종류·크기가 바뀌어도 ＋/−·슬라이더가 움직이지 않는다. -->
     <div id="selBar" hidden>
-      <div class="sbr sbrA">
+      <div class="sbr sbrRoles" id="sbRolesRow">
+        <div class="roles" id="roleSeg"></div>
+      </div>
+      <div class="sbr sbrMain">
         <div class="sbseg" id="sbMode" role="group" aria-label="조절 대상">
           <button type="button" data-smode="size" class="on" aria-pressed="true">크기</button>
           <button type="button" data-smode="label" id="sbModeLab" aria-pressed="false">글씨</button>
         </div>
+        <button class="sb arrowbtn" id="btnPenArrow" data-act="arrow" type="button" hidden>↗ 화살표</button>
         <button class="sb" data-act="zin" type="button" aria-label="작게">−</button>
         <input id="sbRange" class="sbrange" type="range" min="0" max="1000" step="1" value="0" aria-label="요소 조절 슬라이더" />
         <button class="sb" data-act="zout" type="button" aria-label="크게">+</button>
         <span class="sbval" id="sbVal" aria-live="off">1.00×</span>
-      </div>
-      <div class="sbr sbrB">
-        <div class="sbmiddle">
-          <button class="sb arrowbtn" id="btnPenArrow" data-act="arrow" type="button" hidden>↗ 화살표</button>
-          <div class="roles" id="roleSeg"></div>
-        </div>
-        <div class="sbacts">
-          <button class="sb subt" id="btnLabAuto" data-act="labauto" type="button" aria-label="글씨 크기 자동">자동</button>
-          <button class="sb" data-act="dup" type="button" aria-label="복제">
-            <svg viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="11.2" height="11.2" rx="2.4"/><path d="M15.6 5.4H6.6a1.2 1.2 0 0 0-1.2 1.2v9"/></svg>
-          </button>
-          <button class="sb danger" data-act="del" type="button" aria-label="삭제">
-            <svg viewBox="0 0 24 24"><path d="M4.8 6.8h14.4M9.4 6.8V4.4h5.2v2.4M6.6 6.8l.9 12.4h9l.9-12.4"/><path d="M10.2 10.4v5.4M13.8 10.4v5.4"/></svg>
-          </button>
-          <button class="sb szbtn" id="btnSize" type="button" aria-label="요소 조작 버튼 크기">버튼 보통</button>
-          <span class="selinfo" id="selInfo"></span>
-        </div>
+        <button class="sb" data-act="dup" type="button" aria-label="복제">
+          <svg viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="11.2" height="11.2" rx="2.4"/><path d="M15.6 5.4H6.6a1.2 1.2 0 0 0-1.2 1.2v9"/></svg>
+        </button>
+        <button class="sb danger" data-act="del" type="button" aria-label="삭제">
+          <svg viewBox="0 0 24 24"><path d="M4.8 6.8h14.4M9.4 6.8V4.4h5.2v2.4M6.6 6.8l.9 12.4h9l.9-12.4"/><path d="M10.2 10.4v5.4M13.8 10.4v5.4"/></svg>
+        </button>
       </div>
     </div>
 
     <div id="dock">
       <button class="dk" type="button" data-cat="road">
         <svg viewBox="0 0 24 24"><path d="M7.6 3.6v16.8M16.4 3.6v16.8" stroke-dasharray="4 3.4"/><path d="M3.4 4.6h17.2M3.4 19.4h17.2"/></svg>
-        <span>도로</span>
+        <span>도로·상황</span>
       </button>
       <button class="dk" type="button" data-cat="car">
         <svg viewBox="0 0 24 24"><path d="M5.4 15.1v-2.4l1.5-3.8a2.2 2.2 0 0 1 2-1.4h6.2a2.2 2.2 0 0 1 2 1.4l1.5 3.8v2.4"/><path d="M4.2 15.1h15.6"/><circle cx="8" cy="17.1" r="1.6"/><circle cx="16" cy="17.1" r="1.6"/></svg>
         <span>차량</span>
       </button>
       <button class="dk" type="button" data-cat="person">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="5.6" r="2.6"/><path d="M12 8.8c-2.3 0-3.7 1.6-3.7 3.9v3.1h1.8v4.9h3.8v-4.9h1.8v-3.1c0-2.3-1.4-3.9-3.7-3.9Z"/></svg>
-        <span>사람</span>
-      </button>
-      <button class="dk" type="button" data-cat="dmg">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5" stroke-dasharray="3.2 2.5"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
-        <span>파손</span>
-      </button>
-      <button class="dk" type="button" data-cat="etc">
         <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.4"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4"/><circle cx="16.8" cy="16.8" r="3.4"/></svg>
-        <span>기타</span>
+        <span>요소</span>
       </button>
-      <button class="dk" type="button" data-cat="draw">
+      <button class="dk" type="button" id="btnDraw">
         <svg viewBox="0 0 24 24"><path d="M16.4 4.6 19.4 7.6 9.2 17.8 4.8 19.2l1.4-4.4z"/><path d="M14.2 6.8 17.2 9.8"/></svg>
         <span>그리기</span>
       </button>
-      <div class="dksep"></div>
-      <button class="dk act" type="button" id="btnClear" aria-label="화면 요소 전체 초기화">
-        <svg viewBox="0 0 24 24"><path d="M4.4 15.4 12 7.8l5.2 5.2-7.6 7.6H8z"/><path d="M9.4 10.8 14.8 16.2"/><path d="M13.6 20.8h6.2"/></svg>
-        <span>초기화</span>
-      </button>
       <button class="dk act" type="button" id="btnUndo" aria-label="실행취소">
         <svg viewBox="0 0 24 24"><path d="M9.2 14.6 4.4 9.8l4.8-4.8"/><path d="M4.4 9.8h9.2a5.9 5.9 0 0 1 0 11.8H9.6"/></svg>
+        <span>되돌리기</span>
       </button>
       <button class="dk save" type="button" id="btnSave">
         <svg viewBox="0 0 24 24"><path d="M12 4.2v10.4"/><path d="m7.8 10.4 4.2 4.2 4.2-4.2"/><path d="M4.6 18.6h14.8"/></svg>
@@ -197,7 +170,7 @@
   </footer>
 </div>
 
-<!-- 피커 시트 -->
+<!-- 피커 시트 — 차량 · 사람 · 파손·충격 · 신호·도로 를 탭 한 곳에서 -->
 <section id="sheet" aria-hidden="true">
   <div class="sheetwrap">
     <div class="grip"></div>
@@ -208,6 +181,7 @@
       </div>
       <button id="sheetClose" class="xbtn" type="button" aria-label="닫기">✕</button>
     </header>
+    <div id="sheetTabs" class="stabs" role="tablist" aria-label="요소 분류"></div>
     <div id="sheetRole" class="roles big" hidden></div>
     <div id="sheetBody"></div>
   </div>
@@ -273,7 +247,6 @@
   </div>
 </div>
 
-<div id="toast" hidden></div>
 <div id="printArea" aria-hidden="true"></div>
 <input id="fileInput" type="file" accept="image/*" hidden />
 

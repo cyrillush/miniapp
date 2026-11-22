@@ -206,14 +206,14 @@ window.AS = window.AS || {};
     S.photo = S.photo || {};
     S.photo.src = dataUrl || '';
     S.photo.k = 1; S.photo.rot = 0; S.photo.tx = 0; S.photo.ty = 0;
-    S.photo.locked = false;
+    S.photo.locked = true;          /* v5.0 — 기본은 고정(잠금). 조정할 때만 [사진 조정]을 켠다 */
     S.mode = 'photo';
     S.sel = null;
     syncMode();
     renderPhoto();
     applyTransform();
-    AS.objs.render();
-    AS.ui.selbar();
+    if (AS.objs && AS.objs.render) AS.objs.render();
+    if (AS.ui && AS.ui.selbar) AS.ui.selbar();
     AS.core.save();
   }
 
@@ -268,20 +268,22 @@ window.AS = window.AS || {};
       });
     }
     var bar = document.getElementById('photoBar');
-    if (bar) bar.hidden = !(S.mode === 'photo' && hasPhoto());
+    /* 사진 조정 — 사진이 올라와 있을 때만 1버튼. 기본은 '고정' 상태라 조정 바는 숨어 있다 */
+    var locked = !!(S.photo && S.photo.locked);
+    var adj = document.getElementById('btnPhotoAdj');
+    if (adj) {
+      adj.hidden = !(S.mode === 'photo' && hasPhoto());
+      adj.setAttribute('aria-pressed', locked ? 'false' : 'true');
+      adj.classList.toggle('on', !locked);
+      var at = document.getElementById('photoAdjTxt');
+      if (at) at.textContent = locked ? '사진 조정' : '조정 중';
+    }
+    if (bar) bar.hidden = !(S.mode === 'photo' && hasPhoto() && !locked);
     var empty = document.getElementById('emptyPhoto');
     if (empty) empty.hidden = !(S.mode === 'photo' && !hasPhoto());
-    var lockBtn = document.getElementById('btnPhotoLock');
-    if (lockBtn) {
-      var locked = !!(S.photo && S.photo.locked);
-      lockBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
-      var t = document.getElementById('photoLockTxt');
-      if (t) t.textContent = locked ? '사진 고정' : '사진 조정';
-    }
     /* 모드가 바뀌면 배경 레이어 표시도 한 곳에서 함께 맞춘다 — 사진 모드가 아닌데
        사진 레이어가 남아 도로 뒤로 비치는 일이 없다 (요청 8) */
     renderPhoto();
-    if (AS.ui && AS.ui.syncCapture) AS.ui.syncCapture();
   }
 
   /* ────────── 사진 변환 제스처 (조정 모드) ────────── */
