@@ -246,9 +246,9 @@ window.AS = window.AS || {};
     }).catch(function () { AS.ui.toast(CLIP_FAIL, 4200); });
   }
 
-  /* 전역 paste — 입력창 밖이면 클립보드의 이미지를 가로채 편집 모달로 */
+  /* 전역 paste — 입력창 밖이면 클립보드의 이미지를 가로채 편집 모달로
+     (모달이 이미 열려 있으면 새 사진으로 바꿔 준다) */
   function onPaste(e) {
-    if (OP.open) return;
     var ae = document.activeElement;
     if (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) return;
     var dt = e.clipboardData;
@@ -353,7 +353,7 @@ window.AS = window.AS || {};
     e.preventDefault();
     pts[e.pointerId] = relPt(e);
     var ids = Object.keys(pts);
-    if (gest['mode'] === 'drag' && ids.length === 1) {
+    if (gest.mode === 'drag' && ids.length === 1) {
       var p = pts[ids[0]];
       OP.tx = gest.tx0 + (p.x - gest.p0.x);
       OP.ty = gest.ty0 + (p.y - gest.p0.y);
