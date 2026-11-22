@@ -515,8 +515,10 @@ window.AS = window.AS || {};
     if (inp) inp.click();
   }
 
+  /* 갤러리에서 고른 사진도 바로 얹지 않고, 크기·위치·영역을 맞추는 편집 모달을 거친다 */
   function applyPhotoFile(file) {
     if (!file) return;
+    if (AS.importx && AS.importx.openFile) { AS.importx.openFile(file); return; }
     if (AS.share && AS.share.fitForSave) {
       AS.share.fitForSave(file).then(function (d) { if (d) putPhoto(d); else toast('사진을 읽지 못했어요'); });
       return;
@@ -527,10 +529,10 @@ window.AS = window.AS || {};
     fr.readAsDataURL(file);
   }
 
-  function putPhoto(dataUrl) {
+  function putPhoto(dataUrl, msg) {
     closeModal();
     AS.view.setPhoto(dataUrl);
-    toast('사진을 배경으로 넣었습니다 — 두 손가락으로 맞추고 바로 그리세요', 3000);
+    toast(msg || '사진을 배경으로 넣었습니다 — 두 손가락으로 맞추고 바로 그리세요', 3000);
     C.save();
   }
 
@@ -728,6 +730,9 @@ window.AS = window.AS || {};
 
     window.addEventListener('keydown', function (e) {
       if (document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+      /* 사진 붙여넣기 편집 모달이 열려 있으면 그쪽 키 처리(Esc·Enter)에 맡긴다 */
+      var impEl = $('#impPhoto');
+      if (impEl && !impEl.hidden) return;
       if (e.key === 'Escape') { closeSheet(); closeModal(); closeMemo(); }
       if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel) { e.preventDefault(); AS.objs.del(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); C.undo(); }
@@ -806,8 +811,9 @@ window.AS = window.AS || {};
   /* 사진 모드일 때만 '사진 교체' 버튼 노출 */
   function syncCapture() {
     var b = $('#capSwap');
-    if (!b) return;
-    b.hidden = S.mode !== 'photo';
+    if (b) b.hidden = S.mode !== 'photo';
+    var p = $('#capPaste');
+    if (p) p.hidden = S.mode !== 'photo';
   }
 
   function measure() { AS.view.measure(); }

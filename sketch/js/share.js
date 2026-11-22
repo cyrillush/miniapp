@@ -2,7 +2,8 @@
    share.js — 공유(share target)로 들어온 배경 사진 받기 (v3.8)
    카카오맵 스카이뷰를 캡처 → 공유 → 사고약도 를 고르면, sw.js 가 이미지를
    IndexedDB 에 넣고 index.html?shared=1 로 보낸다. 여기서 그 이미지를 꺼내
-   캡처 배경으로 깔고 안내 토스트를 띄운다. (갤러리 업로드 흐름은 그대로)
+   v4.2 부터는 '사진 크기·영역 맞춰 붙여넣기' 편집 모달(importx)로 넘긴다.
+   (갤러리·클립보드 유입도 같은 모달을 거친다)
    ========================================================================== */
 (function (AS) {
   'use strict';
@@ -98,6 +99,8 @@
     }
     takePending().then(function (v) {
       if (!v || !v.blob) { AS.ui.toast('공유한 사진이 없습니다 — [사진]에서 갤러리로 골라 주세요', 2600); return; }
+      /* 공유로 들어온 사진도 갤러리·클립보드와 같은 편집 모달을 거친다 */
+      if (AS.importx && AS.importx.openBlob) { AS.importx.openBlob(v.blob); return; }
       return fitForSave(v.blob).then(function (d) {
         if (d) apply(d);
         else AS.ui.toast('공유한 사진을 읽지 못했어요', 2600);

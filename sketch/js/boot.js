@@ -17,6 +17,7 @@
     AS.view.init();          /* 화면 크기 · 배경(도로/사진) · 좌표 변환 */
     AS.objs.init();
     AS.ui.bind();
+    if (AS.importx) AS.importx.bind();   /* 사진 붙여넣기 편집 모달 + 전역 paste */
     AS.ui.applyBtnSize(S.btnSize || 'md', true);
 
     AS.view.syncMode();

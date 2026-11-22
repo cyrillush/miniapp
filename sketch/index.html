@@ -63,6 +63,10 @@
           <svg viewBox="0 0 24 24"><rect x="3.4" y="5.4" width="17.2" height="13.2" rx="2.4"/><path d="M3.4 9.4h17.2M8 5.4v-2h8v2"/></svg>
           <em>사진 교체</em>
         </button>
+        <button id="capPaste" class="pchip" type="button" aria-label="클립보드에 복사한 사진 붙여넣기">
+          <svg viewBox="0 0 24 24"><path d="M9 4.8h6v2.4H9z"/><rect x="5.6" y="4.4" width="12.8" height="15.2" rx="2.4"/><path d="M9.2 11.6h5.6M9.2 15h3.6"/></svg>
+          <em>붙여넣기</em>
+        </button>
       </div>
       <div class="prow pzoom">
         <button id="btnZoomOut" class="zbtn" type="button" aria-label="사진 축소 (100%보다 작게는 줄일 수 없어요)">
@@ -88,11 +92,17 @@
     </svg>
 
     <div id="emptyPhoto" hidden>
-      <button id="btnPickPhoto" class="pickcta" type="button">
-        <svg viewBox="0 0 24 24"><rect x="3.2" y="5" width="17.6" height="14" rx="2.6"/><circle cx="8.6" cy="9.8" r="1.9"/><path d="m4.4 17.2 4.9-4 4.6 4.1 2.7-2.4 3 3.1"/></svg>
-        <b>갤러리에서 사진 불러오기</b>
-        <span>사진을 깔고 그 위에 차량·충격·진행방향을 그립니다</span>
-      </button>
+      <div class="pickwrap">
+        <button id="btnPickPhoto" class="pickcta" type="button">
+          <svg viewBox="0 0 24 24"><rect x="3.2" y="5" width="17.6" height="14" rx="2.6"/><circle cx="8.6" cy="9.8" r="1.9"/><path d="m4.4 17.2 4.9-4 4.6 4.1 2.7-2.4 3 3.1"/></svg>
+          <b>갤러리에서 사진 불러오기</b>
+          <span>사진을 깔고 그 위에 차량·충격·진행방향을 그립니다</span>
+        </button>
+        <button id="btnPastePhoto" class="pickpaste" type="button">
+          <svg viewBox="0 0 24 24"><path d="M9 4.8h6v2.4H9z"/><rect x="5.6" y="4.4" width="12.8" height="15.2" rx="2.4"/><path d="M9.2 11.6h5.6M9.2 15h3.6"/></svg>
+          <b>클립보드에서 붙여넣기</b>
+        </button>
+      </div>
     </div>
 
     <svg id="holdRing" viewBox="0 0 56 56" hidden aria-hidden="true"><circle class="bg" cx="28" cy="28" r="22"/><circle class="fg" cx="28" cy="28" r="22"/></svg>
@@ -188,6 +198,45 @@
   <div class="mwrap" id="modalBody"></div>
 </div>
 
+<!-- 사진 크기·영역 맞춰 붙여넣기 (갤러리 · 클립보드 · 공유 3경로 공통) -->
+<div id="impPhoto" hidden>
+  <div class="impscrim" id="impScrim"></div>
+  <div class="impwrap" role="dialog" aria-modal="true" aria-label="사진 크기·영역 맞춰 붙여넣기">
+    <header class="imphead">
+      <div>
+        <h3>사진 크기·영역 맞춰 붙여넣기</h3>
+        <p>끌어서 위치 · 두 손가락(휠)로 크기 · <b>100%</b>는 사진 전체가 다 보이는 크기</p>
+      </div>
+      <button id="impClose" class="xbtn" type="button" aria-label="닫기">✕</button>
+    </header>
+    <div class="impframe" id="impFrame">
+      <div class="impbox" id="impBox">
+        <canvas id="impCanvas" aria-label="사진 미리보기"></canvas>
+        <span class="imppct" id="impPct">100%</span>
+        <span class="improt" id="impRotVal">0°</span>
+      </div>
+    </div>
+    <div class="impctl">
+      <div class="impquick">
+        <button type="button" data-q="all">전체 보기</button>
+        <button type="button" data-q="cover">꽉 채우기</button>
+        <button type="button" data-q="rot">90° 회전</button>
+      </div>
+      <div class="impzoom">
+        <button id="impMinus" class="zbtn" type="button" aria-label="작게">−</button>
+        <input id="impZoom" type="range" min="30" max="400" step="1" value="100" aria-label="사진 크기 (100%는 사진 전체가 다 보이는 크기)" />
+        <span id="impZoomVal" aria-live="off">100%</span>
+        <button id="impPlus" class="zbtn" type="button" aria-label="크게">＋</button>
+      </div>
+      <p class="impnote" id="impFitNote">사진 밖은 약도 배경(#0E1319)으로 남아요</p>
+      <div class="impacts">
+        <button id="impCancel" class="btn ghost" type="button">취소</button>
+        <button id="impApply" class="btn primary" type="button">이대로 붙여넣기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 메모 입력 -->
 <div id="memoWrap" hidden>
   <div class="memopanel">
@@ -208,6 +257,7 @@
 <script src="js/viewx.js"></script>
 <script src="js/objs.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/importx.js"></script>
 <script src="js/exportx.js"></script>
 <script src="js/share.js"></script>
 <script src="js/boot.js"></script>

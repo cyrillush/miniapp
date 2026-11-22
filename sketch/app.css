@@ -118,6 +118,14 @@ body[data-theme="D"] {
 #emptyPhoto .pickcta b { font-size: 14.5px; font-weight: 800; letter-spacing: -.3px; }
 #emptyPhoto .pickcta span { font-size: 11.5px; font-weight: 600; color: var(--ink2); line-height: 1.45; }
 #emptyPhoto .pickcta:active { transform: scale(.98); }
+#emptyPhoto .pickwrap { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 300px; }
+#emptyPhoto .pickpaste {
+  display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 15px;
+  border-radius: 12px; background: var(--panel-2); border: var(--hard); box-shadow: var(--shadow-s);
+  font-size: 12.5px; font-weight: 750; color: var(--ink);
+}
+#emptyPhoto .pickpaste svg { width: 16px; height: 16px; color: var(--acc); stroke-width: 1.85; }
+#emptyPhoto .pickpaste:active { transform: scale(.98); }
 
 /* 충격지점 — 빨간 점은 고정, 얇은 링 1겹이 바깥으로 퍼지며 옅어지는 펄스 (화면 전용 움직임)
    PNG 저장은 이 CSS가 닿지 않는 SVG로 래스터되므로 링의 기본 반지름(중간 크기·불투명)이
@@ -230,28 +238,34 @@ body[data-theme="D"] #modeSeg { border: 2px solid #2B2724; }
 .zbtn svg { width: 15px; height: 15px; stroke-width: 2.3; }
 .zbtn:active { transform: scale(.94); }
 .zbtn:disabled { opacity: .35; }
-#photoZoom {
+#photoZoom, #impZoom {
   flex: 1 1 auto; min-width: 84px; width: auto; height: 30px; margin: 0; padding: 0;
   background: none; -webkit-appearance: none; appearance: none; touch-action: pan-y;
 }
-#photoZoom::-webkit-slider-runnable-track {
+#photoZoom::-webkit-slider-runnable-track, #impZoom::-webkit-slider-runnable-track {
   height: 6px; border-radius: 999px;
   background: linear-gradient(to right, var(--acc) 0 var(--fill, 0%), var(--line) var(--fill, 0%) 100%);
 }
-#photoZoom::-webkit-slider-thumb {
+#photoZoom::-webkit-slider-thumb, #impZoom::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none; width: 20px; height: 20px; margin-top: -7px;
   border-radius: 50%; background: var(--panel-solid); border: 2.5px solid var(--acc);
   box-shadow: var(--shadow-s);
 }
-#photoZoom::-moz-range-track { height: 6px; border-radius: 999px; background: var(--line); }
-#photoZoom::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--acc); }
-#photoZoom::-moz-range-thumb {
+#photoZoom::-moz-range-track, #impZoom::-moz-range-track { height: 6px; border-radius: 999px; background: var(--line); }
+#photoZoom::-moz-range-progress, #impZoom::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--acc); }
+#photoZoom::-moz-range-thumb, #impZoom::-moz-range-thumb {
   width: 20px; height: 20px; border-radius: 50%; background: var(--panel-solid);
   border: 2.5px solid var(--acc); box-shadow: var(--shadow-s);
 }
 #photoZoomVal {
   flex: none; min-width: 44px; text-align: center; font-size: 11.5px; font-weight: 800;
   color: var(--ink); font-variant-numeric: tabular-nums;
+}
+
+/* 좁은 화면 — 칩 4개가 한 줄에 들어가도록 살짝 죄인다 (줄바꿈으로 캔버스가 좁아지지 않게) */
+@media (max-width: 430px) {
+  #photoBar .pchip { padding: 0 7px; font-size: 11px; gap: 4px; }
+  #photoBar .pchip svg { width: 13px; height: 13px; }
 }
 
 /* 넓은 화면(가로 모드·태블릿)은 한 줄로 — 세로 캔버스를 더 넓게 쓴다 */
@@ -291,6 +305,75 @@ body[data-theme="D"] #modeSeg { border: 2px solid #2B2724; }
 #capSwap svg { width: 15px; height: 15px; stroke-width: 1.8; }
 #capSwap:active { transform: scale(.97); }
 body[data-drawing="1"] #capSwap { display: none; }
+/* 붙여넣기 칩 — 사진 교체 옆, 좁은 화면에서도 한 줄에 들어가게 */
+#capPaste svg { width: 15px; height: 15px; stroke-width: 1.85; }
+#capPaste:active { transform: scale(.97); }
+body[data-drawing="1"] #capPaste { display: none; }
+
+/* ───────────────────────────────── 사진 크기·영역 맞춰 붙여넣기 (v4.2) */
+#impPhoto { position: fixed; inset: 0; z-index: 42; display: flex; align-items: center; justify-content: center; padding: 10px; }
+.impscrim { position: absolute; inset: 0; background: rgba(6,12,20,.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.impwrap {
+  position: relative; width: 100%; max-width: 460px; height: calc(100dvh - 20px); max-height: 760px;
+  display: grid; grid-template-areas: "head" "frame" "ctl";
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; padding: 12px;
+  background: var(--panel-solid); border: var(--hard); border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(6,12,20,.42); animation: min .2s ease;
+}
+.imphead { grid-area: head; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.imphead h3 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -.3px; }
+.imphead p { margin: 3px 0 0; font-size: 10.5px; color: var(--ink3); line-height: 1.4; }
+.imphead p b { color: var(--ink2); font-weight: 800; }
+.imphead .xbtn { flex: none; }
+.impframe { grid-area: frame; position: relative; min-width: 0; min-height: 100px; display: grid; place-items: center; }
+.impbox {
+  position: relative; background: #0E1319; border-radius: 12px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(0,0,0,.4);
+  touch-action: none; cursor: grab;
+}
+.impbox:active { cursor: grabbing; }
+#impCanvas { display: block; touch-action: none; }
+.imppct, .improt {
+  position: absolute; bottom: 7px; padding: 3px 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 800; color: #EAF1F9; background: rgba(6,12,20,.66);
+  border: 1px solid rgba(255,255,255,.16); font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.imppct { left: 7px; }
+.improt { right: 7px; }
+.impctl { grid-area: ctl; display: flex; flex-direction: column; gap: 7px; }
+.impquick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.impquick button {
+  height: 34px; border-radius: 10px; background: var(--panel-2); border: var(--hard);
+  font-size: 11.5px; font-weight: 750; color: var(--ink); white-space: nowrap;
+}
+.impquick button:active { transform: scale(.97); }
+.impzoom { display: flex; align-items: center; gap: 7px; }
+.impnote { margin: 0 2px; font-size: 10px; color: var(--ink3); line-height: 1.35; }
+.impacts { display: flex; gap: 8px; }
+.impacts .btn { height: 42px; }
+@media (min-width: 620px) and (max-height: 560px) {
+  .impwrap {
+    max-width: 900px; height: calc(100dvh - 20px); max-height: 420px;
+    grid-template-columns: minmax(0, 1fr) 264px;
+    grid-template-areas: "head head" "frame ctl"; grid-template-rows: auto minmax(0, 1fr);
+  }
+  .imphead h3 { font-size: 14.5px; }
+  .imphead p { display: none; }
+  .impframe { min-height: 80px; }
+  .impctl { justify-content: center; }
+  .impnote { display: none; }
+}
+/* 세로가 짧은 화면(가로 모드 폰) — 사진이 없을 때 안내를 한 줄로 */
+@media (max-height: 480px) {
+  #emptyPhoto { padding: 10px; }
+  #emptyPhoto .pickwrap { flex-direction: row; align-items: center; gap: 8px; max-width: 560px; }
+  #emptyPhoto .pickcta { flex-direction: row; gap: 8px; padding: 10px 14px; max-width: none; text-align: left; }
+  #emptyPhoto .pickcta svg { width: 22px; height: 22px; }
+  #emptyPhoto .pickcta span { display: none; }
+  #emptyPhoto .pickcta b { font-size: 12.5px; }
+  #emptyPhoto .pickpaste { height: 42px; flex: none; }
+}
 #selBar .sb.szbtn:active { transform: scale(.94); }
 
 /* 도로 시트 내 검색 */
@@ -496,6 +579,8 @@ body[data-theme="D"] .card { border: 1.6px solid #2B2724; box-shadow: 0 2px 0 #2
   animation: tin .22s ease;
 }
 body[data-drawing="1"] #toast { top: 214px; }
+/* 사진 붙여넣기 편집 중에는 토스트가 미리보기를 가리지 않게 */
+body.impopen #toast { display: none; }
 @keyframes tin { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translateX(-50%); } }
 
 /* 메모 입력 */
@@ -512,7 +597,7 @@ body[data-drawing="1"] #toast { top: 214px; }
 #printArea { display: none; }
 @media print {
   @page { size: A4; margin: 12mm; }
-  #appShell, #sheet, #search, #modal, #memoWrap, #toast { display: none !important; }
+  #appShell, #sheet, #search, #modal, #impPhoto, #memoWrap, #toast { display: none !important; }
   #printArea { display: block !important; color: #111; font-family: 'Pretendard', 'Noto Sans KR', sans-serif; }
   #printArea .pr-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; }
   #printArea h1 { margin: 0; font-size: 18pt; letter-spacing: -1px; }
