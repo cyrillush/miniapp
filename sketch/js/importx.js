@@ -324,7 +324,7 @@ window.AS = window.AS || {};
     if (btn) { btn.textContent = old; btn.disabled = false; }
     if (!url) { AS.ui.toast('사진을 붙여넣지 못했어요 — 다시 시도해 주세요', 2600); return; }
     close();
-    AS.ui.putPhoto(url, '사진을 붙여넣었습니다 — 위 사진 크기(100~500%)로 더 키우거나 두 손가락으로 맞추세요', 3200);
+    AS.ui.putPhoto(url, '사진을 붙여넣었습니다 — 위 [사진 조정]에서 맞추세요', 2200);
   }
 
   /* ────────── 프레임 제스처: 끌기 · 핀치 · 휠 ────────── */
