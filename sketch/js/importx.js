@@ -1,18 +1,22 @@
 /* ==========================================================================
-   importx.js — 캡처 사진을 캔버스에 얹기 전에 크기·위치·회전·영역을 맞추는
-                '사진 크기·영역 맞춰 붙여넣기' 편집 모달 (v4.2)
+   importx.js — 캡처 사진을 캔버스에 얹기 전에 크기·위치·각도·영역을 맞추는
+                '사진 크기·영역 맞춰 붙여넣기' 편집 모달 (v4.3)
    ──────────────────────────────────────────────────────────────────────────
    유입 3경로(갤러리 파일 · 클립보드 붙여넣기 · 공유 share target)는 모두
    이 모달을 거친다. 모달의 미리보기 프레임은 #stage 캔버스와 같은 가로×세로
    비율이라, 프레임에서 맞춘 그대로가 캔버스(= PNG 저장)에 들어간다.
 
-   100% = 지금 회전 상태에서 사진 전체가 프레임 안에 다 보이는 fit 배율.
-   30%~99% 로 줄이면 사진 밖이 투명(앱에서는 #0E1319)으로 남고,
-   100%~400% 로 키워 폰 상태바·지도 버튼 여백을 잘라낼 수 있다.
+   v4.3 — 검은 여백(레터박스)을 없앴다.
+     · 100% = 지금 각도에서 사진이 프레임을 꽉 채우는 '최소' 배율(cover).
+       슬라이더는 100%~400% — 확대만 되고, 어느 각도에서도 사진이 프레임을
+       항상 100% 덮는다.
+     · 끌어서 이동해도 사진 가장자리가 프레임 안으로 들어오지 못하게
+       회전된 사각형의 AABB 기준으로 축별 클램프한다.
+     · 각도 슬라이더(0°~359°)로 돌리면 그 각도의 cover 배율로 자동 보정한다
+       (확대해 둔 배율이 더 크면 그대로 유지).
 
    '이대로 붙여넣기' → 프레임 비율 그대로 오프스크린 캔버스에 고해상도
    (긴 변 1600px 이하)로 다시 그려 putPhoto() 로 배경에 넣는다.
-   여백은 투명 PNG, 용량이 크면 #0E1319 배경 JPEG(0.90) 로 떨어진다.
    ========================================================================== */
 window.AS = window.AS || {};
 (function (AS) {
@@ -21,9 +25,10 @@ window.AS = window.AS || {};
 
   var MAXPX = 1600;          /* 저장 이미지 긴 변 상한 */
   var MAXLEN = 620000;       /* dataURL 길이 상한 — localStorage(약 5MB)에 안전하게 */
-  var BG = '#0E1319';        /* 사진 밖 여백 = 캔버스·PNG 배경색과 동일 */
-  var MIN_PCT = 30, MAX_PCT = 400;
+  var BG = '#0E1319';        /* 사진이 덮기 전 프레임 바탕(지금은 항상 사진으로 덮인다) */
+  var MIN_PCT = 100, MAX_PCT = 400;
   var CLIP_FAIL = '클립보드에 사진이 없거나 브라우저가 막았어요 — 입력창 밖에서 붙여넣기(Ctrl+V)나 갤러리를 써 주세요';
+  var NOTE_OK = '100%는 여백 없이 꽉 찬 크기 — 슬라이더·두 손가락으로 더 키울 수 있어요';
 
   /* 편집 중인 사진의 상태 — 저장(S)과 분리된 작업 사본 */
   var OP = { img: null, iw: 0, ih: 0, rot: 0, pct: 100, tx: 0, ty: 0, open: false, busy: false, dpr: 1, ar: 0.6 };
@@ -73,49 +78,33 @@ window.AS = window.AS || {};
     draw();
   }
 
-  /* ────────── 배율 ────────── */
-  function baseFit() {
-    var sw = (OP.rot % 180) === 0;
-    var iw = sw ? OP.iw : OP.ih, ih = sw ? OP.ih : OP.iw;
-    if (!iw || !ih) return 1;
-    return Math.min(fw / iw, fh / ih);
+  /* ────────── 배율 — 100% = 그 각도에서 여백 0(cover) ──────────
+     회전된 사진이 프레임(축 정렬 사각형)을 완전히 덮으려면, 프레임 네 모서리가
+     회전된 사진 안에 들어와야 한다. 그 최소 배율이 아래 coverScale 이다. */
+  function coverScale(rot) {
+    if (!OP.iw || !OP.ih) return 1;
+    var r = (rot || 0) * Math.PI / 180;
+    var c = Math.abs(Math.cos(r)), s = Math.abs(Math.sin(r));
+    var sx = (fw * c + fh * s) / OP.iw;
+    var sy = (fw * s + fh * c) / OP.ih;
+    return Math.max(sx, sy) || 1;
   }
-  function scale() { return baseFit() * OP.pct / 100; }
+  function scale() { return coverScale(OP.rot) * OP.pct / 100; }
 
-  function footprint() {
-    var s = scale(), swap = (OP.rot % 180) !== 0;
-    return { x: (swap ? OP.ih : OP.iw) * s / 2, y: (swap ? OP.iw : OP.ih) * s / 2 };
+  /* 회전된 사진의 AABB 반폭·반높이 */
+  function halfExtents() {
+    var sc = scale();
+    var r = OP.rot * Math.PI / 180;
+    var c = Math.abs(Math.cos(r)), s = Math.abs(Math.sin(r));
+    return { x: (OP.iw * c + OP.ih * s) * sc / 2, y: (OP.iw * s + OP.ih * c) * sc / 2 };
   }
 
-  /* 사진을 완전히 잃지 않게 — 최소 36px 은 프레임 안에 남긴다.
-     다만 사진이 프레임보다 양쪽으로 큰(꽉 찬) 상태에서는 빈 여백이 생기지 않도록
-     가장자리까지만 움직이게 잠근다. */
+  /* 사진 가장자리가 프레임 안으로 들어오지 못하게 — 빈 곳(검은 여백) 0 보장 */
   function clampT() {
-    var fp = footprint();
-    if (fp.x >= fw / 2 && fp.y >= fh / 2) {
-      var lx = fp.x - fw / 2, ly = fp.y - fh / 2;
-      OP.tx = C.clamp(OP.tx, -lx, lx);
-      OP.ty = C.clamp(OP.ty, -ly, ly);
-      return;
-    }
-    var mx = Math.max(0, fw / 2 - 36) + fp.x;
-    var my = Math.max(0, fh / 2 - 36) + fp.y;
-    OP.tx = C.clamp(OP.tx, -mx, mx);
-    OP.ty = C.clamp(OP.ty, -my, my);
-  }
-
-  function isCovered() {
-    var fp = footprint();
-    return fp.x >= fw / 2 - 0.5 && fp.y >= fh / 2 - 0.5;
-  }
-
-  function coverPct() {
-    var sw = (OP.rot % 180) === 0;
-    var iw = sw ? OP.iw : OP.ih, ih = sw ? OP.ih : OP.iw;
-    if (!iw || !ih) return 100;
-    var fit = Math.min(fw / iw, fh / ih);
-    var cov = Math.max(fw / iw, fh / ih);
-    return fit ? (cov / fit) * 100 : 100;
+    var h = halfExtents();
+    var lx = Math.max(0, h.x - fw / 2), ly = Math.max(0, h.y - fh / 2);
+    OP.tx = C.clamp(OP.tx, -lx, lx);
+    OP.ty = C.clamp(OP.ty, -ly, ly);
   }
 
   /* ────────── 미리보기 그리기 ────────── */
@@ -140,6 +129,7 @@ window.AS = window.AS || {};
 
   function sync() {
     var pct = Math.round(OP.pct);
+    var ang = Math.round(OP.rot) % 360;
     var sl = $('#impZoom'), lab = $('#impZoomVal'), pc = $('#impPct');
     if (sl) {
       if (String(sl.value) !== String(pct)) sl.value = String(pct);
@@ -150,31 +140,39 @@ window.AS = window.AS || {};
     var mi = $('#impMinus'), pl = $('#impPlus');
     if (mi) mi.disabled = OP.pct <= MIN_PCT + 0.01;
     if (pl) pl.disabled = OP.pct >= MAX_PCT - 0.01;
-    var note = $('#impFitNote');
-    if (note) {
-      note.textContent = isCovered()
-        ? '여백 없이 프레임을 꽉 채웠어요'
-        : '사진 밖은 약도 배경(#0E1319)으로 남아요';
+    var rs = $('#impRot'), rav = $('#impAngVal'), rb = $('#impRotVal');
+    if (rs) {
+      if (String(rs.value) !== String(ang)) rs.value = String(ang);
+      rs.style.setProperty('--fill', (ang / 359 * 100) + '%');
     }
-    var rotb = $('#impRotVal');
-    if (rotb) rotb.textContent = OP.rot + '°';
+    if (rav) rav.textContent = ang + '°';
+    if (rb) rb.textContent = ang + '°';
+    var note = $('#impFitNote');
+    if (note) note.textContent = NOTE_OK;
   }
 
   function setPct(v, center) {
-    OP.pct = C.clamp(Number(v) || 100, MIN_PCT, MAX_PCT);
+    OP.pct = C.clamp(Number(v) || MIN_PCT, MIN_PCT, MAX_PCT);
     if (center) { OP.tx = 0; OP.ty = 0; }
     clampT();
     draw();
   }
 
-  function rotate90() {
+  /* 각도를 바꾸면 그 각도에서 프레임을 덮는 최소 배율로 자동 보정한다.
+     화면 크기가 갑자기 튀지 않도록 '지금 배율'을 기준으로 유지하고,
+     그 각도의 cover 보다 작아졌을 때만 cover 로 끌어올린다(= 여백 0). */
+  function setRot(deg) {
+    if (!OP.img) return;
     var s0 = scale();
-    OP.rot = (OP.rot + 90) % 360;
-    var b = baseFit();
-    OP.pct = C.clamp(b ? (s0 / b) * 100 : OP.pct, MIN_PCT, MAX_PCT);
+    var d = ((Number(deg) || 0) % 360 + 360) % 360;
+    OP.rot = d;
+    var cov = coverScale(d);
+    OP.pct = C.clamp(s0 / cov * 100, MIN_PCT, MAX_PCT);
     clampT();
     draw();
   }
+  function rotStep(d) { setRot(Math.round(OP.rot) + d); }
+  function rotate90() { setRot(Math.round((OP.rot + 45) / 90) * 90 % 360); }
 
   /* ────────── 모달 열기/닫기 ────────── */
   function show() {
@@ -226,6 +224,15 @@ window.AS = window.AS || {};
   }
 
   function openBlob(blob) { openFile(blob); }
+
+  /* 지금린 사진을 다시 맞춘다 — 사진 바의 '사진 편집' 칩(요청 11).
+     이미 사진이 깔려 있으면 그 사진으로 편집 모달을 다시 열고,
+     '이대로 붙여넣기'를 누르면 새 배율·각도로 다시 깔린다. */
+  function editCurrent() {
+    var src = S.photo && S.photo.src;
+    if (!src) { AS.ui.toast('먼저 사진을 넣어 주세요'); return; }
+    openImage(src);
+  }
 
   /* ────────── 클립보드 ────────── */
   function fromClipboard() {
@@ -292,7 +299,7 @@ window.AS = window.AS || {};
       best = png;
       if (png.length <= MAXLEN) return png;
 
-      /* 용량 초과 — 투명 여백을 #0E1319 로 깔고 JPEG 0.90 */
+      /* 용량 초과 — 프레임 바탕색을 깔고 JPEG 0.90 (여백은 이제 생기지 않는다) */
       var c2 = document.createElement('canvas');
       c2.width = W; c2.height = H;
       var x2 = c2.getContext('2d');
@@ -418,11 +425,16 @@ window.AS = window.AS || {};
     if (pl) pl.addEventListener('click', function () { setPct(OP.pct + 5); });
     if (sl) sl.addEventListener('input', function () { setPct(Number(sl.value)); });
 
+    /* 각도 조절 바 — 확대 슬라이더와 같은 드래그 바 (0°~359°, 1° 단위) */
+    var rm = $('#impRotMinus'), rp = $('#impRotPlus'), rs = $('#impRot');
+    if (rm) rm.addEventListener('click', function () { rotStep(-1); });
+    if (rp) rp.addEventListener('click', function () { rotStep(1); });
+    if (rs) rs.addEventListener('input', function () { setRot(Number(rs.value)); });
+
     Array.prototype.forEach.call(document.querySelectorAll('#impPhoto .impquick button'), function (b) {
       b.addEventListener('click', function () {
         var q = b.getAttribute('data-q');
-        if (q === 'all') { OP.pct = 100; OP.tx = 0; OP.ty = 0; clampT(); draw(); }
-        else if (q === 'cover') setPct(Math.min(MAX_PCT, coverPct() + 0.2), true);
+        if (q === 'cover') { setPct(MIN_PCT, true); }
         else if (q === 'rot') rotate90();
       });
     });
@@ -446,9 +458,10 @@ window.AS = window.AS || {};
   }
 
   AS.importx = {
-    bind: bind, openFile: openFile, openBlob: openBlob, fromClipboard: fromClipboard,
+    bind: bind, openFile: openFile, openBlob: openBlob, fromClipboard: fromClipboard, editCurrent: editCurrent,
     isOpen: isOpen, close: close, apply: apply,
-    _state: OP, _layout: layout, _setPct: setPct, _rotate: rotate90, _render: renderOut,
+    _state: OP, _layout: layout, _setPct: setPct, _setRot: setRot, _rotate: rotate90, _render: renderOut,
+    _coverScale: coverScale, _halfExtents: halfExtents,
     MIN_PCT: MIN_PCT, MAX_PCT: MAX_PCT
   };
 })(window.AS);

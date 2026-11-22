@@ -415,7 +415,11 @@ window.AS = window.AS || {};
       wrap.appendChild(b);
     });
     var onBtn = wrap.querySelector('button.on');
-    if (onBtn && onBtn.scrollIntoView) { try { onBtn.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
+    /* 이 칸 안에서만 가운데로 스크롤한다 — scrollIntoView 는 페이지까지 끌어당겨
+       패널이 잠깐 움직이는 원인이 됐다 */
+    if (onBtn) {
+      try { wrap.scrollLeft = Math.max(0, onBtn.offsetLeft - (wrap.clientWidth - onBtn.offsetWidth) / 2); } catch (e) {}
+    }
   }
 
   function refreshCarSheetThumbs(role) {
@@ -428,24 +432,109 @@ window.AS = window.AS || {};
     });
   }
 
-  /* ────────── 선택 미니바 (하단바 내부) ────────── */
+  /* ────────── 선택 패널 (v4.3) ──────────
+     요청 4: 크기 조절 패널은 하단 툴바 바로 위 고정 슬롯에 붙박이로 뜬다.
+     - 바깥 위치: #selBar 는 #bottomWrap 기준 bottom:100%+6px — 툴바 높이가 변해도
+       항상 '툴바 바로 위' 같은 자리다(요소 선택·해제로 캔버스가 밀리지 않는다).
+     - 안쪽 위치: 두 줄짜리 고정 그리드라, 요소 종류(차량/사람/기호)·역할 개수·글씨
+       모드가 바뀌어도 ＋/−·슬라이더·복제/삭제 버튼 좌표가 움직이지 않는다.
+     - 맨 윗줄은 [크기 | 글씨] 두 모드의 공용 슬라이더 줄이다(같은 칸을 그대로 쓴다). */
+  var sbModeSel = 'size';      /* 'size' 요소 크기 | 'label' 글씨 크기 */
+  var sbDirty = false;
+
+  function labMultOf(o) {
+    var v = o && o.lfs;
+    return (isFinite(v) && v > 0) ? v : 1;
+  }
+
+  function sbSpec(o) {
+    if (sbModeSel === 'label') return { min: 0.4, max: 2.8 };
+    return C.scRange(o);
+  }
+  function sbVal(o) {
+    if (!o) return 1;
+    return sbModeSel === 'label' ? labMultOf(o) : o.sc;
+  }
+  function sbText(o) {
+    if (sbModeSel === 'label') return Math.round(labMultOf(o) * 100) + '%';
+    return (o ? o.sc : 1).toFixed(2) + '×';
+  }
+  function sbDisabled(o) {
+    if (!o) return true;
+    if (sbModeSel === 'label') return !AS.objs.hasLabel(o);
+    return o.type === 'pen';
+  }
+  function sbPosToVal(pos, r) { return r.min * Math.pow(r.max / r.min, C.clamp(pos, 0, 1000) / 1000); }
+  function sbValToPos(v, r) {
+    var t = Math.log(C.clamp(v, r.min, r.max) / r.min) / Math.log(r.max / r.min);
+    return Math.round(C.clamp(t, 0, 1) * 1000);
+  }
+
+  function syncSb() {
+    var o = AS.objs.selObj();
+    var sl = $('#sbRange'), val = $('#sbVal'), zin = $('[data-act="zin"]'), zout = $('[data-act="zout"]');
+    if (!o) return;
+    var r = sbSpec(o), v = sbVal(o), pos = sbValToPos(v, r), off = sbDisabled(o);
+    if (sl) {
+      if (String(sl.value) !== String(pos)) sl.value = String(pos);
+      sl.disabled = off;
+      sl.style.setProperty('--fill', (pos / 10) + '%');
+      sl.setAttribute('aria-valuetext', (sbModeSel === 'label' ? '글씨 ' : '크기 ') + sbText(o));
+    }
+    if (val) val.textContent = sbText(o);
+    if (zin) zin.disabled = off || v <= r.min * 1.001;
+    if (zout) zout.disabled = off || v >= r.max * 0.999;
+    var mb = $('#sbMode');
+    if (mb) {
+      Array.prototype.forEach.call(mb.querySelectorAll('button[data-smode]'), function (b) {
+        var on = b.getAttribute('data-smode') === sbModeSel;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      var lb = $('#sbModeLab');
+      if (lb) lb.disabled = !AS.objs.hasLabel(o);
+    }
+    var la = $('#btnLabAuto');
+    if (la) la.style.visibility = (AS.objs.hasLabel(o) && Math.abs(labMultOf(o) - 1) > 0.005) ? 'visible' : 'hidden';
+  }
+
+  function applySbVal(v, commit) {
+    var o = AS.objs.selObj();
+    if (!o || sbDisabled(o)) return;
+    if (sbModeSel === 'label') o.lfs = Math.round(C.clamp(v, 0.4, 2.8) * 100) / 100;
+    else o.sc = Math.round(C.clampSc(o, v) * 100) / 100;
+    AS.objs.render();
+    syncSb();
+    if (commit) { C.pushUndo(); C.save(); selbar(); }
+  }
+
+  function sbStep(dir) {
+    var o = AS.objs.selObj();
+    if (!o) return;
+    applySbVal(sbVal(o) * Math.pow(1.16, dir), true);
+  }
+
   function selbar() {
     var bar = $('#selBar'), o = AS.objs.selObj();
     if (!o) { bar.hidden = true; return; }
     bar.hidden = false;
     var isCar = o.type === 'car', isPen = o.type === 'pen';
+    var hasLab = AS.objs.hasLabel(o);
+    if (!hasLab && sbModeSel === 'label') sbModeSel = 'size';
     var pa = $('#btnPenArrow');
     if (pa) { pa.hidden = !isPen; pa.classList.toggle('on', !!(isPen && o.arrowEnd)); }
-    var zin = bar.querySelector('[data-act="zin"]'), zout = bar.querySelector('[data-act="zout"]');
-    if (zin) zin.hidden = isPen;
-    if (zout) zout.hidden = isPen;
-    $('#roleSeg').style.display = isCar ? '' : 'none';
-    $('#roleSep').style.display = isCar ? '' : 'none';
-    if (isCar) renderRoles($('#roleSeg'), false);
+    /* 역할 칸은 자리를 늘 비워 둔다 — 차량이 아닌 요소를 골라도 오른쪽 버튼이 움직이지 않게 */
+    var roleSeg = $('#roleSeg');
+    if (roleSeg) {
+      roleSeg.style.visibility = isCar ? 'visible' : 'hidden';
+      if (isCar) renderRoles(roleSeg, false);
+      else roleSeg.innerHTML = '';
+    }
     var info = [];
     if (!isPen) { info.push(Math.round(o.rot) + '°'); info.push(o.sc.toFixed(2) + '×'); }
     else info.push(o.snapped || '펜');
     $('#selInfo').textContent = info.join(' · ');
+    syncSb();
   }
 
   function syncTool() {
@@ -493,8 +582,8 @@ window.AS = window.AS || {};
     if (inn) { inn.disabled = k >= (AS.view.K_MAX || 5) - 0.001; }
     if (sl) {
       sl.setAttribute('aria-valuetext', pct === 100
-        ? '100% — 불러온 사진 그대로 (더 줄일 수 없음)'
-        : pct + '% — 불러온 사진보다 ' + (pct > 100 ? '확대' : '작게'));
+        ? '100% — 사진이 화면을 꽉 채운 크기 (더 줄일 수 없음)'
+        : pct + '% — 꽉 찬 크기에서 ' + pct + '% 만큼 확대');
     }
   }
 
@@ -660,6 +749,11 @@ window.AS = window.AS || {};
 
     var cs = $('#capSwap');
     if (cs) cs.addEventListener('click', pickPhoto);
+    /* 사진을 다시 맞추기 — 지금린 사진으로 편집 창을 다시 연다(위치·배율·각도·꽉 채우기) */
+    var ce = $('#capEdit');
+    if (ce) ce.addEventListener('click', function () {
+      if (AS.importx && AS.importx.editCurrent) AS.importx.editCurrent();
+    });
     var cta = $('#btnPickPhoto');
     if (cta) cta.addEventListener('click', function (e) { e.stopPropagation(); pickPhoto(); });
     var lp = $('#btnPhotoLock');
@@ -670,7 +764,7 @@ window.AS = window.AS || {};
     if (ft) ft.addEventListener('click', function () {
       AS.view.fitPhoto();
       syncPhotoZoom();
-      toast('사진을 불러온 그대로(100%)로 되돌렸어요');
+      toast('사진을 꽉 찬 원본(100%)으로 되돌렸어요');
     });
 
     /* 사진 크기 — 한 손으로 바로: −  /  슬라이더  /  ＋ */
@@ -698,12 +792,43 @@ window.AS = window.AS || {};
     $('#selBar').addEventListener('click', function (e) {
       var b = e.target.closest('[data-act]'); if (!b) return;
       var a = b.dataset.act;
-      if (a === 'zin') AS.objs.scaleBy(1 / 1.18);
-      else if (a === 'zout') AS.objs.scaleBy(1.18);
+      if (a === 'zin') sbStep(-1);
+      else if (a === 'zout') sbStep(1);
       else if (a === 'arrow') AS.objs.togglePenArrow();
       else if (a === 'del') AS.objs.del();
       else if (a === 'dup') AS.objs.dup();
+      else if (a === 'labauto') {
+        var o = AS.objs.selObj();
+        if (o) { delete o.lfs; AS.objs.render(); C.pushUndo(); C.save(); selbar(); }
+      }
     });
+
+    /* 슬라이더 — 크기/글씨 공용. 끄는 동안은 화면만 갱신, 손을 때면 한 단계만 undo 에 쌓는다 */
+    var sbr = $('#sbRange');
+    if (sbr) {
+      sbr.addEventListener('input', function () {
+        var o = AS.objs.selObj(); if (!o) return;
+        applySbVal(sbPosToVal(Number(sbr.value), sbSpec(o)), false);
+        sbDirty = true;
+      });
+      sbr.addEventListener('change', function () {
+        if (!sbDirty) return;
+        sbDirty = false;
+        C.pushUndo(); C.save(); selbar();
+      });
+    }
+    var sbm = $('#sbMode');
+    if (sbm) {
+      Array.prototype.forEach.call(sbm.querySelectorAll('button[data-smode]'), function (b) {
+        b.addEventListener('click', function () {
+          if (b.disabled) return;
+          sbModeSel = b.getAttribute('data-smode') === 'label' ? 'label' : 'size';
+          selbar();
+          var o = AS.objs.selObj();
+          if (o) toast(sbModeSel === 'label' ? '글씨 크기 조절 — 요소 크기에 비례해 같이 커지고 작아져요' : '요소 크기 조절');
+        });
+      });
+    }
 
     var brand = $('#brandTap'), taps = 0, tapTimer = null, holdTimer = null, held = false;
     brand.addEventListener('pointerdown', function () {

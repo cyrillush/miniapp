@@ -191,23 +191,44 @@ window.AS = window.AS || {};
 
   function snapObjects() { return JSON.parse(JSON.stringify(S.objs)); }
 
+  /* 실행취소 한 단위 — 요소 + 사진 변환(확대·회전·이동)
+     사진만 옮긴 경우에도 ↶로 되돌릴 수 있어야 하므로 함께 담는다. */
+  function snapState() {
+    var p = S.photo || {};
+    return {
+      objs: snapObjects(),
+      ph: { k: p.k, rot: p.rot, tx: p.tx, ty: p.ty }
+    };
+  }
+  function applyState(st) {
+    if (!st) return;
+    S.objs = st.objs || [];
+    if (st.ph && S.photo) {
+      S.photo.k = isFinite(st.ph.k) ? st.ph.k : 1;
+      S.photo.rot = isFinite(st.ph.rot) ? st.ph.rot : 0;
+      S.photo.tx = isFinite(st.ph.tx) ? st.ph.tx : 0;
+      S.photo.ty = isFinite(st.ph.ty) ? st.ph.ty : 0;
+    }
+  }
+
   function pushUndo() {
     if (redoGuard) return;
-    if (!committed) committed = snapObjects();
+    if (!committed) committed = snapState();
     undoStack.push(committed);
     if (undoStack.length > 40) undoStack.shift();
-    committed = snapObjects();
+    committed = snapState();
     syncUndo();
   }
-  function baseline() { committed = snapObjects(); }
+  function baseline() { committed = snapState(); }
   function undo() {
     if (!undoStack.length) { AS.toast('되돌릴 작업이 없어요'); return; }
     var prev = undoStack.pop();
     redoGuard = true;
-    S.objs = prev;
+    applyState(prev);
     S.sel = null;
-    committed = snapObjects();
+    committed = snapState();
     redoGuard = false;
+    AS.view.applyTransform();
     AS.objs.render(); AS.ui.selbar(); save(); syncUndo();
     AS.toast('실행취소');
   }
@@ -270,7 +291,7 @@ window.AS = window.AS || {};
   }
 
   function reset() {
-    S.objs = []; S.sel = null; clearUndo(); committed = snapObjects();
+    S.objs = []; S.sel = null; clearUndo(); committed = snapState();
     S.info = { when: '', place: '', note: '' };
     AS.objs.render(); AS.ui.selbar(); save();
   }
@@ -342,13 +363,35 @@ window.AS = window.AS || {};
     o.h = o.w * (vb.h / vb.w);
   }
 
+  /* ────────── 요소 배율 범위 (v4.3) ──────────
+     사진을 크게 확대해 쓰는 경우가 많아, 도로 위 요소를 아주 작게도 아주 크게도
+     맞출 수 있어야 한다. 차량·사람·기호(기타 화살표·신호등·건물 등)는 0.12~6.00,
+     글자가 들어가는 메모는 0.25~4.00. 펜·화살표(vec)는 길이로 그리는 물건이라 제외. */
+  var SC_RANGE = {
+    car: { min: 0.12, max: 6 },
+    person: { min: 0.12, max: 6 },
+    sym: { min: 0.12, max: 6 },
+    memo: { min: 0.25, max: 4 }
+  };
+  var SC_DEF = { min: 0.12, max: 6 };
+
+  function scRange(o) {
+    var r = SC_RANGE[o && o.type] || SC_DEF;
+    return { min: r.min, max: r.max };
+  }
+
+  function clampSc(o, v) {
+    var r = scRange(o);
+    return clamp(Number(v) || r.min, r.min, r.max);
+  }
+
   AS.core = {
     $: $, $$: $$, clamp: clamp, uid: uid, vbox: vbox,
     CARS: CARS, PEOPLE: PEOPLE, SYM: SYM,
     normRole: normRole, roleNum: roleNum, roleMeta: roleMeta, roleList: roleList, nextCarRole: nextCarRole,
-    itemDef: itemDef, makeObj: makeObj, applySize: applySize,
+    itemDef: itemDef, makeObj: makeObj, applySize: applySize, scRange: scRange, clampSc: clampSc,
     pushUndo: pushUndo, undo: undo, clearUndo: clearUndo, syncUndo: syncUndo, baseline: baseline,
-    save: save, load: load, reset: reset, clearElements: clearElements, nsMarkup: nsMarkup, snapObjects: snapObjects,
+    save: save, load: load, reset: reset, clearElements: clearElements, nsMarkup: nsMarkup, snapObjects: snapObjects, snapState: snapState,
     KEY: KEY
   };
 })(window.AS);

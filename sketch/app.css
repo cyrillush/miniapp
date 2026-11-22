@@ -162,6 +162,16 @@ body[data-theme="D"] {
 }
 .hnd svg { width: calc(var(--hnd) * 0.48); height: calc(var(--hnd) * 0.48); stroke-width: 1.9; }
 .hnd:active { transform: scale(.94); }
+/* 선택한 요소 위 빠른 삭제 × — 터치 영역 최소 32px, 화면 전용 크롬(PNG 미포함) */
+.hnd.delx {
+  --dx: max(32px, var(--hnd));
+  width: var(--dx); height: var(--dx);
+  margin: calc(var(--dx) / -2) 0 0 calc(var(--dx) / -2);
+  background: var(--panel-solid); color: var(--red);
+  border: 1.6px solid color-mix(in srgb, var(--red) 62%, #FFFFFF); z-index: 5;
+}
+.hnd.delx svg { width: calc(var(--dx) * 0.44); height: calc(var(--dx) * 0.44); stroke-width: 2.5; }
+.hnd.delx:active { transform: scale(.92); }
 #sel .angle {
   position: absolute; transform: translate(-50%, -50%); padding: 4px 9px; border-radius: 9px;
   background: var(--panel-solid); border: 1px solid var(--line); color: var(--ink);
@@ -238,25 +248,31 @@ body[data-theme="D"] #modeSeg { border: 2px solid #2B2724; }
 .zbtn svg { width: 15px; height: 15px; stroke-width: 2.3; }
 .zbtn:active { transform: scale(.94); }
 .zbtn:disabled { opacity: .35; }
-#photoZoom, #impZoom {
+#photoZoom, #impZoom, #impRot, #sbRange {
   flex: 1 1 auto; min-width: 84px; width: auto; height: 30px; margin: 0; padding: 0;
   background: none; -webkit-appearance: none; appearance: none; touch-action: pan-y;
 }
-#photoZoom::-webkit-slider-runnable-track, #impZoom::-webkit-slider-runnable-track {
+#photoZoom::-webkit-slider-runnable-track, #impZoom::-webkit-slider-runnable-track,
+#impRot::-webkit-slider-runnable-track, #sbRange::-webkit-slider-runnable-track {
   height: 6px; border-radius: 999px;
   background: linear-gradient(to right, var(--acc) 0 var(--fill, 0%), var(--line) var(--fill, 0%) 100%);
 }
-#photoZoom::-webkit-slider-thumb, #impZoom::-webkit-slider-thumb {
+#photoZoom::-webkit-slider-thumb, #impZoom::-webkit-slider-thumb,
+#impRot::-webkit-slider-thumb, #sbRange::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none; width: 20px; height: 20px; margin-top: -7px;
   border-radius: 50%; background: var(--panel-solid); border: 2.5px solid var(--acc);
   box-shadow: var(--shadow-s);
 }
-#photoZoom::-moz-range-track, #impZoom::-moz-range-track { height: 6px; border-radius: 999px; background: var(--line); }
-#photoZoom::-moz-range-progress, #impZoom::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--acc); }
-#photoZoom::-moz-range-thumb, #impZoom::-moz-range-thumb {
+#photoZoom::-moz-range-track, #impZoom::-moz-range-track,
+#impRot::-moz-range-track, #sbRange::-moz-range-track { height: 6px; border-radius: 999px; background: var(--line); }
+#photoZoom::-moz-range-progress, #impZoom::-moz-range-progress,
+#impRot::-moz-range-progress, #sbRange::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--acc); }
+#photoZoom::-moz-range-thumb, #impZoom::-moz-range-thumb,
+#impRot::-moz-range-thumb, #sbRange::-moz-range-thumb {
   width: 20px; height: 20px; border-radius: 50%; background: var(--panel-solid);
   border: 2.5px solid var(--acc); box-shadow: var(--shadow-s);
 }
+#sbRange:disabled { opacity: .38; }
 #photoZoomVal {
   flex: none; min-width: 44px; text-align: center; font-size: 11.5px; font-weight: 800;
   color: var(--ink); font-variant-numeric: tabular-nums;
@@ -342,13 +358,15 @@ body[data-drawing="1"] #capPaste { display: none; }
 .imppct { left: 7px; }
 .improt { right: 7px; }
 .impctl { grid-area: ctl; display: flex; flex-direction: column; gap: 7px; }
-.impquick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.impquick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .impquick button {
   height: 34px; border-radius: 10px; background: var(--panel-2); border: var(--hard);
   font-size: 11.5px; font-weight: 750; color: var(--ink); white-space: nowrap;
 }
 .impquick button:active { transform: scale(.97); }
-.impzoom { display: flex; align-items: center; gap: 7px; }
+.impzoom, .impangle { display: flex; align-items: center; gap: 7px; }
+.implab { flex: none; width: 22px; font-size: 10.5px; font-weight: 800; color: var(--ink3); letter-spacing: -.2px; }
+.impval { flex: none; min-width: 44px; text-align: center; font-size: 11.5px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
 .impnote { margin: 0 2px; font-size: 10px; color: var(--ink3); line-height: 1.35; }
 .impacts { display: flex; gap: 8px; }
 .impacts .btn { height: 42px; }
@@ -419,22 +437,41 @@ body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
    v3.7까지는 하단바 안에서 자리를 차지해, 요소를 고르거나 버튼 크기를 바꿀 때마다
    캔버스 높이가 달라져 화면 요소가 위아래로 움직였다. 이제 바는 항상 같은 위치·같은
    높이(52px)로 떠 있고, 안쪽 버튼만 --sb 만큼 커지고 작아진다. */
+/* 선택 패널 — v4.3: 하단 툴바 바로 위 고정 슬롯.
+   두 줄 고정 그리드라 요소 종류·역할 수·글씨 모드가 바뀌어도
+   ＋/− 슬라이더와 복제/삭제 버튼 좌표가 움직이지 않는다. */
 #selBar {
   position: absolute; left: 8px; right: 8px; bottom: calc(100% + 6px); z-index: 16;
-  height: 52px; min-height: 52px; padding: 6px 5px;
-  display: flex; align-items: center; gap: 4px;
-  border-radius: 12px; background: var(--panel-2); border: var(--hard);
+  padding: 5px 6px;
+  display: flex; flex-direction: column; gap: 5px;
+  border-radius: 13px; background: var(--panel-2); border: var(--hard);
   box-shadow: 0 6px 18px rgba(6,14,26,.16);
 }
+#selBar .sbr { display: grid; align-items: center; gap: 4px; min-width: 0; }
+#selBar .sbrA { grid-template-columns: auto var(--sb) minmax(0, 1fr) var(--sb) 46px; }
+#selBar .sbrB { grid-template-columns: minmax(0, 1fr) auto; }
+#selBar .sbmiddle { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; min-height: calc(var(--sb) + 2px); }
+#selBar .sbmiddle .roles { flex: 1 1 auto; min-width: 0; }
+#selBar .sbacts { display: flex; align-items: center; gap: 4px; flex: none; }
+.sbseg { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--panel-solid); }
+.sbseg button {
+  height: calc(var(--sb) - 4px); padding: 0 7px; border-radius: 8px;
+  font-size: 10.5px; font-weight: 800; color: var(--ink3); letter-spacing: -.2px; white-space: nowrap;
+}
+.sbseg button.on { background: var(--acc); color: var(--acc-ink); }
+.sbseg button:disabled { opacity: .3; }
+#selBar .sbval { min-width: 46px; text-align: center; font-size: 11px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
 #selBar .sb {
   width: var(--sb); height: var(--sb); border-radius: 9px; display: grid; place-items: center;
   background: var(--panel-solid); color: var(--ink); font-size: 16px; font-weight: 700; flex: none;
 }
 #selBar .sb svg { width: calc(var(--sb) * 0.5); height: calc(var(--sb) * 0.5); }
+#selBar .sb:disabled { opacity: .32; }
 #selBar .sb.szbtn {
-  width: 62px; min-width: var(--sb); padding: 0 7px; font-size: 10px; font-weight: 800;
+  width: 58px; min-width: var(--sb); padding: 0 6px; font-size: 10px; font-weight: 800;
   letter-spacing: -.2px; white-space: nowrap; color: var(--ink2);
 }
+#selBar .sb.subt { width: 34px; font-size: 10px; font-weight: 800; color: var(--ink2); }
 #selBar .sb.danger { color: var(--red); }
 #selBar .sb:active { transform: scale(.93); }
 #selBar .sb.arrowbtn { width: auto; padding: 0 9px; font-size: 11px; font-weight: 700; white-space: nowrap; }
@@ -452,9 +489,9 @@ body[data-theme="D"] .dk.save { box-shadow: 0 2px 0 #2B2724; }
 .roles button.addrole { color: var(--acc); border: 1px dashed color-mix(in srgb, var(--acc) 55%, transparent); background: var(--acc-soft); }
 .roles.big { margin: 0 2px 10px; padding: 4px; border-radius: 14px; background: var(--panel-2); flex: none; }
 .roles.big button { flex: 1 0 auto; min-width: 58px; height: 38px; font-size: 12.5px; border-radius: 10px; }
-#selInfo { margin-left: auto; padding-right: 4px; font-size: 10px; font-weight: 650; color: var(--ink3); white-space: nowrap; }
-/* 버튼 크게에서는 자리 확보를 위해 각도·배율 표기를 잠긐 숨긴다 (역할 버튼이 밀러나지 않게) */
-body[data-btnsz="lg"] #selInfo { display: none; }
+#selInfo { width: 48px; text-align: right; padding-right: 2px; font-size: 10px; font-weight: 650; color: var(--ink3); white-space: nowrap; overflow: hidden; flex: none; }
+/* 버튼 크게에서는 각도·배율 표기를 숨기되 자리는 비워 둔다(다른 버튼이 움직이지 않게) */
+body[data-btnsz="lg"] #selInfo { visibility: hidden; }
 .roles { min-width: 56px; }
 
 /* ───────────────────────────────── 시트 */

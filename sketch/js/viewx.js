@@ -1,29 +1,28 @@
 /* ==========================================================================
-   viewx.js — 약도 캔버스 · 두 가지 배경(도로 도면 / 갤러리 사진) · 좌표 변환
+   viewx.js — 약도 캔버스 · 두 가지 배경(도로 도면 / 갤러리 사진) · 사진 변환
    ──────────────────────────────────────────────────────────────────────────
-   온라인 지도(타일·검색·GPS·3D·나침반)는 이 버전에서 완전히 사라졌다.
-   남은 배경은 딱 두 가지다.
-     ① 도로  : 고른 도로 템플릿 59종을 화면에 꽉 차게 깔아 둔 단색 도면
-     ② 사진  : 갤러리에서 불러온 사진 한 장만 깔린 단색 배경
+   v4.3 — 사진 레이어를 요소 레이어와 분리했다.
+     · #photoWrap : 사진만 담는 그룹. 확대·회전·이동 변환은 여기에만 걸린다.
+     · #artLayer  : 차량·사람·기호·펜. 화면(캔버스) 좌표 그대로, 사진 배율·각도에
+                    전혀 영향받지 않는다. 사진을 옮기거나 돌려도 요소는 제자리에 남는다.
+     · 그래서 화면↔월드 좌표 변환이 항등이다 — 터치한 곳 = 그려지는 곳(요청 10).
+       사진 배율·회전이 섞여 좌표가 어긋날 여지가 없다.
 
-   좌표계
-     - 요소(x, y)와 펜 점은 '월드' 좌표(캔버스 기준 px)에 저장한다.
-     - 사진 모드의 사진은 월드에 꽉 차게 깔리고, 사진 조정(확대·회전·이동)은
-       #world 그룹 하나의 변환으로 표현된다. 그래서 사진을 움직여도 그 위에
-       놓은 요소가 사진에 붙은 채로 함께 움직인다.
-     - 사진이 '고정'되면 변환이 멈추고 요소 배치·펜 그리기만 동작한다.
+   사진 배율(k)은 '여백 0 기준'이다: 100%(k=1) = 그 각도에서 사진이 화면을 꽉 채우는
+   최소 배율. 회전하면 그 각도의 cover 로 자동 확대되어 검은 여백이 생기지 않고,
+   이동도 사진 가장자리가 화면 안으로 들어오지 못하게 잠근다.
    ========================================================================== */
 window.AS = window.AS || {};
 (function (AS) {
   'use strict';
 
   var C = AS.core, S = AS.S;
-  var stageEl = null, worldEl = null, photoEl = null, roadEl = null, boardEl = null;
+  var stageEl = null, photoWrapEl = null, photoEl = null, roadEl = null, boardEl = null;
   var lastW = 0, lastH = 0;
   var gesture = null;
+  var pendingMeasure = false;
 
-  /* 사진 배율 하한·상한 — 100%(k=1)가 '불러온 사진 그대로'이고,
-     그보다 작게 줄이는 것은 어떤 경로(핀치·슬라이더·− 버튼)로도 허용하지 않는다. */
+  /* 사진 배율 하한·상한 — 1 = 여백 없이 꽉 참(cover), 그 아래로는 내려가지 않는다 */
   var K_MIN = 1, K_MAX = 5;
 
   function f(n) { return Math.round(n * 100) / 100; }
@@ -31,7 +30,7 @@ window.AS = window.AS || {};
   function init() {
     stageEl = C.$('#stage');
     boardEl = C.$('#board');
-    worldEl = C.$('#world');
+    photoWrapEl = C.$('#photoWrap');
     photoEl = C.$('#photoImg');
     roadEl = C.$('#roadLayer');
     lastW = 0; lastH = 0;
@@ -43,8 +42,13 @@ window.AS = window.AS || {};
   }
 
   /* ────────── 화면 크기 ────────── */
+  /* 요소 좌표를 흔드는 중(그리기·드래그)에는 재측정을 미룬다 — 획을 긋는 도중
+     주소창이 접히며 캔버스가 몇 px 커지면 좌표계 기준점이 바뀌어 선이 튀었다 */
+  function isBusy() { return !!(AS.objs && AS.objs.isGesturing && AS.objs.isGesturing()); }
+
   function measure() {
     if (!stageEl) return;
+    if (isBusy()) { pendingMeasure = true; return; }
     var r = stageEl.getBoundingClientRect();
     var w = Math.max(120, Math.round(r.width)), h = Math.max(160, Math.round(r.height));
     /* 방향 전환처럼 크게 바뀔 때만 요소 좌표를 비율로 옮긴다 —
@@ -57,6 +61,25 @@ window.AS = window.AS || {};
     lastW = w; lastH = h;
     if (boardEl) { boardEl.setAttribute('width', w); boardEl.setAttribute('height', h); }
     if (photoEl) { photoEl.setAttribute('width', w); photoEl.setAttribute('height', h); }
+    clampPhoto();
+    applyTransform();
+  }
+
+  /* 그리기가 끝나면 미뤄 둔 재측정을 한 번에 처리 */
+  function flushMeasure() {
+    if (!pendingMeasure || isBusy()) return;
+    pendingMeasure = false;
+    measure();
+    AS.objs.chrome();
+  }
+
+  /* 지금 화면 크기가 저장된 S.stage 와 다르면 즉시 다시 잰다 —
+     첫 터치가 옛 크기로 계산되는 stale rect 문제를 막는다 */
+  function syncStageBox() {
+    if (!stageEl || isBusy()) return;
+    var r = stageEl.getBoundingClientRect();
+    var w = Math.round(r.width), h = Math.round(r.height);
+    if (Math.abs(w - (S.stage.w || 0)) > 0.5 || Math.abs(h - (S.stage.h || 0)) > 0.5) measure();
   }
 
   function rescale(ow, oh, nw, nh) {
@@ -71,36 +94,35 @@ window.AS = window.AS || {};
     ph.tx = (ph.tx || 0) * rx; ph.ty = (ph.ty || 0) * ry;
   }
 
-  /* ────────── 좌표 변환 ────────── */
-  function xf() {
-    if (S.mode !== 'photo') return { k: 1, rot: 0, tx: 0, ty: 0 };
+  /* ────────── 좌표 변환 — 요소는 화면 좌표 그대로 ────────── */
+  function project(wx, wy) { return { x: wx, y: wy }; }
+  function unproject(sx, sy) { return { x: sx, y: sy }; }
+  function scale() { return 1; }
+  function rot() { return 0; }
+
+  /* ────────── 사진 변환 (사진 레이어 전용) ────────── */
+  function relK() {
     var p = S.photo || {};
-    var k = isFinite(p.k) && p.k > 0 ? p.k : 1;
-    if (k < K_MIN) k = K_MIN; else if (k > K_MAX) k = K_MAX;
-    return { k: k, rot: p.rot || 0, tx: p.tx || 0, ty: p.ty || 0 };
+    var k = (isFinite(p.k) && p.k > 0) ? p.k : 1;
+    return k < K_MIN ? K_MIN : (k > K_MAX ? K_MAX : k);
+  }
+  function rotDeg() { return (S.photo && isFinite(S.photo.rot)) ? S.photo.rot : 0; }
+
+  /* 그 각도에서 사진이 화면을 덮는 최소 배율(cover) — 100%의 기준 */
+  function coverK(rot) {
+    var r = (rot || 0) * Math.PI / 180;
+    var c = Math.abs(Math.cos(r)), s = Math.abs(Math.sin(r));
+    var w = S.stage.w || 390, h = S.stage.h || 640;
+    return Math.max(c + (h / w) * s, (w / h) * s + c) || 1;
+  }
+  function absK() { return coverK(rotDeg()) * relK(); }
+
+  function xf() {
+    var p = S.photo || {};
+    return { k: absK(), rot: rotDeg(), tx: p.tx || 0, ty: p.ty || 0 };
   }
 
-  function project(wx, wy) {
-    var t = xf(), cx = S.stage.w / 2, cy = S.stage.h / 2;
-    var dx = wx - cx, dy = wy - cy, r = t.rot * Math.PI / 180;
-    var cs = Math.cos(r), sn = Math.sin(r);
-    return {
-      x: cx + t.tx + t.k * (dx * cs - dy * sn),
-      y: cy + t.ty + t.k * (dx * sn + dy * cs)
-    };
-  }
-
-  function unproject(sx, sy) {
-    var t = xf(), cx = S.stage.w / 2, cy = S.stage.h / 2;
-    var u = (sx - cx - t.tx) / t.k, v = (sy - cy - t.ty) / t.k;
-    var r = t.rot * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
-    return { x: cx + u * cs + v * sn, y: cy - u * sn + v * cs };
-  }
-
-  function scale() { return xf().k; }
-  function rot() { return xf().rot; }
-
-  function worldTransformString() {
+  function photoTransformString() {
     var t = xf(), cx = S.stage.w / 2, cy = S.stage.h / 2;
     var s = 'translate(' + f(cx + t.tx) + ',' + f(cy + t.ty) + ')';
     if (Math.abs(t.rot) > 0.001) s += ' rotate(' + f(t.rot) + ')';
@@ -109,21 +131,19 @@ window.AS = window.AS || {};
   }
 
   function applyTransform() {
-    if (worldEl) worldEl.setAttribute('transform', worldTransformString());
-    /* 배율 표시·슬라이더를 화면 변환과 항상 같은 값으로 맞춘다 */
+    if (photoWrapEl) photoWrapEl.setAttribute('transform', S.mode === 'photo' ? photoTransformString() : '');
     if (AS.ui && AS.ui.syncPhotoZoom) AS.ui.syncPhotoZoom();
   }
 
-  /* 슬라이더·＋·− 버튼용 — 화면 중앙을 기준으로 배율만 바꾼다.
-     중심 기준 확대는 tx·ty 에 같은 비율을 곱하는 것과 같아서 사진이 튀지 않는다. */
+  /* 슬라이더·＋·− 버튼용 — 화면 중앙을 기준으로 배율만 바꾼다 */
   function setPhotoScale(k) {
     if (S.mode !== 'photo' || !hasPhoto()) return;
     var p = S.photo;
-    var k0 = xf().k;
-    var k1 = C.clamp(Number(k) || k0, K_MIN, K_MAX);
+    var k0 = absK();
+    var k1 = coverK(rotDeg()) * C.clamp(Number(k) || relK(), K_MIN, K_MAX);
     if (Math.abs(k1 - k0) < 0.0001) { applyTransform(); return; }
     var ratio = k1 / k0;
-    p.k = k1;
+    p.k = C.clamp(Number(k) || relK(), K_MIN, K_MAX);
     p.tx = (p.tx || 0) * ratio;
     p.ty = (p.ty || 0) * ratio;
     clampPhoto();
@@ -131,7 +151,7 @@ window.AS = window.AS || {};
     AS.objs.chrome();
   }
 
-  function photoScale() { return xf().k; }
+  function photoScale() { return relK(); }
 
   /* ────────── 배경: 도로 ────────── */
   function renderRoad() {
@@ -160,6 +180,7 @@ window.AS = window.AS || {};
     S.sel = null;
     syncMode();
     renderRoad();
+    renderPhoto();          /* 도로 모드에서는 사진 레이어를 반드시 숨긴다 (요청 8) */
     applyTransform();
     AS.objs.render();
     AS.ui.selbar();
@@ -174,6 +195,7 @@ window.AS = window.AS || {};
     if (src) photoEl.setAttribute('href', src);
     else photoEl.removeAttribute('href');
     photoEl.setAttribute('visibility', on ? 'visible' : 'hidden');
+    if (photoWrapEl) photoWrapEl.setAttribute('visibility', on ? 'visible' : 'hidden');
     photoEl.setAttribute('width', S.stage.w);
     photoEl.setAttribute('height', S.stage.h);
   }
@@ -184,7 +206,7 @@ window.AS = window.AS || {};
     S.photo = S.photo || {};
     S.photo.src = dataUrl || '';
     S.photo.k = 1; S.photo.rot = 0; S.photo.tx = 0; S.photo.ty = 0;
-    S.photo.locked = false;          /* 사진을 넣으면 바로 '사진 조정' 상태 */
+    S.photo.locked = false;
     S.mode = 'photo';
     S.sel = null;
     syncMode();
@@ -209,7 +231,7 @@ window.AS = window.AS || {};
     syncMode();
     AS.core.save();
     if (!silent && S.photo.locked !== was) {
-      AS.toast(S.photo.locked ? '사진 고정 — 이제 그 위에 바로 그릴 수 있어요' : '사진 조정 — 두 손가락으로 확대·회전');
+      AS.toast(S.photo.locked ? '사진 고정 — 이제 그 위에 바로 그릴 수 있어요' : '사진 조정 — 두 손가락으로 확대·회전, 한 손가락으로 이동');
     }
   }
 
@@ -256,15 +278,21 @@ window.AS = window.AS || {};
       var t = document.getElementById('photoLockTxt');
       if (t) t.textContent = locked ? '사진 고정' : '사진 조정';
     }
+    /* 모드가 바뀌면 배경 레이어 표시도 한 곳에서 함께 맞춘다 — 사진 모드가 아닌데
+       사진 레이어가 남아 도로 뒤로 비치는 일이 없다 (요청 8) */
+    renderPhoto();
     if (AS.ui && AS.ui.syncCapture) AS.ui.syncCapture();
   }
 
   /* ────────── 사진 변환 제스처 (조정 모드) ────────── */
   function gestureStart(mid, d, a) {
     var t = xf();
+    var cx = S.stage.w / 2, cy = S.stage.h / 2;
+    var u = (mid.x - cx - t.tx) / t.k, v = (mid.y - cy - t.ty) / t.k;
+    var r = t.rot * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
     gesture = {
-      k0: t.k, rot0: t.rot, d0: (isFinite(d) && d > 0) ? d : 1, a0: isFinite(a) ? a : 0,
-      anchor: unproject(mid.x, mid.y)
+      k0: relK(), rot0: t.rot, d0: (isFinite(d) && d > 0) ? d : 1, a0: isFinite(a) ? a : 0,
+      anchor: { x: cx + u * cs + v * sn, y: cy - u * sn + v * cs }
     };
   }
 
@@ -276,41 +304,51 @@ window.AS = window.AS || {};
     var k = C.clamp(gesture.k0 * (d / gesture.d0), K_MIN, K_MAX);
     var rr = gesture.rot0 + (a - gesture.a0);
     var cx = S.stage.w / 2, cy = S.stage.h / 2;
+    var kAbs = coverK(rr) * k;
     var rad = rr * Math.PI / 180, cs = Math.cos(rad), sn = Math.sin(rad);
     var ax = gesture.anchor.x - cx, ay = gesture.anchor.y - cy;
     S.photo.k = k;
     S.photo.rot = rr;
-    S.photo.tx = mid.x - cx - k * (ax * cs - ay * sn);
-    S.photo.ty = mid.y - cy - k * (ax * sn + ay * cs);
+    S.photo.tx = mid.x - cx - kAbs * (ax * cs - ay * sn);
+    S.photo.ty = mid.y - cy - kAbs * (ax * sn + ay * cs);
     clampPhoto();
     applyTransform();
   }
 
-  /* 사진이 화면 밖으로 완전히 사라지지 않게 — 화면 중앙이 사진 영역 안에 남도록 */
+  /* 사진 가장자리가 화면 안으로 들어오지 못하게 — 빈 곳(검은 여백) 0 보장 */
   function clampPhoto() {
-    var w = S.stage.w, h = S.stage.h, cx = w / 2, cy = h / 2;
-    var pts = [project(0, 0), project(w, 0), project(w, h), project(0, h)];
-    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    pts.forEach(function (p) {
-      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-    });
-    if (maxX < cx) S.photo.tx += cx - maxX;
-    else if (minX > cx) S.photo.tx -= minX - cx;
-    if (maxY < cy) S.photo.ty += cy - maxY;
-    else if (minY > cy) S.photo.ty -= minY - cy;
+    if (!S.photo) return;
+    var w = S.stage.w || 390, h = S.stage.h || 640;
+    var kAbs = absK();
+    var r = rotDeg() * Math.PI / 180;
+    var c = Math.abs(Math.cos(r)), s = Math.abs(Math.sin(r));
+    var hx = (w * c + h * s) * kAbs / 2, hy = (w * s + h * c) * kAbs / 2;
+    var lx = Math.max(0, hx - w / 2), ly = Math.max(0, hy - h / 2);
+    S.photo.tx = C.clamp(isFinite(S.photo.tx) ? S.photo.tx : 0, -lx, lx);
+    S.photo.ty = C.clamp(isFinite(S.photo.ty) ? S.photo.ty : 0, -ly, ly);
   }
 
   function gestureEnd() { gesture = null; }
 
+  /* 지금 사진을 얼마나 더 옮길 수 있는지(px) — 100%에서는 여백 없이 꽉 차 있어 0 */
+  function photoSlack() {
+    var w = S.stage.w || 390, h = S.stage.h || 640;
+    var kAbs = absK();
+    var r = rotDeg() * Math.PI / 180;
+    var c = Math.abs(Math.cos(r)), s = Math.abs(Math.sin(r));
+    var hx = (w * c + h * s) * kAbs / 2, hy = (w * s + h * c) * kAbs / 2;
+    return { x: Math.max(0, hx - w / 2), y: Math.max(0, hy - h / 2) };
+  }
+
   AS.view = {
-    init: init, measure: measure, rescale: rescale,
+    init: init, measure: measure, rescale: rescale, syncStageBox: syncStageBox, flushMeasure: flushMeasure,
     project: project, unproject: unproject, scale: scale, rot: rot,
-    worldTransform: worldTransformString, applyTransform: applyTransform,
+    worldTransform: photoTransformString, photoTransform: photoTransformString, applyTransform: applyTransform,
     setMode: setMode, syncMode: syncMode,
     setRoad: setRoad, renderRoad: renderRoad,
     setPhoto: setPhoto, renderPhoto: renderPhoto, hasPhoto: hasPhoto, fitPhoto: fitPhoto,
     setPhotoScale: setPhotoScale, photoScale: photoScale, K_MIN: K_MIN, K_MAX: K_MAX,
+    coverK: coverK, absK: absK, relK: relK, rotDeg: rotDeg, photoSlack: photoSlack,
     setLock: setLock, isLocked: isLocked,
     gestureStart: gestureStart, gestureMove: gestureMove, gestureEnd: gestureEnd
   };

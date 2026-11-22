@@ -163,16 +163,21 @@ window.AS = window.AS || {};
     parts.push('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + w + '" height="' + h +
       '" viewBox="0 0 ' + w + ' ' + h + '">');
     parts.push('<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="' + backdrop() + '"/>');
-    parts.push('<g transform="' + AS.view.worldTransform() + '">');
-    if (S.mode === 'photo' && S.photo.src) {
-      parts.push('<image x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid meet" href="' + S.photo.src + '"/>');
+    /* 사진 레이어 — 사진 모드에서만, 사진 변환(확대·회전·이동)을 그대로 적용 */
+    if (S.mode === 'photo' && S.photo && S.photo.src) {
+      parts.push('<g transform="' + AS.view.photoTransform() + '">');
+      parts.push('<image x="0" y="0" width="' + w + '" height="' + h +
+        '" preserveAspectRatio="xMidYMid slice" href="' + S.photo.src + '"/>');
+      parts.push('</g>');
     }
     if (S.mode === 'road' && S.roadId && S.roadId !== 'blank') {
       parts.push(AS.roads.build(S.roadId, w, h));
     }
+    /* 요소 레이어 — 화면 좌표 그대로(사진 배율·각도와 무관). 선택 크롬(#sel)·× 버튼은
+       #artLayer 밖의 화면 전용 요소라 저장 결과에 들어가지 않는다. */
     var art = document.getElementById('artLayer');
     if (art) parts.push(art.innerHTML);
-    parts.push('</g></svg>');
+    parts.push('</svg>');
     return parts.join('');
   }
 
@@ -180,6 +185,7 @@ window.AS = window.AS || {};
     sc = sc || 2;
     opt = opt || {};
     return new Promise(function (resolve, reject) {
+      if (AS.view && AS.view.syncStageBox) AS.view.syncStageBox();
       var stageR = $('#stage').getBoundingClientRect();
       var w = Math.round(stageR.width), h = Math.round(stageR.height);
       var W = w * sc, H = h * sc;
